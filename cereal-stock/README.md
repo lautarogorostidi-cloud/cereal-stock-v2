@@ -157,4 +157,4 @@ supabase/migrations/
 **Vistas:**
 - `vw_stock_actual` — Stock físico, disponible y comprometido
 - `vw_posicion_contratos` — Cumplimiento por contrato
-- `vw_resultado_comercial` — P&L por cultivo y campaña
+- `vw_resultado_comercial` — P&L por cultivo y campaña 
