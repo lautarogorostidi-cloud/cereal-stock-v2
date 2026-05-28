@@ -24,7 +24,7 @@ export default function MaestrosPage() {
 
   async function loadData() {
     setLoading(true)
-    const { data } = await supabase.from(tab).select('*').order('nombre' in ['cultivos', 'lotes', 'acopios'] ? 'nombre' : 'razon_social')
+    const { data } = await supabase.from(tab).select('*').order(tab === 'clientes' ? 'razon_social' : 'nombre')
     setData(data ?? [])
     setLoading(false)
   }
