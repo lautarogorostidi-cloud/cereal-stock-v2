@@ -124,7 +124,7 @@ export default function NuevaCartaPortePage() {
     if (form.gluten) payload.gluten = parseFloat(form.gluten)
     if (form.peso_hectolitrico) payload.peso_hectolitrico = parseFloat(form.peso_hectolitrico)
     if (form.zaranda) payload.zaranda = parseFloat(form.zaranda)
-    if (form.toneladas_destino) payload.toneladas_destino = parseFloat(form.toneladas_destino)
+    // toneladas_destino calculado desde pesos en destino
     if (form.origen_acopio_id) payload.origen_acopio_id = form.origen_acopio_id
     if (form.destino_acopio_id) payload.destino_acopio_id = form.destino_acopio_id
 
@@ -264,3 +264,4 @@ export default function NuevaCartaPortePage() {
     </div>
   )
 }
+
