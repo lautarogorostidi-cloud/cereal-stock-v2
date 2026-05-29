@@ -148,6 +148,12 @@ export default function NuevaCartaPortePage() {
         patente_acoplado: extracted.patente_acoplado || f.patente_acoplado,
         km_recorrer: extracted.km_recorrer || f.km_recorrer,
         nro_turno: extracted.nro_turno || f.nro_turno,
+        fecha_partida: extracted.fecha_partida || f.fecha_partida,
+        fecha_arribo: extracted.fecha_arribo || f.fecha_arribo,
+        fecha_descarga: extracted.fecha_descarga || f.fecha_descarga,
+        peso_bruto_destino: extracted.peso_bruto_destino || f.peso_bruto_destino,
+        peso_tara_destino: extracted.peso_tara_destino || f.peso_tara_destino,
+        humedad_destino: extracted.humedad_destino || f.humedad_destino,
       }))
 
       setPdfLoaded(true)
