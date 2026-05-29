@@ -36,6 +36,7 @@ Extraé TODOS los datos de este documento con máxima precisión. Si un campo es
 
 SECCIÓN A - INTERVINIENTES:
 - cuit_titular: CUIT en "Titular Carta de Porte:" (solo número)
+- razon_social_titular: razón social en "Titular Carta de Porte:" (solo el nombre, sin CUIT)
 - remitente_comercial_productor: nombre en "Remitente Comercial Productor:"
 - remitente_comercial: nombre en "Rte. Comercial Venta Primaria:"
 - cuit_remitente: CUIT del Rte. Comercial Venta Primaria
@@ -114,6 +115,7 @@ Devolvé ÚNICAMENTE el JSON sin markdown:
   "campania": "",
   "cultivo": "",
   "cuit_titular": "",
+  "razon_social_titular": "",
   "remitente_comercial_productor": "",
   "remitente_comercial": "",
   "cuit_remitente": "",

@@ -26,6 +26,7 @@ export default function NuevaCartaPortePage() {
     fecha_vencimiento: '',
     campania_id: '', cultivo_id: '', contrato_id: '',
     cuit_titular: '30717870944',
+    razon_social_titular: 'BARATZA S.R.L.',
     remitente_comercial_productor: '',
     remitente_comercial: '', cuit_remitente: '',
     remitente_venta_secundaria: '', cuit_rte_secundaria: '',
@@ -134,6 +135,7 @@ export default function NuevaCartaPortePage() {
         campania_id: campaniaMatch?.id || f.campania_id,
         cultivo_id: cultivoMatch?.id || f.cultivo_id,
         cuit_titular: extracted.cuit_titular || f.cuit_titular,
+        razon_social_titular: extracted.razon_social_titular || f.razon_social_titular,
         remitente_comercial_productor: extracted.remitente_comercial_productor || f.remitente_comercial_productor,
         remitente_comercial: extracted.remitente_comercial || f.remitente_comercial,
         cuit_remitente: extracted.cuit_remitente || f.cuit_remitente,
@@ -333,7 +335,7 @@ export default function NuevaCartaPortePage() {
           {seccion('B', 'Intervinientes')}
           <div className="space-y-2">
             {[
-              { label: 'Titular Carta de Porte', cuitKey: 'cuit_titular', nombreKey: null },
+              { label: 'Titular Carta de Porte', cuitKey: 'cuit_titular', nombreKey: 'razon_social_titular' },
               { label: 'Remitente Comercial Productor', cuitKey: null, nombreKey: 'remitente_comercial_productor' },
               { label: 'Rte. Comercial Venta Primaria', cuitKey: 'cuit_remitente', nombreKey: 'remitente_comercial' },
               { label: 'Rte. Comercial Venta Secundaria', cuitKey: 'cuit_rte_secundaria', nombreKey: 'remitente_venta_secundaria' },
