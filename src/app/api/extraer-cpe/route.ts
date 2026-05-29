@@ -2,13 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    
+    if (!apiKey) {
+      console.error('ANTHROPIC_API_KEY no está configurada')
+      return NextResponse.json({ ok: false, error: 'API key no configurada' }, { status: 500 })
+    }
+
     const { base64, mediaType } = await request.json()
+
+    if (!base64) {
+      return NextResponse.json({ ok: false, error: 'No se recibió el PDF' }, { status: 400 })
+    }
+
+    console.log('Llamando a Claude API...')
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY ?? '',
+        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
@@ -60,21 +73,31 @@ export async function POST(request: NextRequest) {
   "km_recorrer": "",
   "nro_turno": ""
 }
-Para fechas usá formato YYYY-MM-DD. Para campaña devolvé formato "25-26" o "24-25". Si un campo no existe dejalo "".`
+Para fechas usá formato YYYY-MM-DD. Para campaña devolvé formato "25-26". Si un campo no existe dejalo "".`
             }
           ]
         }]
       })
     })
 
+    console.log('Respuesta de Claude:', response.status)
+
+    if (!response.ok) {
+      const errBody = await response.text()
+      console.error('Error de Claude API:', errBody)
+      return NextResponse.json({ ok: false, error: `Error API: ${response.status} - ${errBody}` }, { status: 500 })
+    }
+
     const data = await response.json()
     const text = data.content?.[0]?.text ?? ''
+    console.log('Texto extraído:', text.substring(0, 200))
+    
     const clean = text.replace(/```json|```/g, '').trim()
     const extracted = JSON.parse(clean)
 
     return NextResponse.json({ ok: true, data: extracted })
-  } catch (err) {
-    console.error('Error extrayendo CPE:', err)
-    return NextResponse.json({ ok: false, error: 'No se pudo procesar el PDF' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Error general:', err.message)
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 })
   }
 }
