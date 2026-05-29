@@ -74,6 +74,9 @@ export default function NuevaCartaPortePage() {
   const pesoNeto = form.peso_bruto_kg && form.peso_tara_kg
     ? (parseFloat(form.peso_bruto_kg) - parseFloat(form.peso_tara_kg)) / 1000 : null
 
+  const pesoNetoDestino = form.peso_bruto_destino && form.peso_tara_destino
+    ? (parseFloat(form.peso_bruto_destino) - parseFloat(form.peso_tara_destino)) / 1000 : null
+
   async function handlePDFUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -377,6 +380,7 @@ export default function NuevaCartaPortePage() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Humedad destino (%)</label><input type="number" step="0.01" value={form.humedad_destino} onChange={e => set('humedad_destino', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Peso Bruto destino (kg)</label><input type="number" value={form.peso_bruto_destino} onChange={e => set('peso_bruto_destino', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Peso Tara destino (kg)</label><input type="number" value={form.peso_tara_destino} onChange={e => set('peso_tara_destino', e.target.value)} className="input-field" /></div>
+            {pesoNetoDestino !== null && <div className="col-span-2"><div className="rounded-lg bg-campo-50 border border-campo-200 px-4 py-2 text-sm"><span className="text-campo-500">Peso Neto destino calculado: </span><span className="font-bold text-campo-800">{pesoNetoDestino.toFixed(3)} tn</span></div></div>}
           </div>
         </div>
 
