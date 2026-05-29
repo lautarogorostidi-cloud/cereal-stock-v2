@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-        max_tokens: 1500,
+        max_tokens: 2000,
         messages: [{
           role: 'user',
           content: [
@@ -32,27 +32,55 @@ export async function POST(request: NextRequest) {
             {
               type: 'text',
               text: `Sos un experto en Cartas de Porte Electrónicas (CPE) argentinas del sistema ARCA/AFIP.
-Extraé TODOS los datos visibles en este documento y devolvé ÚNICAMENTE un JSON válido sin markdown.
+Extraé TODOS los datos de este documento con máxima precisión.
 
-Reglas importantes:
-- fechas en formato YYYY-MM-DD
-- Para "fecha_partida" buscá en la sección "E - DATOS DEL TRANSPORTE" el campo "Partida:" que tiene fecha y hora (ej: "27/05/2026 16:00:00") → convertí a "2026-05-27T16:00"
-- Para "campania" extraé el número como "25-26" o "24-25" (el campo dice "Campaña: 2526" → devolvé "25-26")
-- Para "cultivo" extraé el nombre del grano (ej: "Girasol", "Soja", "Trigo")
-- Para "km_recorrer" buscá "Kms. a recorrer:" 
-- Para "nro_planta" buscá "N° Planta"
-- Para "destino_direccion" buscá "Dirección:" en la sección D
-- Para "renspa" buscá "RENSPA" en la sección C
-- Para "descripcion_campo" buscá "Descripción" en la sección C
-- Para "declaracion_calidad" mirá si dice "Conforme" o "Condicional" en la sección B
-- Si un campo no existe o está vacío en el documento, dejalo ""
+REGLAS DE EXTRACCIÓN:
+- numero_cpe: el número después de "N° CPE:" (ej: "00000-00000181")
+- ctg: el número después de "CTG:" (ej: "10132532577")
+- fecha_emision: campo "Fecha:" en formato YYYY-MM-DD (ej: "27/05/2026" → "2026-05-27")
+- fecha_vencimiento: campo "Vencimiento:" en formato YYYY-MM-DD (ej: "31/05/2026" → "2026-05-31")
+- campania: campo "Campaña:" convertido (ej: "2526" → "25-26", "2425" → "24-25")
+- cultivo: nombre del grano en "Grano / Tipo:" (ej: "Girasol", "Soja", "Trigo")
+- cuit_titular: CUIT en "Titular Carta de Porte:" (solo el número, ej: "30717870944")
+- remitente_comercial: nombre en "Rte. Comercial Venta Primaria:" (ej: "FEDEA S A")
+- cuit_remitente: CUIT del remitente (ej: "30685141694")
+- destinatario: nombre en "Destinatario:" (ej: "COFCO INTERNATIONAL ARGENTINA S.A.")
+- cuit_destinatario: CUIT del destinatario (ej: "33506737449")
+- representante_entregador: nombre en "Representante entregador:" (ej: "CUCCHETTI LUCIANO NICOLAS")
+- cuit_rep_entregador: CUIT del rep entregador (ej: "20438647601")
+- flete_pagador: nombre en "Flete pagador:" (solo el nombre, sin CUIT)
+- chofer_nombre: nombre en "Chofer:" (ej: "SEQUEIRA CRISTIAN GABRIEL")
+- chofer_cuil: CUIT/CUIL del chofer (ej: "20370353701")
+- peso_bruto_kg: "Peso Bruto" en sección B (ej: "48500")
+- peso_tara_kg: "Peso Tara" en sección B (ej: "18500")
+- declaracion_calidad: si está marcado "Conforme" devolvé "conforme", si "Condicional" devolvé "condicional"
+- procedencia_localidad: "Localidad:" en sección C (ej: "TRES LOMAS")
+- procedencia_provincia: "Provincia" en sección C (ej: "BUENOS AIRES")
+- renspa: el valor después de "RENSPA" en sección C
+- descripcion_campo: "Descripción" en sección C (ej: "CAMPO MEDIA LUNA")
+- latitud: "Latitud:" en sección C (ej: "36° 36' 04''")
+- longitud: "Longitud:" en sección C (ej: "62° 47' 33''")
+- destino_localidad: "Localidad:" en sección D (ej: "JUNIN")
+- destino_provincia: "Provincia:" en sección D (ej: "BUENOS AIRES")
+- nro_planta: "N° Planta" en sección D (ej: "21584")
+- destino_direccion: "Dirección:" en sección D (ej: "RUTA 7 KM 266")
+- patente_camion: primera patente en "Dominios:" (ej: "AF456OU")
+- patente_acoplado: segunda patente en "Dominios:" (ej: "AF456OT")
+- fecha_partida: "Partida:" en sección E, formato datetime-local (ej: "27/05/2026 16:00:00" → "2026-05-27T16:00")
+- km_recorrer: "Kms. a recorrer:" en sección E (ej: "350")
+- fecha_arribo: "Fecha Arribo:" en sección G, solo la fecha YYYY-MM-DD (ej: "28/05/2026 13:55:34" → "2026-05-28")
+- fecha_descarga: "Fecha Descarga:" en sección G, solo la fecha YYYY-MM-DD (ej: "28/05/2026 19:56:21" → "2026-05-28")
+- nro_turno: "N° Turno:" en sección G (ej: "COSA2743-28052026")
+- peso_bruto_destino: "Peso Bruto (kg):" en sección G (ej: "50800")
+- peso_tara_destino: "Peso Tara (kg):" en sección G (ej: "19060")
+- humedad_destino: dejalo "" si no aparece
 
-JSON a completar:
+Devolvé ÚNICAMENTE el JSON sin markdown:
 {
   "numero_cpe": "",
   "ctg": "",
-  "fecha_emision": "YYYY-MM-DD",
-  "fecha_vencimiento": "YYYY-MM-DD",
+  "fecha_emision": "",
+  "fecha_vencimiento": "",
   "campania": "",
   "cultivo": "",
   "cuit_titular": "",
@@ -62,13 +90,12 @@ JSON a completar:
   "cuit_destinatario": "",
   "representante_entregador": "",
   "cuit_rep_entregador": "",
+  "flete_pagador": "",
   "chofer_nombre": "",
   "chofer_cuil": "",
-  "flete_pagador": "",
   "peso_bruto_kg": "",
   "peso_tara_kg": "",
   "declaracion_calidad": "",
-  "humedad_origen": "",
   "procedencia_localidad": "",
   "procedencia_provincia": "",
   "renspa": "",
@@ -83,9 +110,9 @@ JSON a completar:
   "patente_acoplado": "",
   "fecha_partida": "",
   "km_recorrer": "",
-  "nro_turno": "",
   "fecha_arribo": "",
   "fecha_descarga": "",
+  "nro_turno": "",
   "peso_bruto_destino": "",
   "peso_tara_destino": "",
   "humedad_destino": ""
@@ -98,7 +125,6 @@ JSON a completar:
 
     if (!response.ok) {
       const errBody = await response.text()
-      console.error('Error de Claude API:', errBody)
       return NextResponse.json({ ok: false, error: `Error API: ${response.status} - ${errBody}` }, { status: 500 })
     }
 
@@ -109,7 +135,6 @@ JSON a completar:
 
     return NextResponse.json({ ok: true, data: extracted })
   } catch (err: any) {
-    console.error('Error general:', err.message)
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 })
   }
 }
