@@ -331,35 +331,49 @@ export default function NuevaCartaPortePage() {
 
         <div className="card">
           {seccion('B', 'Intervinientes')}
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Titular</label><input value={form.cuit_titular} onChange={e => set('cuit_titular', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Remitente Comercial Productor</label><input value={form.remitente_comercial_productor} onChange={e => set('remitente_comercial_productor', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Rte. Comercial Venta Primaria</label><input value={form.remitente_comercial} onChange={e => set('remitente_comercial', e.target.value)} placeholder="FEDEA SA" className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Rte. Venta Primaria</label><input value={form.cuit_remitente} onChange={e => set('cuit_remitente', e.target.value)} placeholder="30685141694" className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Rte. Comercial Venta Secundaria</label><input value={form.remitente_venta_secundaria} onChange={e => set('remitente_venta_secundaria', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Rte. Venta Secundaria</label><input value={form.cuit_rte_secundaria} onChange={e => set('cuit_rte_secundaria', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Rte. Comercial Venta Secundaria 2</label><input value={form.remitente_venta_secundaria2} onChange={e => set('remitente_venta_secundaria2', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Rte. Venta Secundaria 2</label><input value={form.cuit_rte_secundaria2} onChange={e => set('cuit_rte_secundaria2', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Mercado a Término</label><input value={form.mercado_termino} onChange={e => set('mercado_termino', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Corredor Venta Primaria</label><input value={form.corredor_venta_primaria} onChange={e => set('corredor_venta_primaria', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Corredor Venta Primaria</label><input value={form.cuit_corredor_primaria} onChange={e => set('cuit_corredor_primaria', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Corredor Venta Secundaria</label><input value={form.corredor_venta_secundaria} onChange={e => set('corredor_venta_secundaria', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Corredor Venta Secundaria</label><input value={form.cuit_corredor_secundaria} onChange={e => set('cuit_corredor_secundaria', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Representante entregador</label><input value={form.representante_entregador} onChange={e => set('representante_entregador', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIL Rep. entregador</label><input value={form.cuit_rep_entregador} onChange={e => set('cuit_rep_entregador', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Representante recibidor</label><input value={form.representante_recibidor} onChange={e => set('representante_recibidor', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIL Rep. recibidor</label><input value={form.cuit_rep_recibidor} onChange={e => set('cuit_rep_recibidor', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Destinatario</label><input value={form.destinatario} onChange={e => set('destinatario', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Destinatario</label><input value={form.cuit_destinatario} onChange={e => set('cuit_destinatario', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Destino</label><input value={form.destino} onChange={e => set('destino', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Destino</label><input value={form.cuit_destino} onChange={e => set('cuit_destino', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Empresa Transportista</label><input value={form.empresa_transportista} onChange={e => set('empresa_transportista', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Transportista</label><input value={form.cuit_transportista} onChange={e => set('cuit_transportista', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Flete pagador</label><input value={form.flete_pagador} onChange={e => set('flete_pagador', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Intermediario de flete</label><input value={form.intermediario_flete} onChange={e => set('intermediario_flete', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Intermediario flete</label><input value={form.cuit_intermediario} onChange={e => set('cuit_intermediario', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Chofer — Nombre</label><input value={form.chofer_nombre} onChange={e => set('chofer_nombre', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Chofer — CUIL</label><input value={form.chofer_cuil} onChange={e => set('chofer_cuil', e.target.value)} className="input-field font-mono" /></div>
+          <div className="space-y-2">
+            {[
+              { label: 'Titular Carta de Porte', cuitKey: 'cuit_titular', nombreKey: null },
+              { label: 'Remitente Comercial Productor', cuitKey: null, nombreKey: 'remitente_comercial_productor' },
+              { label: 'Rte. Comercial Venta Primaria', cuitKey: 'cuit_remitente', nombreKey: 'remitente_comercial' },
+              { label: 'Rte. Comercial Venta Secundaria', cuitKey: 'cuit_rte_secundaria', nombreKey: 'remitente_venta_secundaria' },
+              { label: 'Rte. Comercial Venta Secundaria 2', cuitKey: 'cuit_rte_secundaria2', nombreKey: 'remitente_venta_secundaria2' },
+              { label: 'Mercado a Término', cuitKey: null, nombreKey: 'mercado_termino' },
+              { label: 'Corredor Venta Primaria', cuitKey: 'cuit_corredor_primaria', nombreKey: 'corredor_venta_primaria' },
+              { label: 'Corredor Venta Secundaria', cuitKey: 'cuit_corredor_secundaria', nombreKey: 'corredor_venta_secundaria' },
+              { label: 'Representante entregador', cuitKey: 'cuit_rep_entregador', nombreKey: 'representante_entregador' },
+              { label: 'Representante recibidor', cuitKey: 'cuit_rep_recibidor', nombreKey: 'representante_recibidor' },
+              { label: 'Destinatario', cuitKey: 'cuit_destinatario', nombreKey: 'destinatario' },
+              { label: 'Destino', cuitKey: 'cuit_destino', nombreKey: 'destino' },
+              { label: 'Empresa Transportista', cuitKey: 'cuit_transportista', nombreKey: 'empresa_transportista' },
+              { label: 'Flete pagador', cuitKey: 'cuit_titular', nombreKey: 'flete_pagador' },
+              { label: 'Intermediario de flete', cuitKey: 'cuit_intermediario', nombreKey: 'intermediario_flete' },
+              { label: 'Chofer', cuitKey: 'chofer_cuil', nombreKey: 'chofer_nombre' },
+            ].map(({ label, cuitKey, nombreKey }) => (
+              <div key={label} className="grid grid-cols-12 gap-2 items-center border-b border-campo-50 pb-2">
+                <div className="col-span-3 text-sm font-medium text-campo-700">{label}</div>
+                <div className="col-span-3">
+                  {cuitKey ? (
+                    <input
+                      value={(form as any)[cuitKey] ?? ''}
+                      onChange={e => set(cuitKey, e.target.value)}
+                      placeholder="CUIT/CUIL"
+                      className="input-field font-mono text-xs"
+                    />
+                  ) : <div />}
+                </div>
+                <div className="col-span-6">
+                  {nombreKey ? (
+                    <input
+                      value={(form as any)[nombreKey] ?? ''}
+                      onChange={e => set(nombreKey, e.target.value)}
+                      placeholder="Razón social"
+                      className="input-field text-xs"
+                    />
+                  ) : <div />}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -443,4 +457,3 @@ export default function NuevaCartaPortePage() {
     </div>
   )
 }
-
