@@ -27,6 +27,9 @@ export default function NuevaCartaPortePage() {
     campania_id: '', cultivo_id: '', contrato_id: '',
     cuit_titular: '30717870944',
     razon_social_titular: 'BARATZA S.R.L.',
+    cuit_rte_productor: '',
+    cuit_mercado_termino: '',
+    cuit_flete_pagador: '30717870944',
     remitente_comercial_productor: '',
     remitente_comercial: '', cuit_remitente: '',
     remitente_venta_secundaria: '', cuit_rte_secundaria: '',
@@ -334,45 +337,42 @@ export default function NuevaCartaPortePage() {
         <div className="card">
           {seccion('B', 'Intervinientes')}
           <div className="space-y-2">
+            {/* Cada fila: label | CUIT | Razón Social */}
             {[
-              { label: 'Titular Carta de Porte', cuitKey: 'cuit_titular', nombreKey: 'razon_social_titular' },
-              { label: 'Remitente Comercial Productor', cuitKey: null, nombreKey: 'remitente_comercial_productor' },
-              { label: 'Rte. Comercial Venta Primaria', cuitKey: 'cuit_remitente', nombreKey: 'remitente_comercial' },
-              { label: 'Rte. Comercial Venta Secundaria', cuitKey: 'cuit_rte_secundaria', nombreKey: 'remitente_venta_secundaria' },
-              { label: 'Rte. Comercial Venta Secundaria 2', cuitKey: 'cuit_rte_secundaria2', nombreKey: 'remitente_venta_secundaria2' },
-              { label: 'Mercado a Término', cuitKey: null, nombreKey: 'mercado_termino' },
-              { label: 'Corredor Venta Primaria', cuitKey: 'cuit_corredor_primaria', nombreKey: 'corredor_venta_primaria' },
-              { label: 'Corredor Venta Secundaria', cuitKey: 'cuit_corredor_secundaria', nombreKey: 'corredor_venta_secundaria' },
-              { label: 'Representante entregador', cuitKey: 'cuit_rep_entregador', nombreKey: 'representante_entregador' },
-              { label: 'Representante recibidor', cuitKey: 'cuit_rep_recibidor', nombreKey: 'representante_recibidor' },
-              { label: 'Destinatario', cuitKey: 'cuit_destinatario', nombreKey: 'destinatario' },
-              { label: 'Destino', cuitKey: 'cuit_destino', nombreKey: 'destino' },
-              { label: 'Empresa Transportista', cuitKey: 'cuit_transportista', nombreKey: 'empresa_transportista' },
-              { label: 'Flete pagador', cuitKey: 'cuit_titular', nombreKey: 'flete_pagador' },
-              { label: 'Intermediario de flete', cuitKey: 'cuit_intermediario', nombreKey: 'intermediario_flete' },
-              { label: 'Chofer', cuitKey: 'chofer_cuil', nombreKey: 'chofer_nombre' },
+              { label: 'Titular Carta de Porte',        cuitKey: 'cuit_titular',           nombreKey: 'razon_social_titular' },
+              { label: 'Remitente Comercial Productor',  cuitKey: 'cuit_rte_productor',     nombreKey: 'remitente_comercial_productor' },
+              { label: 'Rte. Comercial Venta Primaria',  cuitKey: 'cuit_remitente',         nombreKey: 'remitente_comercial' },
+              { label: 'Rte. Comercial Venta Secundaria',cuitKey: 'cuit_rte_secundaria',    nombreKey: 'remitente_venta_secundaria' },
+              { label: 'Rte. Comercial Venta Secundaria 2',cuitKey:'cuit_rte_secundaria2',  nombreKey: 'remitente_venta_secundaria2' },
+              { label: 'Mercado a Término',              cuitKey: 'cuit_mercado_termino',   nombreKey: 'mercado_termino' },
+              { label: 'Corredor Venta Primaria',        cuitKey: 'cuit_corredor_primaria', nombreKey: 'corredor_venta_primaria' },
+              { label: 'Corredor Venta Secundaria',      cuitKey: 'cuit_corredor_secundaria',nombreKey:'corredor_venta_secundaria' },
+              { label: 'Representante entregador',       cuitKey: 'cuit_rep_entregador',    nombreKey: 'representante_entregador' },
+              { label: 'Representante recibidor',        cuitKey: 'cuit_rep_recibidor',     nombreKey: 'representante_recibidor' },
+              { label: 'Destinatario',                   cuitKey: 'cuit_destinatario',      nombreKey: 'destinatario' },
+              { label: 'Destino',                        cuitKey: 'cuit_destino',           nombreKey: 'destino' },
+              { label: 'Empresa Transportista',          cuitKey: 'cuit_transportista',     nombreKey: 'empresa_transportista' },
+              { label: 'Flete pagador',                  cuitKey: 'cuit_flete_pagador',     nombreKey: 'flete_pagador' },
+              { label: 'Intermediario de flete',         cuitKey: 'cuit_intermediario',     nombreKey: 'intermediario_flete' },
+              { label: 'Chofer',                         cuitKey: 'chofer_cuil',            nombreKey: 'chofer_nombre' },
             ].map(({ label, cuitKey, nombreKey }) => (
               <div key={label} className="grid grid-cols-12 gap-2 items-center border-b border-campo-50 pb-2">
                 <div className="col-span-3 text-sm font-medium text-campo-700">{label}</div>
                 <div className="col-span-3">
-                  {cuitKey ? (
-                    <input
-                      value={(form as any)[cuitKey] ?? ''}
-                      onChange={e => set(cuitKey, e.target.value)}
-                      placeholder="CUIT/CUIL"
-                      className="input-field font-mono text-xs"
-                    />
-                  ) : <div />}
+                  <input
+                    value={(form as any)[cuitKey] ?? ''}
+                    onChange={e => set(cuitKey, e.target.value)}
+                    placeholder="CUIT/CUIL"
+                    className="input-field font-mono text-xs"
+                  />
                 </div>
                 <div className="col-span-6">
-                  {nombreKey ? (
-                    <input
-                      value={(form as any)[nombreKey] ?? ''}
-                      onChange={e => set(nombreKey, e.target.value)}
-                      placeholder="Razón social"
-                      className="input-field text-xs"
-                    />
-                  ) : <div />}
+                  <input
+                    value={(form as any)[nombreKey] ?? ''}
+                    onChange={e => set(nombreKey, e.target.value)}
+                    placeholder="Razón social"
+                    className="input-field text-xs"
+                  />
                 </div>
               </div>
             ))}
