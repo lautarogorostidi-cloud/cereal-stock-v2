@@ -26,9 +26,19 @@ export default function NuevaCartaPortePage() {
     fecha_vencimiento: '',
     campania_id: '', cultivo_id: '', contrato_id: '',
     cuit_titular: '30717870944',
+    remitente_comercial_productor: '',
     remitente_comercial: '', cuit_remitente: '',
+    remitente_venta_secundaria: '', cuit_rte_secundaria: '',
+    remitente_venta_secundaria2: '', cuit_rte_secundaria2: '',
+    mercado_termino: '',
+    corredor_venta_primaria: '', cuit_corredor_primaria: '',
+    corredor_venta_secundaria: '', cuit_corredor_secundaria: '',
     destinatario: '', cuit_destinatario: '',
+    destino: '', cuit_destino: '',
+    empresa_transportista: '', cuit_transportista: '',
     representante_entregador: '', cuit_rep_entregador: '',
+    representante_recibidor: '', cuit_rep_recibidor: '',
+    intermediario_flete: '', cuit_intermediario: '',
     chofer_nombre: '', chofer_cuil: '',
     flete_pagador: 'BARATZA SRL',
     lote_id: '',
@@ -124,8 +134,26 @@ export default function NuevaCartaPortePage() {
         campania_id: campaniaMatch?.id || f.campania_id,
         cultivo_id: cultivoMatch?.id || f.cultivo_id,
         cuit_titular: extracted.cuit_titular || f.cuit_titular,
+        remitente_comercial_productor: extracted.remitente_comercial_productor || f.remitente_comercial_productor,
         remitente_comercial: extracted.remitente_comercial || f.remitente_comercial,
         cuit_remitente: extracted.cuit_remitente || f.cuit_remitente,
+        remitente_venta_secundaria: extracted.remitente_venta_secundaria || f.remitente_venta_secundaria,
+        cuit_rte_secundaria: extracted.cuit_rte_secundaria || f.cuit_rte_secundaria,
+        remitente_venta_secundaria2: extracted.remitente_venta_secundaria2 || f.remitente_venta_secundaria2,
+        cuit_rte_secundaria2: extracted.cuit_rte_secundaria2 || f.cuit_rte_secundaria2,
+        mercado_termino: extracted.mercado_termino || f.mercado_termino,
+        corredor_venta_primaria: extracted.corredor_venta_primaria || f.corredor_venta_primaria,
+        cuit_corredor_primaria: extracted.cuit_corredor_primaria || f.cuit_corredor_primaria,
+        corredor_venta_secundaria: extracted.corredor_venta_secundaria || f.corredor_venta_secundaria,
+        cuit_corredor_secundaria: extracted.cuit_corredor_secundaria || f.cuit_corredor_secundaria,
+        destino: extracted.destino || f.destino,
+        cuit_destino: extracted.cuit_destino || f.cuit_destino,
+        empresa_transportista: extracted.empresa_transportista || f.empresa_transportista,
+        cuit_transportista: extracted.cuit_transportista || f.cuit_transportista,
+        representante_recibidor: extracted.representante_recibidor || f.representante_recibidor,
+        cuit_rep_recibidor: extracted.cuit_rep_recibidor || f.cuit_rep_recibidor,
+        intermediario_flete: extracted.intermediario_flete || f.intermediario_flete,
+        cuit_intermediario: extracted.cuit_intermediario || f.cuit_intermediario,
         destinatario: extracted.destinatario || f.destinatario,
         cuit_destinatario: extracted.cuit_destinatario || f.cuit_destinatario,
         representante_entregador: extracted.representante_entregador || f.representante_entregador,
@@ -305,13 +333,31 @@ export default function NuevaCartaPortePage() {
           {seccion('B', 'Intervinientes')}
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Titular</label><input value={form.cuit_titular} onChange={e => set('cuit_titular', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Remitente Comercial</label><input value={form.remitente_comercial} onChange={e => set('remitente_comercial', e.target.value)} placeholder="FEDEA SA" className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Remitente</label><input value={form.cuit_remitente} onChange={e => set('cuit_remitente', e.target.value)} placeholder="30685141694" className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Destinatario</label><input value={form.destinatario} onChange={e => set('destinatario', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Destinatario</label><input value={form.cuit_destinatario} onChange={e => set('cuit_destinatario', e.target.value)} className="input-field font-mono" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Remitente Comercial Productor</label><input value={form.remitente_comercial_productor} onChange={e => set('remitente_comercial_productor', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Rte. Comercial Venta Primaria</label><input value={form.remitente_comercial} onChange={e => set('remitente_comercial', e.target.value)} placeholder="FEDEA SA" className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Rte. Venta Primaria</label><input value={form.cuit_remitente} onChange={e => set('cuit_remitente', e.target.value)} placeholder="30685141694" className="input-field font-mono" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Rte. Comercial Venta Secundaria</label><input value={form.remitente_venta_secundaria} onChange={e => set('remitente_venta_secundaria', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Rte. Venta Secundaria</label><input value={form.cuit_rte_secundaria} onChange={e => set('cuit_rte_secundaria', e.target.value)} className="input-field font-mono" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Rte. Comercial Venta Secundaria 2</label><input value={form.remitente_venta_secundaria2} onChange={e => set('remitente_venta_secundaria2', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Rte. Venta Secundaria 2</label><input value={form.cuit_rte_secundaria2} onChange={e => set('cuit_rte_secundaria2', e.target.value)} className="input-field font-mono" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Mercado a Término</label><input value={form.mercado_termino} onChange={e => set('mercado_termino', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Corredor Venta Primaria</label><input value={form.corredor_venta_primaria} onChange={e => set('corredor_venta_primaria', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Corredor Venta Primaria</label><input value={form.cuit_corredor_primaria} onChange={e => set('cuit_corredor_primaria', e.target.value)} className="input-field font-mono" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Corredor Venta Secundaria</label><input value={form.corredor_venta_secundaria} onChange={e => set('corredor_venta_secundaria', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Corredor Venta Secundaria</label><input value={form.cuit_corredor_secundaria} onChange={e => set('cuit_corredor_secundaria', e.target.value)} className="input-field font-mono" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Representante entregador</label><input value={form.representante_entregador} onChange={e => set('representante_entregador', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIL Rep. entregador</label><input value={form.cuit_rep_entregador} onChange={e => set('cuit_rep_entregador', e.target.value)} className="input-field font-mono" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Representante recibidor</label><input value={form.representante_recibidor} onChange={e => set('representante_recibidor', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIL Rep. recibidor</label><input value={form.cuit_rep_recibidor} onChange={e => set('cuit_rep_recibidor', e.target.value)} className="input-field font-mono" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Destinatario</label><input value={form.destinatario} onChange={e => set('destinatario', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Destinatario</label><input value={form.cuit_destinatario} onChange={e => set('cuit_destinatario', e.target.value)} className="input-field font-mono" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Destino</label><input value={form.destino} onChange={e => set('destino', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Destino</label><input value={form.cuit_destino} onChange={e => set('cuit_destino', e.target.value)} className="input-field font-mono" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Empresa Transportista</label><input value={form.empresa_transportista} onChange={e => set('empresa_transportista', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Transportista</label><input value={form.cuit_transportista} onChange={e => set('cuit_transportista', e.target.value)} className="input-field font-mono" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Flete pagador</label><input value={form.flete_pagador} onChange={e => set('flete_pagador', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Intermediario de flete</label><input value={form.intermediario_flete} onChange={e => set('intermediario_flete', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">CUIT Intermediario flete</label><input value={form.cuit_intermediario} onChange={e => set('cuit_intermediario', e.target.value)} className="input-field font-mono" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Chofer — Nombre</label><input value={form.chofer_nombre} onChange={e => set('chofer_nombre', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Chofer — CUIL</label><input value={form.chofer_cuil} onChange={e => set('chofer_cuil', e.target.value)} className="input-field font-mono" /></div>
           </div>
@@ -397,3 +443,4 @@ export default function NuevaCartaPortePage() {
     </div>
   )
 }
+

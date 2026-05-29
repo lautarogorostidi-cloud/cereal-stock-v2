@@ -32,48 +32,78 @@ export async function POST(request: NextRequest) {
             {
               type: 'text',
               text: `Sos un experto en Cartas de Porte Electrónicas (CPE) argentinas del sistema ARCA/AFIP.
-Extraé TODOS los datos de este documento con máxima precisión.
+Extraé TODOS los datos de este documento con máxima precisión. Si un campo está vacío en el documento dejalo "".
 
-REGLAS DE EXTRACCIÓN:
-- numero_cpe: el número después de "N° CPE:" (ej: "00000-00000181")
-- ctg: el número después de "CTG:" (ej: "10132532577")
-- fecha_emision: campo "Fecha:" en formato YYYY-MM-DD (ej: "27/05/2026" → "2026-05-27")
-- fecha_vencimiento: campo "Vencimiento:" en formato YYYY-MM-DD (ej: "31/05/2026" → "2026-05-31")
-- campania: campo "Campaña:" convertido (ej: "2526" → "25-26", "2425" → "24-25")
-- cultivo: nombre del grano en "Grano / Tipo:" (ej: "Girasol", "Soja", "Trigo")
-- cuit_titular: CUIT en "Titular Carta de Porte:" (solo el número, ej: "30717870944")
-- remitente_comercial: nombre en "Rte. Comercial Venta Primaria:" (ej: "FEDEA S A")
-- cuit_remitente: CUIT del remitente (ej: "30685141694")
-- destinatario: nombre en "Destinatario:" (ej: "COFCO INTERNATIONAL ARGENTINA S.A.")
-- cuit_destinatario: CUIT del destinatario (ej: "33506737449")
-- representante_entregador: nombre en "Representante entregador:" (ej: "CUCCHETTI LUCIANO NICOLAS")
-- cuit_rep_entregador: CUIT del rep entregador (ej: "20438647601")
-- flete_pagador: nombre en "Flete pagador:" (solo el nombre, sin CUIT)
-- chofer_nombre: nombre en "Chofer:" (ej: "SEQUEIRA CRISTIAN GABRIEL")
-- chofer_cuil: CUIT/CUIL del chofer (ej: "20370353701")
-- peso_bruto_kg: "Peso Bruto" en sección B (ej: "48500")
-- peso_tara_kg: "Peso Tara" en sección B (ej: "18500")
-- declaracion_calidad: si está marcado "Conforme" devolvé "conforme", si "Condicional" devolvé "condicional"
-- procedencia_localidad: "Localidad:" en sección C (ej: "TRES LOMAS")
-- procedencia_provincia: "Provincia" en sección C (ej: "BUENOS AIRES")
-- renspa: el valor después de "RENSPA" en sección C
-- descripcion_campo: "Descripción" en sección C (ej: "CAMPO MEDIA LUNA")
-- latitud: "Latitud:" en sección C (ej: "36° 36' 04''")
-- longitud: "Longitud:" en sección C (ej: "62° 47' 33''")
-- destino_localidad: "Localidad:" en sección D (ej: "JUNIN")
-- destino_provincia: "Provincia:" en sección D (ej: "BUENOS AIRES")
-- nro_planta: "N° Planta" en sección D (ej: "21584")
-- destino_direccion: "Dirección:" en sección D (ej: "RUTA 7 KM 266")
-- patente_camion: primera patente en "Dominios:" (ej: "AF456OU")
-- patente_acoplado: segunda patente en "Dominios:" (ej: "AF456OT")
-- fecha_partida: "Partida:" en sección E, formato datetime-local (ej: "27/05/2026 16:00:00" → "2026-05-27T16:00")
-- km_recorrer: "Kms. a recorrer:" en sección E (ej: "350")
-- fecha_arribo: "Fecha Arribo:" en sección G, solo la fecha YYYY-MM-DD (ej: "28/05/2026 13:55:34" → "2026-05-28")
-- fecha_descarga: "Fecha Descarga:" en sección G, solo la fecha YYYY-MM-DD (ej: "28/05/2026 19:56:21" → "2026-05-28")
-- nro_turno: "N° Turno:" en sección G (ej: "COSA2743-28052026")
-- peso_bruto_destino: "Peso Bruto (kg):" en sección G (ej: "50800")
-- peso_tara_destino: "Peso Tara (kg):" en sección G (ej: "19060")
-- humedad_destino: dejalo "" si no aparece
+SECCIÓN A - INTERVINIENTES:
+- cuit_titular: CUIT en "Titular Carta de Porte:" (solo número)
+- remitente_comercial_productor: nombre en "Remitente Comercial Productor:"
+- remitente_comercial: nombre en "Rte. Comercial Venta Primaria:"
+- cuit_remitente: CUIT del Rte. Comercial Venta Primaria
+- remitente_venta_secundaria: nombre en "Rte. Comercial Venta secundaria:"
+- cuit_rte_secundaria: CUIT del Rte. Venta Secundaria
+- remitente_venta_secundaria2: nombre en "Rte. Comercial Venta secundaria 2:"
+- cuit_rte_secundaria2: CUIT del Rte. Venta Secundaria 2
+- mercado_termino: nombre en "Mercado a Término:"
+- corredor_venta_primaria: nombre en "Corredor Venta Primaria:"
+- cuit_corredor_primaria: CUIT del Corredor Venta Primaria
+- corredor_venta_secundaria: nombre en "Corredor Venta Secundaria:"
+- cuit_corredor_secundaria: CUIT del Corredor Venta Secundaria
+- representante_entregador: nombre en "Representante entregador:"
+- cuit_rep_entregador: CUIL del Representante entregador
+- representante_recibidor: nombre en "Representante recibidor:"
+- cuit_rep_recibidor: CUIL del Representante recibidor
+- destinatario: nombre en "Destinatario:"
+- cuit_destinatario: CUIT del Destinatario
+- destino: nombre en "Destino:"
+- cuit_destino: CUIT del Destino
+- empresa_transportista: nombre en "Empresa Transportista:"
+- cuit_transportista: CUIT de la Empresa Transportista
+- flete_pagador: nombre en "Flete pagador:" (sin CUIT)
+- intermediario_flete: nombre en "Intermediario de flete:"
+- cuit_intermediario: CUIT del Intermediario de flete
+- chofer_nombre: nombre en "Chofer:" (solo nombre)
+- chofer_cuil: CUIL del Chofer
+
+SECCIÓN B - GRANO:
+- cultivo: nombre del grano en "Grano / Tipo:"
+- campania: campo "Campaña:" convertido (ej: "2526" a "25-26")
+- peso_bruto_kg: "Peso Bruto" en sección B
+- peso_tara_kg: "Peso Tara" en sección B
+- declaracion_calidad: "conforme" o "condicional"
+
+SECCIÓN C - PROCEDENCIA:
+- procedencia_localidad: "Localidad:" en sección C
+- procedencia_provincia: "Provincia" en sección C
+- renspa: valor después de "RENSPA"
+- descripcion_campo: "Descripción" en sección C
+- latitud: "Latitud:" en sección C
+- longitud: "Longitud:" en sección C
+
+SECCIÓN D - DESTINO:
+- destino_localidad: "Localidad:" en sección D
+- destino_provincia: "Provincia:" en sección D
+- nro_planta: "N° Planta" en sección D
+- destino_direccion: "Dirección:" en sección D
+
+IDENTIFICACIÓN CPE:
+- numero_cpe: número después de "N° CPE:"
+- ctg: número después de "CTG:"
+- fecha_emision: "Fecha:" en formato YYYY-MM-DD
+- fecha_vencimiento: "Vencimiento:" en formato YYYY-MM-DD
+
+SECCIÓN E - TRANSPORTE:
+- patente_camion: primera patente en "Dominios:"
+- patente_acoplado: segunda patente en "Dominios:"
+- fecha_partida: "Partida:" en formato "YYYY-MM-DDTHH:MM"
+- km_recorrer: "Kms. a recorrer:"
+
+SECCIÓN G - DESCARGA:
+- fecha_arribo: "Fecha Arribo:" solo fecha YYYY-MM-DD
+- fecha_descarga: "Fecha Descarga:" solo fecha YYYY-MM-DD
+- nro_turno: "N° Turno:"
+- peso_bruto_destino: "Peso Bruto (kg):" en sección G
+- peso_tara_destino: "Peso Tara (kg):" en sección G
+- humedad_destino: humedad en destino si aparece
 
 Devolvé ÚNICAMENTE el JSON sin markdown:
 {
@@ -84,18 +114,37 @@ Devolvé ÚNICAMENTE el JSON sin markdown:
   "campania": "",
   "cultivo": "",
   "cuit_titular": "",
+  "remitente_comercial_productor": "",
   "remitente_comercial": "",
   "cuit_remitente": "",
-  "destinatario": "",
-  "cuit_destinatario": "",
+  "remitente_venta_secundaria": "",
+  "cuit_rte_secundaria": "",
+  "remitente_venta_secundaria2": "",
+  "cuit_rte_secundaria2": "",
+  "mercado_termino": "",
+  "corredor_venta_primaria": "",
+  "cuit_corredor_primaria": "",
+  "corredor_venta_secundaria": "",
+  "cuit_corredor_secundaria": "",
   "representante_entregador": "",
   "cuit_rep_entregador": "",
+  "representante_recibidor": "",
+  "cuit_rep_recibidor": "",
+  "destinatario": "",
+  "cuit_destinatario": "",
+  "destino": "",
+  "cuit_destino": "",
+  "empresa_transportista": "",
+  "cuit_transportista": "",
   "flete_pagador": "",
+  "intermediario_flete": "",
+  "cuit_intermediario": "",
   "chofer_nombre": "",
   "chofer_cuil": "",
   "peso_bruto_kg": "",
   "peso_tara_kg": "",
   "declaracion_calidad": "",
+  "humedad_origen": "",
   "procedencia_localidad": "",
   "procedencia_provincia": "",
   "renspa": "",
