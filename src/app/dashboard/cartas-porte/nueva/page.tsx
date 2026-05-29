@@ -90,69 +90,15 @@ export default function NuevaCartaPortePage() {
       })
 
       // Llamar a Claude API para extraer datos
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/extraer-cpe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: [
-              {
-                type: 'document',
-                source: { type: 'base64', media_type: 'application/pdf', data: base64 }
-              },
-              {
-                type: 'text',
-                text: `Extraé los datos de esta Carta de Porte Electrónica (CPE) argentina y devolvé ÚNICAMENTE un JSON válido sin markdown ni texto adicional con estos campos exactos:
-{
-  "numero_cpe": "",
-  "ctg": "",
-  "fecha_emision": "YYYY-MM-DD",
-  "fecha_vencimiento": "YYYY-MM-DD",
-  "campania": "",
-  "cultivo": "",
-  "cuit_titular": "",
-  "remitente_comercial": "",
-  "cuit_remitente": "",
-  "destinatario": "",
-  "cuit_destinatario": "",
-  "representante_entregador": "",
-  "cuit_rep_entregador": "",
-  "chofer_nombre": "",
-  "chofer_cuil": "",
-  "flete_pagador": "",
-  "peso_bruto_kg": "",
-  "peso_tara_kg": "",
-  "declaracion_calidad": "conforme o condicional",
-  "humedad_origen": "",
-  "procedencia_localidad": "",
-  "procedencia_provincia": "",
-  "renspa": "",
-  "descripcion_campo": "",
-  "latitud": "",
-  "longitud": "",
-  "destino_localidad": "",
-  "destino_provincia": "",
-  "nro_planta": "",
-  "destino_direccion": "",
-  "patente_camion": "",
-  "patente_acoplado": "",
-  "km_recorrer": "",
-  "nro_turno": ""
-}
-Para fecha_emision y fecha_vencimiento usá formato YYYY-MM-DD. Para campaña devolvé el formato "25-26" o "24-25". Si un campo no existe en el documento dejalo vacío "".`
-              }
-            ]
-          }]
-        })
+        body: JSON.stringify({ base64, mediaType: 'application/pdf' })
       })
 
-      const data = await response.json()
-      const text = data.content?.[0]?.text ?? ''
-      const clean = text.replace(/```json|```/g, '').trim()
-      const extracted = JSON.parse(clean)
+      const result = await response.json()
+      if (!result.ok) throw new Error(result.error)
+      const extracted = result.data
 
       // Mapear cultivo a cultivo_id
       const cultivoMatch = cultivos.find((c: any) =>
