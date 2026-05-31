@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import EditarContratoForm from './EditarContratoForm'
+import EditarContratoForm from './editarContratoForm'
 
 export default function EditarContratoPage() {
   return (
