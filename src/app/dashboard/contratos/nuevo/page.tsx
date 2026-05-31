@@ -114,8 +114,6 @@ export default function NuevoContratoPage() {
     // Construir observaciones con campos extra del contrato
     const extras = []
     if (form.nro_operacion_corredor) extras.push(`N° Op. Corredor: ${form.nro_operacion_corredor}`)
-    if (form.corredor) payload.corredor_nombre = form.corredor
-    if (form.cuit_corredor) payload.corredor_cuit = form.cuit_corredor
     if (form.cuit_comprador) extras.push(`CUIT Comprador: ${form.cuit_comprador}`)
     if (form.sucursal) extras.push(`Sucursal: ${form.sucursal}`)
     if (form.calidad_producto) extras.push(`Calidad: ${form.calidad_producto}`)
@@ -149,6 +147,8 @@ export default function NuevoContratoPage() {
     if (form.fecha_inicio_entrega) payload.fecha_inicio_entrega = form.fecha_inicio_entrega
     if (form.fecha_fin_entrega) payload.fecha_fin_entrega = form.fecha_fin_entrega
     if (form.condiciones) payload.condiciones = form.condiciones
+    if (form.corredor) payload.corredor_nombre = form.corredor
+    if (form.cuit_corredor) payload.corredor_cuit = form.cuit_corredor
     if (form.comision_corredor) payload.comision_corredor = parseFloat(form.comision_corredor)
     if (form.comision_corredor_monto) payload.comision_corredor_monto = parseFloat(form.comision_corredor_monto)
 
