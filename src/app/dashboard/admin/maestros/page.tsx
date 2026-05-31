@@ -149,8 +149,12 @@ export default function MaestrosPage() {
                 <div>
                   <label className="block text-sm font-medium text-campo-700 mb-1">Tipo</label>
                   <select value={clienteForm.tipo} onChange={e => setClienteForm(f => ({ ...f, tipo: e.target.value }))} className="input-field">
+                    <option value="productor">Productor</option>
+                    <option value="comprador">Comprador</option>
+                    <option value="corredor">Corredor</option>
                     <option value="exportador">Exportador</option>
                     <option value="acopio">Acopio</option>
+                    <option value="proveedor">Proveedor</option>
                     <option value="industria">Industria</option>
                     <option value="particular">Particular</option>
                   </select>
