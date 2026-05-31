@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -115,7 +114,8 @@ export default function NuevoContratoPage() {
     // Construir observaciones con campos extra del contrato
     const extras = []
     if (form.nro_operacion_corredor) extras.push(`N° Op. Corredor: ${form.nro_operacion_corredor}`)
-    if (form.corredor) extras.push(`Corredor: ${form.corredor} (${form.cuit_corredor})`)
+    if (form.corredor) payload.corredor_nombre = form.corredor
+    if (form.cuit_corredor) payload.corredor_cuit = form.cuit_corredor
     if (form.cuit_comprador) extras.push(`CUIT Comprador: ${form.cuit_comprador}`)
     if (form.sucursal) extras.push(`Sucursal: ${form.sucursal}`)
     if (form.calidad_producto) extras.push(`Calidad: ${form.calidad_producto}`)
