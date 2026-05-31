@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 const estadoColor: Record<string, string> = {
   borrador: 'badge-gris',
@@ -14,6 +15,7 @@ const estadoColor: Record<string, string> = {
 
 export default function ContratosPage() {
   const supabase = createClient()
+  const router = useRouter()
   const [contratos, setContratos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [cerrando, setCerrando] = useState<string | null>(null)
@@ -83,7 +85,8 @@ export default function ContratosPage() {
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Nº</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
-                <th className="text-left px-4 py-3 font-semibold text-campo-700">Cliente</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Comprador</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Corredor</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Pactado</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Entregado</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Pendiente</th>
@@ -91,7 +94,8 @@ export default function ContratosPage() {
                 <th className="text-center px-4 py-3 font-semibold text-campo-700">%</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Comisión</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Estado</th>
-                <th className="text-center px-4 py-3 font-semibold text-campo-700">Acción</th>
+                <th className="text-center px-4 py-3 font-semibold text-campo-700">Editar</th>
+                <th className="text-center px-4 py-3 font-semibold text-campo-700">Estado</th>
               </tr>
             </thead>
             <tbody>
@@ -104,6 +108,7 @@ export default function ContratosPage() {
                   <td className="px-4 py-3 text-campo-600">{new Date(c.fecha_contrato).toLocaleDateString('es-AR')}</td>
                   <td className="px-4 py-3 font-medium text-campo-900">{c.cultivo}</td>
                   <td className="px-4 py-3 text-campo-700">{c.cliente}</td>
+                  <td className="px-4 py-3 text-campo-500 text-xs">{c.corredor ?? '—'}</td>
                   <td className="px-4 py-3 text-right">{Number(c.toneladas_pactadas).toLocaleString('es-AR', { minimumFractionDigits: 1 })}</td>
                   <td className="px-4 py-3 text-right text-campo-600">{Number(c.toneladas_entregadas).toLocaleString('es-AR', { minimumFractionDigits: 1 })}</td>
                   <td className="px-4 py-3 text-right text-tierra-600 font-medium">{Number(c.toneladas_pendientes).toLocaleString('es-AR', { minimumFractionDigits: 1 })}</td>
@@ -124,6 +129,15 @@ export default function ContratosPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={estadoColor[c.estado] ?? 'badge-gris'}>{c.estado}</span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => router.push(`/dashboard/contratos/editar?numero=${c.numero}`)}
+                      className="text-xs text-campo-500 hover:text-campo-700 underline mr-2"
+                    >
+                      Editar
+                    </button>
                   </td>
                   <td className="px-4 py-3 text-center">
                     {c.estado === 'cumplido' ? (
