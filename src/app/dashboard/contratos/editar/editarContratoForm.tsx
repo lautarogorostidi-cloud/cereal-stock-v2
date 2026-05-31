@@ -121,8 +121,8 @@ export default function EditarContratoForm() {
       moneda_id: form.moneda_id,
       toneladas_pactadas: parseFloat(form.toneladas_pactadas),
       estado: form.estado,
-      corredor_nombre: form.corredor || null,
-      corredor_cuit: form.cuit_corredor || null,
+      corredor_nombre: form.corredor ? form.corredor : null,
+      corredor_cuit: form.cuit_corredor ? form.cuit_corredor : null,
     }
 
     if (form.nro_operacion_corredor) payload.nro_operacion_corredor = form.nro_operacion_corredor
