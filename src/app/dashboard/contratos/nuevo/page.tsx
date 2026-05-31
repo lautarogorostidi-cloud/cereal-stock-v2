@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -78,6 +79,25 @@ export default function NuevoContratoPage() {
       setAcopios(a.data ?? [])
       setMonedas(m.data ?? [])
       if (c.data?.length) setForm(f => ({ ...f, campania_id: c.data!.find((x:any) => x.activa)?.id ?? c.data![0].id }))
+      if (m.data?.length) setForm(f => ({ ...f, moneda_id: m.data!.find((x:any) => x.codigo === 'USD')?.id ?? m.data![0].id }))
+      
+      // Auto-número: busca el más alto y suma 1
+      const { data: ultimoContrato } = await supabase
+        .from('contratos')
+        .select('numero')
+        .order('created_at', { ascending: false })
+        .limit(10)
+      if (ultimoContrato && ultimoContrato.length > 0) {
+        const numeros = ultimoContrato
+          .map((c: any) => parseInt(c.numero))
+          .filter((n: number) => !isNaN(n))
+        if (numeros.length > 0) {
+          const siguiente = Math.max(...numeros) + 1
+          setForm(f => ({ ...f, numero: String(siguiente) }))
+        }
+      } else {
+        setForm(f => ({ ...f, numero: '1' }))
+      }
       if (m.data?.length) setForm(f => ({ ...f, moneda_id: m.data!.find((x:any) => x.codigo === 'USD')?.id ?? m.data![0].id }))
     }
     load()
