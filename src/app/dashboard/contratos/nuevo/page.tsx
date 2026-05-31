@@ -53,6 +53,8 @@ export default function NuevoContratoPage() {
     pago_vendedor_dias: '',
     documentacion: '',
     nro_sio_granos: '',
+    comision_corredor: '',
+    comision_corredor_monto: '',
     cupos: '',
     cupos_asignados: '',
     condiciones: '',
@@ -127,6 +129,8 @@ export default function NuevoContratoPage() {
     if (form.fecha_inicio_entrega) payload.fecha_inicio_entrega = form.fecha_inicio_entrega
     if (form.fecha_fin_entrega) payload.fecha_fin_entrega = form.fecha_fin_entrega
     if (form.condiciones) payload.condiciones = form.condiciones
+    if (form.comision_corredor) payload.comision_corredor = parseFloat(form.comision_corredor)
+    if (form.comision_corredor_monto) payload.comision_corredor_monto = parseFloat(form.comision_corredor_monto)
 
     const { error } = await supabase.from('contratos').insert(payload)
     if (error) { setError(error.message); setLoading(false) }
@@ -225,6 +229,14 @@ export default function NuevoContratoPage() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">N° SIO-GRANOS</label><input value={form.nro_sio_granos} onChange={e => set('nro_sio_granos', e.target.value)} className="input-field font-mono" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Cupos</label><input value={form.cupos} onChange={e => set('cupos', e.target.value)} className="input-field" /></div>
             <div className="col-span-2"><label className="block text-sm font-medium text-campo-700 mb-1">Cupos asignados</label><input value={form.cupos_asignados} onChange={e => set('cupos_asignados', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Comisión corredor (%)</label>
+              <input type="number" step="0.01" min="0" max="100" value={form.comision_corredor} onChange={e => set('comision_corredor', e.target.value)} placeholder="1.50" className="input-field" />
+              <p className="text-xs text-campo-400 mt-1">Ej: 1.5 para 1.5%</p>
+            </div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Comisión monto fijo</label>
+              <input type="number" step="0.01" min="0" value={form.comision_corredor_monto} onChange={e => set('comision_corredor_monto', e.target.value)} placeholder="0.00" className="input-field" />
+              <p className="text-xs text-campo-400 mt-1">Si es monto fijo en vez de %</p>
+            </div>
           </div>
         </div>
 
