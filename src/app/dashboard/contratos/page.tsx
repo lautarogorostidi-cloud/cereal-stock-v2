@@ -33,34 +33,18 @@ export default function ContratosPage() {
 
   async function cerrarContrato(numero: string) {
     setCerrando(numero)
-    const { data: contrato } = await supabase
-      .from('contratos')
-      .select('id')
-      .eq('numero', numero)
-      .single()
-    
+    const { data: contrato } = await supabase.from('contratos').select('id').eq('numero', numero).single()
     if (contrato) {
-      await supabase
-        .from('contratos')
-        .update({ estado: 'cumplido' })
-        .eq('id', contrato.id)
+      await supabase.from('contratos').update({ estado: 'cumplido' }).eq('id', contrato.id)
       await load()
     }
     setCerrando(null)
   }
 
   async function reabrirContrato(numero: string) {
-    const { data: contrato } = await supabase
-      .from('contratos')
-      .select('id')
-      .eq('numero', numero)
-      .single()
-    
+    const { data: contrato } = await supabase.from('contratos').select('id').eq('numero', numero).single()
     if (contrato) {
-      await supabase
-        .from('contratos')
-        .update({ estado: 'activo' })
-        .eq('id', contrato.id)
+      await supabase.from('contratos').update({ estado: 'activo' }).eq('id', contrato.id)
       await load()
     }
   }
@@ -72,9 +56,7 @@ export default function ContratosPage() {
           <h1 className="text-2xl font-bold text-campo-900">Contratos</h1>
           <p className="text-campo-500 text-sm mt-0.5">Posición por contrato de venta</p>
         </div>
-        <Link href="/dashboard/contratos/nuevo" className="btn-primary">
-          + Nuevo contrato
-        </Link>
+        <Link href="/dashboard/contratos/nuevo" className="btn-primary">+ Nuevo contrato</Link>
       </div>
 
       <div className="card overflow-hidden p-0">
@@ -91,16 +73,15 @@ export default function ContratosPage() {
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Entregado</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Pendiente</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Precio</th>
-                <th className="text-center px-4 py-3 font-semibold text-campo-700">%</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Comisión</th>
+                <th className="text-center px-4 py-3 font-semibold text-campo-700">%</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Estado</th>
-                <th className="text-center px-4 py-3 font-semibold text-campo-700">Editar</th>
-                <th className="text-center px-4 py-3 font-semibold text-campo-700">Estado</th>
+                <th className="text-center px-4 py-3 font-semibold text-campo-700">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-campo-400">Cargando...</td></tr>
+                <tr><td colSpan={13} className="px-4 py-8 text-center text-campo-400">Cargando...</td></tr>
               )}
               {!loading && contratos.map((c, i) => (
                 <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
@@ -121,8 +102,7 @@ export default function ContratosPage() {
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center gap-1.5 justify-center">
                       <div className="w-16 bg-campo-100 rounded-full h-2">
-                        <div className="h-full bg-campo-500 rounded-full transition-all"
-                          style={{ width: `${Math.min(c.pct_cumplimiento, 100)}%` }} />
+                        <div className="h-full bg-campo-500 rounded-full transition-all" style={{ width: `${Math.min(c.pct_cumplimiento, 100)}%` }} />
                       </div>
                       <span className="text-xs text-campo-500 w-10">{c.pct_cumplimiento}%</span>
                     </div>
@@ -131,40 +111,29 @@ export default function ContratosPage() {
                     <span className={estadoColor[c.estado] ?? 'badge-gris'}>{c.estado}</span>
                   </td>
                   <td className="px-4 py-3 text-center">
-                  <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => router.push(`/dashboard/contratos/editar?numero=${c.numero}`)}
-                      className="text-xs text-campo-500 hover:text-campo-700 underline mr-2"
-                    >
-                      Editar
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {c.estado === 'cumplido' ? (
+                    <div className="flex items-center gap-2 justify-center">
                       <button
-                        onClick={() => reabrirContrato(c.numero)}
+                        onClick={() => router.push(`/dashboard/contratos/editar?numero=${c.numero}`)}
                         className="text-xs text-campo-500 hover:text-campo-700 underline"
                       >
-                        Reabrir
+                        Editar
                       </button>
-                    ) : c.estado !== 'cancelado' ? (
-                      <button
-                        onClick={() => cerrarContrato(c.numero)}
-                        disabled={cerrando === c.numero}
-                        className="text-xs bg-campo-600 hover:bg-campo-700 text-white px-3 py-1 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        {cerrando === c.numero ? '...' : 'Cerrar'}
-                      </button>
-                    ) : null}
+                      {c.estado === 'cumplido' ? (
+                        <button onClick={() => reabrirContrato(c.numero)} className="text-xs text-campo-500 hover:text-campo-700 underline">
+                          Reabrir
+                        </button>
+                      ) : c.estado !== 'cancelado' ? (
+                        <button onClick={() => cerrarContrato(c.numero)} disabled={cerrando === c.numero}
+                          className="text-xs bg-campo-600 hover:bg-campo-700 text-white px-3 py-1 rounded-lg transition-colors disabled:opacity-50">
+                          {cerrando === c.numero ? '...' : 'Cerrar'}
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
               {!loading && contratos.length === 0 && (
-                <tr>
-                  <td colSpan={11} className="px-4 py-10 text-center text-campo-400">
-                    No hay contratos registrados
-                  </td>
-                </tr>
+                <tr><td colSpan={13} className="px-4 py-10 text-center text-campo-400">No hay contratos registrados</td></tr>
               )}
             </tbody>
           </table>
