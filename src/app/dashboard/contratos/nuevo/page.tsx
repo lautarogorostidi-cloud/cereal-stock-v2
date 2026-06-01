@@ -146,6 +146,7 @@ export default function NuevoContratoPage() {
     if (form.acopio_id) payload.acopio_id = form.acopio_id
     if (form.fecha_inicio_entrega) payload.fecha_inicio_entrega = form.fecha_inicio_entrega
     if (form.fecha_fin_entrega) payload.fecha_fin_entrega = form.fecha_fin_entrega
+    if (form.campania_grano_id) payload.campania_grano_id = form.campania_grano_id
     if (form.condiciones) payload.condiciones = form.condiciones
     if (form.corredor) payload.corredor_nombre = form.corredor
     if (form.cuit_corredor) payload.corredor_cuit = form.cuit_corredor
@@ -186,6 +187,7 @@ export default function NuevoContratoPage() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Fecha *</label><input type="date" value={form.fecha_contrato} onChange={e => set('fecha_contrato', e.target.value)} required className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Campaña *</label><select value={form.campania_id} onChange={e => set('campania_id', e.target.value)} required className="input-field"><option value="">Seleccioná</option>{campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Cultivo *</label><select value={form.cultivo_id} onChange={e => set('cultivo_id', e.target.value)} required className="input-field"><option value="">Seleccioná</option>{cultivos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Campaña del grano</label><select value={form.campania_grano_id} onChange={e => set('campania_grano_id', e.target.value)} className="input-field"><option value="">Misma que el contrato</option>{campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}{c.activa ? ' ✓' : ''}</option>)}</select><p className="text-xs text-campo-400 mt-1">Si el grano es de una cosecha anterior</p></div>
           </div>
         </div>
 

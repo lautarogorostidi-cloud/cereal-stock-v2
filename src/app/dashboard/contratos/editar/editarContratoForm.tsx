@@ -66,6 +66,7 @@ export default function EditarContratoForm() {
             fecha_contrato: contrato.fecha_contrato ?? '',
             campania_id: contrato.campania_id ?? '',
             cultivo_id: contrato.cultivo_id ?? '',
+            campania_grano_id: contrato.campania_grano_id ?? '',
             cliente_id: contrato.cliente_id ?? '',
             cuit_comprador: contrato.cuit_comprador ?? '',
             corredor: contrato.corredor_nombre ?? '',
@@ -122,6 +123,7 @@ export default function EditarContratoForm() {
       toneladas_pactadas: parseFloat(form.toneladas_pactadas),
       estado: form.estado,
       corredor_nombre: form.corredor ? form.corredor : null,
+      campania_grano_id: form.campania_grano_id || null,
       corredor_cuit: form.cuit_corredor ? form.cuit_corredor : null,
     }
 
@@ -190,6 +192,7 @@ export default function EditarContratoForm() {
                 {cultivos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Campaña del grano</label><select value={form.campania_grano_id} onChange={e => set('campania_grano_id', e.target.value)} className="input-field"><option value="">Misma que el contrato</option>{campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}{c.activa ? ' ✓' : ''}</option>)}</select><p className="text-xs text-campo-400 mt-1">Si el grano es de una cosecha anterior</p></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Estado</label>
               <select value={form.estado} onChange={e => set('estado', e.target.value)} className="input-field">
                 <option value="borrador">Borrador</option>
