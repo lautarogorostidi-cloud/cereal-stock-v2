@@ -24,7 +24,7 @@ export default function EditarContratoForm() {
 
   const [form, setForm] = useState({
     numero: '', nro_operacion_corredor: '',
-    fecha_contrato: '', campania_id: '', cultivo_id: '', cliente_id: '',
+    fecha_contrato: '', campania_id: '', campania_grano_id: '', cultivo_id: '', cliente_id: '',
     cuit_comprador: '', corredor: '', cuit_corredor: '', sucursal: '',
     calidad_producto: '', condicion_entrega: '', pct_condicion: '',
     tipo_precio: 'disponible', precio_unitario: '', moneda_id: '',
