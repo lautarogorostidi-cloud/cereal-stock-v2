@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import CartasPorteClient from './cartasporteclient'
+import CartasPorteClient from './CartasPorteClient'
 
 export default async function CartasPortePage() {
   const supabase = createClient()
