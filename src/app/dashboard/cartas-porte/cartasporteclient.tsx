@@ -43,7 +43,6 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
       setSaving(false)
       return
     }
-    // Actualizar lista local
     const contratoNumero = contratos.find(c => c.id === contratoSel)?.numero ?? null
     setLista(prev => prev.map(c =>
       c.id === editando.id
@@ -108,7 +107,6 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
         </div>
       </div>
 
-      {/* Modal */}
       {editando && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
@@ -123,7 +121,7 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
             >
               <option value="">Sin contrato</option>
               {contratos.map(c => (
-                <option key={c.id} value={c.id}>#{c.numero} — {c.cultivos?.nombre} — {c.campanias?.nombre}</option>
+                <option key={c.id} value={c.id}>#{c.numero}</option>
               ))}
             </select>
 

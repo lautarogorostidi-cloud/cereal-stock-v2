@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import CartasPorteClient from './CartasPorteClient'
+import CartasPorteClient from './cartasporteclient'
 
 export default async function CartasPortePage() {
   const supabase = createClient()
@@ -12,7 +12,7 @@ export default async function CartasPortePage() {
       .limit(100),
     supabase
       .from('contratos')
-      .select(`id, numero, campanias(nombre), cultivos(nombre)`)
+      .select(`id, numero, cultivo_id, campania_id`)
       .in('estado', ['activo', 'parcial'])
       .order('numero', { ascending: false }),
   ])
