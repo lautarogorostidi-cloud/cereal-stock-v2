@@ -24,6 +24,7 @@ export default function NuevoContratoPage() {
     nro_operacion_corredor: '',
     fecha_contrato: new Date().toISOString().split('T')[0],
     campania_id: '',
+    campania_grano_id: '',
     cultivo_id: '',
     // Partes
     cliente_id: '',
