@@ -6,16 +6,18 @@ export default async function EntregasPage() {
 
   const { data: movimientos } = await supabase
     .from('movimientos_cereal')
-    .select(`
-      *,
-      campanias(nombre),
-      cultivos(nombre),
-      contratos(numero, clientes(razon_social)),
-      cartas_porte(ctg)
-    `)
+    .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id), cartas_porte(ctg)`)
     .eq('tipo', 'entrega')
     .order('fecha', { ascending: false })
     .limit(200)
+
+  // Obtener clientes por separado
+  const clienteIds = [...new Set((movimientos ?? []).map(e => (e.contratos as any)?.cliente_id).filter(Boolean))]
+  const { data: clientes } = clienteIds.length > 0
+    ? await supabase.from('clientes').select('id, razon_social').in('id', clienteIds)
+    : { data: [] }
+
+  const clienteMap = Object.fromEntries((clientes ?? []).map(c => [c.id, c.razon_social]))
 
   const entregas = (movimientos ?? []).map(e => ({
     id: e.id,
@@ -25,7 +27,7 @@ export default async function EntregasPage() {
     cultivo: (e.cultivos as any)?.nombre ?? null,
     campania: (e.campanias as any)?.nombre ?? null,
     toneladas: e.toneladas,
-    cliente: (e.contratos as any)?.clientes?.razon_social ?? null,
+    cliente: clienteMap[(e.contratos as any)?.cliente_id] ?? null,
     contrato: (e.contratos as any)?.numero ?? null,
     descripcion_movimiento: e.descripcion_movimiento,
   }))
