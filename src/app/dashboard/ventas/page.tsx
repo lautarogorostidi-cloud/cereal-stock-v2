@@ -6,7 +6,7 @@ export default async function VentasPage() {
 
   const { data: movimientos } = await supabase
     .from('movimientos_cereal')
-    .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id, precio_unitario, precio_plus), cartas_porte(ctg, bonificacion_calidad)`)
+    .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id, precio_unitario, precio_plus, comision_corredor), cartas_porte(ctg, bonificacion_calidad)`)
     .eq('tipo', 'entrega')
     .order('fecha', { ascending: false })
     .limit(200)
@@ -21,9 +21,13 @@ export default async function VentasPage() {
   const ventas = (movimientos ?? []).map(e => {
     const precio_base = Number((e.contratos as any)?.precio_unitario ?? 0)
     const precio_plus = Number((e.contratos as any)?.precio_plus ?? 0)
+    const comision_pct = Number((e.contratos as any)?.comision_corredor ?? 0)
     const bonificacion = Number((e.cartas_porte as any)?.bonificacion_calidad ?? 0)
     const toneladas = Number(e.toneladas ?? 0)
-    const total_tn = precio_base + (precio_base * bonificacion / 100) + precio_plus
+
+    const bonif_usd = precio_base * bonificacion / 100
+    const comision_tn = (precio_base + precio_plus) * comision_pct / 100
+    const total_tn = precio_base + bonif_usd + precio_plus - comision_tn
     const total_usd = total_tn * toneladas
 
     return {
@@ -39,6 +43,8 @@ export default async function VentasPage() {
       precio_base: precio_base || null,
       precio_plus: precio_plus || null,
       bonificacion: bonificacion || null,
+      bonif_usd: bonif_usd || null,
+      comision_tn: comision_tn || null,
       total_tn: total_tn || null,
       total_usd: total_usd || null,
     }

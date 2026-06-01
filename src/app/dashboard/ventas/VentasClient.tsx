@@ -49,7 +49,8 @@ export default function VentasClient({ ventas }: { ventas: any[] }) {
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Contrato</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Precio Base</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Plus</th>
-                <th className="text-right px-4 py-3 font-semibold text-campo-700">Bonif. %</th>
+                <th className="text-right px-4 py-3 font-semibold text-campo-700">Bonificación</th>
+                <th className="text-right px-4 py-3 font-semibold text-campo-700">Comisión/tn</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Total/tn</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Total USD</th>
               </tr>
@@ -64,15 +65,20 @@ export default function VentasClient({ ventas }: { ventas: any[] }) {
                   <td className="px-4 py-3 text-right font-medium text-campo-800">{fmt(Number(e.toneladas ?? 0))}</td>
                   <td className="px-4 py-3 text-campo-700">{e.cliente ?? '—'}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{e.contrato ?? '—'}</td>
-                  <td className="px-4 py-3 text-right text-campo-700">{e.precio_base ? `USD ${fmtUSD(Number(e.precio_base))}` : '—'}</td>
-                  <td className="px-4 py-3 text-right text-campo-700">{e.precio_plus ? `USD ${fmtUSD(Number(e.precio_plus))}` : '—'}</td>
-                  <td className="px-4 py-3 text-right text-campo-700">{e.bonificacion ? `${Number(e.bonificacion).toFixed(2)}%` : '—'}</td>
-                  <td className="px-4 py-3 text-right font-medium text-campo-800">{e.total_tn ? `USD ${fmtUSD(Number(e.total_tn))}` : '—'}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-campo-900">{e.total_usd ? `USD ${fmtUSD(Number(e.total_usd))}` : '—'}</td>
+                  <td className="px-4 py-3 text-right text-campo-700">{e.precio_base ? `USD ${fmtUSD(e.precio_base)}` : '—'}</td>
+                  <td className="px-4 py-3 text-right text-campo-700">{e.precio_plus ? `USD ${fmtUSD(e.precio_plus)}` : '—'}</td>
+                  <td className="px-4 py-3 text-right text-campo-700">
+                    {e.bonificacion
+                      ? <span>USD {fmtUSD(e.bonif_usd)} <span className="text-xs text-campo-400">({e.bonificacion}%)</span></span>
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right text-red-500">{e.comision_tn ? `USD ${fmtUSD(e.comision_tn)}` : '—'}</td>
+                  <td className="px-4 py-3 text-right font-medium text-campo-800">{e.total_tn ? `USD ${fmtUSD(e.total_tn)}` : '—'}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-campo-900">{e.total_usd ? `USD ${fmtUSD(e.total_usd)}` : '—'}</td>
                 </tr>
               ))}
               {filtradas.length === 0 && (
-                <tr><td colSpan={12} className="px-4 py-10 text-center text-campo-400">Sin ventas registradas</td></tr>
+                <tr><td colSpan={13} className="px-4 py-10 text-center text-campo-400">Sin ventas registradas</td></tr>
               )}
             </tbody>
             {filtradas.length > 0 && (
@@ -80,8 +86,7 @@ export default function VentasClient({ ventas }: { ventas: any[] }) {
                 <tr className="border-t-2 border-campo-200 bg-campo-50">
                   <td colSpan={4} className="px-4 py-3 font-bold text-campo-800 text-sm">Total</td>
                   <td className="px-4 py-3 text-right font-bold text-campo-800">{fmt(totalTon)}</td>
-                  <td colSpan={5} />
-                  <td className="px-4 py-3 text-right font-bold text-xs text-campo-600">Total USD</td>
+                  <td colSpan={7} />
                   <td className="px-4 py-3 text-right font-bold text-campo-900">USD {fmtUSD(totalUSD)}</td>
                 </tr>
               </tfoot>
