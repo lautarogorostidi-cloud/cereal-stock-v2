@@ -1,3 +1,5 @@
+
+
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -98,7 +100,6 @@ export default function NuevaCartaPortePage() {
     setError(null)
 
     try {
-      // Convertir PDF a base64
       const base64 = await new Promise<string>((res, rej) => {
         const reader = new FileReader()
         reader.onload = () => res((reader.result as string).split(',')[1])
@@ -106,7 +107,6 @@ export default function NuevaCartaPortePage() {
         reader.readAsDataURL(file)
       })
 
-      // Llamar a Claude API para extraer datos
       const response = await fetch('/api/extraer-cpe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,13 +117,11 @@ export default function NuevaCartaPortePage() {
       if (!result.ok) throw new Error(result.error)
       const extracted = result.data
 
-      // Mapear cultivo a cultivo_id
       const cultivoMatch = cultivos.find((c: any) =>
         c.nombre.toLowerCase().includes(extracted.cultivo?.toLowerCase() ?? '') ||
         extracted.cultivo?.toLowerCase().includes(c.nombre.toLowerCase())
       )
 
-      // Mapear campaña a campania_id
       const campaniaMatch = campanias.find((c: any) =>
         c.nombre.replace('/', '-').includes(extracted.campania ?? '') ||
         extracted.campania?.includes(c.nombre.replace('/', '-'))
@@ -255,6 +253,8 @@ export default function NuevaCartaPortePage() {
     if (form.zaranda) payload.zaranda = parseFloat(form.zaranda)
     if (form.origen_acopio_id) payload.origen_acopio_id = form.origen_acopio_id
     if (form.destino_acopio_id) payload.destino_acopio_id = form.destino_acopio_id
+    if (pesoNetoDestino !== null) payload.toneladas_netas = pesoNetoDestino
+    if (form.peso_bruto_destino) payload.toneladas_destino = parseFloat(form.peso_bruto_destino) / 1000
 
     const { error } = await supabase.from('cartas_porte').insert(payload)
     if (error) { setError(error.message); setLoading(false) }
@@ -298,22 +298,10 @@ export default function NuevaCartaPortePage() {
               <div className="text-4xl">📄</div>
               <p className="text-campo-700 font-medium">Subí el PDF de la CPE para completar automáticamente</p>
               <p className="text-campo-400 text-sm">Claude va a extraer todos los datos del documento</p>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="btn-primary mt-2"
-              >
-                Seleccionar PDF
-              </button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-primary mt-2">Seleccionar PDF</button>
             </div>
           )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf"
-            onChange={handlePDFUpload}
-            className="hidden"
-          />
+          <input ref={fileInputRef} type="file" accept="application/pdf" onChange={handlePDFUpload} className="hidden" />
         </div>
       </div>
 
@@ -337,43 +325,28 @@ export default function NuevaCartaPortePage() {
         <div className="card">
           {seccion('B', 'Intervinientes')}
           <div className="space-y-2">
-            {/* Cada fila: label | CUIT | Razón Social */}
             {[
-              { label: 'Titular Carta de Porte',        cuitKey: 'cuit_titular',           nombreKey: 'razon_social_titular' },
-              { label: 'Remitente Comercial Productor',  cuitKey: 'cuit_rte_productor',     nombreKey: 'remitente_comercial_productor' },
-              { label: 'Rte. Comercial Venta Primaria',  cuitKey: 'cuit_remitente',         nombreKey: 'remitente_comercial' },
-              { label: 'Rte. Comercial Venta Secundaria',cuitKey: 'cuit_rte_secundaria',    nombreKey: 'remitente_venta_secundaria' },
-              { label: 'Rte. Comercial Venta Secundaria 2',cuitKey:'cuit_rte_secundaria2',  nombreKey: 'remitente_venta_secundaria2' },
-              { label: 'Mercado a Término',              cuitKey: 'cuit_mercado_termino',   nombreKey: 'mercado_termino' },
-              { label: 'Corredor Venta Primaria',        cuitKey: 'cuit_corredor_primaria', nombreKey: 'corredor_venta_primaria' },
-              { label: 'Corredor Venta Secundaria',      cuitKey: 'cuit_corredor_secundaria',nombreKey:'corredor_venta_secundaria' },
-              { label: 'Representante entregador',       cuitKey: 'cuit_rep_entregador',    nombreKey: 'representante_entregador' },
-              { label: 'Representante recibidor',        cuitKey: 'cuit_rep_recibidor',     nombreKey: 'representante_recibidor' },
-              { label: 'Destinatario',                   cuitKey: 'cuit_destinatario',      nombreKey: 'destinatario' },
-              { label: 'Destino',                        cuitKey: 'cuit_destino',           nombreKey: 'destino' },
-              { label: 'Empresa Transportista',          cuitKey: 'cuit_transportista',     nombreKey: 'empresa_transportista' },
-              { label: 'Flete pagador',                  cuitKey: 'cuit_flete_pagador',     nombreKey: 'flete_pagador' },
-              { label: 'Intermediario de flete',         cuitKey: 'cuit_intermediario',     nombreKey: 'intermediario_flete' },
-              { label: 'Chofer',                         cuitKey: 'chofer_cuil',            nombreKey: 'chofer_nombre' },
+              { label: 'Titular Carta de Porte',          cuitKey: 'cuit_titular',            nombreKey: 'razon_social_titular' },
+              { label: 'Remitente Comercial Productor',    cuitKey: 'cuit_rte_productor',      nombreKey: 'remitente_comercial_productor' },
+              { label: 'Rte. Comercial Venta Primaria',    cuitKey: 'cuit_remitente',          nombreKey: 'remitente_comercial' },
+              { label: 'Rte. Comercial Venta Secundaria',  cuitKey: 'cuit_rte_secundaria',     nombreKey: 'remitente_venta_secundaria' },
+              { label: 'Rte. Comercial Venta Secundaria 2',cuitKey: 'cuit_rte_secundaria2',    nombreKey: 'remitente_venta_secundaria2' },
+              { label: 'Mercado a Término',                cuitKey: 'cuit_mercado_termino',    nombreKey: 'mercado_termino' },
+              { label: 'Corredor Venta Primaria',          cuitKey: 'cuit_corredor_primaria',  nombreKey: 'corredor_venta_primaria' },
+              { label: 'Corredor Venta Secundaria',        cuitKey: 'cuit_corredor_secundaria',nombreKey: 'corredor_venta_secundaria' },
+              { label: 'Representante entregador',         cuitKey: 'cuit_rep_entregador',     nombreKey: 'representante_entregador' },
+              { label: 'Representante recibidor',          cuitKey: 'cuit_rep_recibidor',      nombreKey: 'representante_recibidor' },
+              { label: 'Destinatario',                     cuitKey: 'cuit_destinatario',       nombreKey: 'destinatario' },
+              { label: 'Destino',                          cuitKey: 'cuit_destino',            nombreKey: 'destino' },
+              { label: 'Empresa Transportista',            cuitKey: 'cuit_transportista',      nombreKey: 'empresa_transportista' },
+              { label: 'Flete pagador',                    cuitKey: 'cuit_flete_pagador',      nombreKey: 'flete_pagador' },
+              { label: 'Intermediario de flete',           cuitKey: 'cuit_intermediario',      nombreKey: 'intermediario_flete' },
+              { label: 'Chofer',                           cuitKey: 'chofer_cuil',             nombreKey: 'chofer_nombre' },
             ].map(({ label, cuitKey, nombreKey }) => (
               <div key={label} className="grid grid-cols-12 gap-2 items-center border-b border-campo-50 pb-2">
                 <div className="col-span-3 text-sm font-medium text-campo-700">{label}</div>
-                <div className="col-span-3">
-                  <input
-                    value={(form as any)[cuitKey] ?? ''}
-                    onChange={e => set(cuitKey, e.target.value)}
-                    placeholder="CUIT/CUIL"
-                    className="input-field font-mono text-xs"
-                  />
-                </div>
-                <div className="col-span-6">
-                  <input
-                    value={(form as any)[nombreKey] ?? ''}
-                    onChange={e => set(nombreKey, e.target.value)}
-                    placeholder="Razón social"
-                    className="input-field text-xs"
-                  />
-                </div>
+                <div className="col-span-3"><input value={(form as any)[cuitKey] ?? ''} onChange={e => set(cuitKey, e.target.value)} placeholder="CUIT/CUIL" className="input-field font-mono text-xs" /></div>
+                <div className="col-span-6"><input value={(form as any)[nombreKey] ?? ''} onChange={e => set(nombreKey, e.target.value)} placeholder="Razón social" className="input-field text-xs" /></div>
               </div>
             ))}
           </div>
@@ -459,4 +432,3 @@ export default function NuevaCartaPortePage() {
     </div>
   )
 }
-
