@@ -12,10 +12,15 @@ export default async function StockPage() {
     const comp = (comprometido ?? []).find(
       c => c.campania === r.campania && c.cultivo === r.cultivo
     )
+    const ton_comprometidas_real = Number(comp?.ton_comprometidas ?? 0)
+    const stock_fisico = Number(r.ton_ingresadas ?? 0) - Number(r.ton_salidas ?? 0)
+    const margen = stock_fisico - ton_comprometidas_real
+
     return {
       ...r,
-      ton_comprometidas_real: Number(comp?.ton_comprometidas ?? 0),
-      stock_fisico: Number(r.ton_ingresadas ?? 0) - Number(r.ton_salidas ?? 0),
+      ton_comprometidas_real,
+      stock_fisico,
+      margen,
     }
   })
 
@@ -40,10 +45,9 @@ export default async function StockPage() {
               <tr className="border-b border-campo-100 bg-campo-50">
                 <th className="text-left px-5 py-3 font-semibold text-campo-700">Campaña</th>
                 <th className="text-left px-5 py-3 font-semibold text-campo-700">Cultivo</th>
-                <th className="text-right px-5 py-3 font-semibold text-campo-700">Cosechado</th>
+                <th className="text-right px-5 py-3 font-semibold text-campo-700">Ingreso</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Stock Físico</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Entregado</th>
-                <th className="text-right px-5 py-3 font-semibold text-campo-700">Vendido</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Comprometido</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Margen para Vender</th>
               </tr>
@@ -59,18 +63,17 @@ export default async function StockPage() {
                   <td className="px-5 py-3 text-right text-campo-700">{fmt(r.ton_cosechadas)}</td>
                   <td className="px-5 py-3 text-right text-campo-700">{fmt(r.stock_fisico)}</td>
                   <td className="px-5 py-3 text-right text-campo-700">{fmt(r.ton_entregadas)}</td>
-                  <td className="px-5 py-3 text-right text-tierra-700">{fmt(r.ton_vendidas)}</td>
                   <td className="px-5 py-3 text-right text-orange-600 font-medium">{fmt(r.ton_comprometidas_real)}</td>
                   <td className="px-5 py-3 text-right">
-                    <span className={`font-semibold ${Number(r.stock_disponible ?? 0) >= 0 ? 'text-campo-600' : 'text-red-500'}`}>
-                      {fmt(r.stock_disponible)}
+                    <span className={`font-semibold ${r.margen >= 0 ? 'text-campo-600' : 'text-red-500'}`}>
+                      {fmt(r.margen)}
                     </span>
                   </td>
                 </tr>
               ))}
               {stockConComprometido.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-campo-400">
+                  <td colSpan={7} className="px-5 py-10 text-center text-campo-400">
                     No hay stock registrado todavía
                   </td>
                 </tr>
