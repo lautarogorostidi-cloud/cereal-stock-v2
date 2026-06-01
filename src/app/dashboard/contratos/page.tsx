@@ -71,7 +71,7 @@ export default function ContratosPage() {
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Corredor</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Pactado</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Entregado</th>
-                <th className="text-right px-4 py-3 font-semibold text-campo-700">Pendiente</th>
+                <th className="text-right px-4 py-3 font-semibold text-campo-700">Pendiente / Sobrante</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Precio</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Comisión</th>
                 <th className="text-center px-4 py-3 font-semibold text-campo-700">%</th>
@@ -92,7 +92,11 @@ export default function ContratosPage() {
                   <td className="px-4 py-3 text-campo-500 text-xs">{c.corredor ?? '—'}</td>
                   <td className="px-4 py-3 text-right">{Number(c.toneladas_pactadas).toLocaleString('es-AR', { minimumFractionDigits: 1 })}</td>
                   <td className="px-4 py-3 text-right text-campo-600">{Number(c.toneladas_entregadas).toLocaleString('es-AR', { minimumFractionDigits: 1 })}</td>
-                  <td className="px-4 py-3 text-right text-tierra-600 font-medium">{Number(c.toneladas_pendientes).toLocaleString('es-AR', { minimumFractionDigits: 1 })}</td>
+                  <td className={`px-4 py-3 text-right font-medium ${Number(c.toneladas_pendientes) < 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {Number(c.toneladas_pendientes) < 0
+                      ? `+${Math.abs(Number(c.toneladas_pendientes)).toLocaleString('es-AR', { minimumFractionDigits: 1 })}`
+                      : Number(c.toneladas_pendientes).toLocaleString('es-AR', { minimumFractionDigits: 1 })}
+                  </td>
                   <td className="px-4 py-3 text-right text-campo-700">
                     {c.precio_unitario ? `${c.moneda} ${Number(c.precio_unitario).toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '—'}
                   </td>
