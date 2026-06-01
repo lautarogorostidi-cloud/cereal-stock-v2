@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 interface StockRow {
   campania: string
@@ -77,7 +77,6 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
     })
   }, [comprometidoData, campaniasSel, cultivosSel])
 
-  // Agrupar por cultivo sumando campañas
   const datosAgrupados = useMemo(() => {
     const map: Record<string, { disponible: number; entregado: number; comprometido: number; cosechado: number }> = {}
     datosFiltrados.forEach(r => {
@@ -118,13 +117,10 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
   const fmt = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 0 })
   const fmtD = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-  // Gauge SVG component
   const Gauge = ({ pct, color, size = 80 }: { pct: number; color: string; size?: number }) => {
     const r = size * 0.38
     const cx = size / 2
     const cy = size / 2
-    const circumference = Math.PI * r
-    const filled = Math.min(Math.max(pct, 0), 100) / 100 * circumference
     const startAngle = Math.PI
     const x1 = cx + r * Math.cos(startAngle)
     const y1 = cy + r * Math.sin(startAngle)
@@ -138,10 +134,8 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
 
     return (
       <svg width={size} height={size * 0.6} viewBox={`0 0 ${size} ${size * 0.6}`}>
-        {/* Track */}
         <path d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`}
           fill="none" stroke="#e5e7eb" strokeWidth={size * 0.08} strokeLinecap="round" />
-        {/* Fill */}
         {pct > 0 && (
           <path d={`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x3} ${y3}`}
             fill="none" stroke={color} strokeWidth={size * 0.08} strokeLinecap="round" />
@@ -157,7 +151,6 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
 
   return (
     <div className="space-y-5">
-      {/* Header + filtros */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-campo-900">Dashboard Comercial</h1>
@@ -165,7 +158,6 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
         </div>
       </div>
 
-      {/* Filtros */}
       <div className="card p-4 flex flex-wrap gap-6">
         <div>
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-2">Campaña</div>
@@ -207,12 +199,11 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
         </div>
       </div>
 
-      {/* KPIs con gauge */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Stock Disponible', value: kpis.disponible, sub: 'Entradas - Salidas', pct: pctDisponible, color: COLORS.disponible, bg: 'bg-campo-50', border: 'border-campo-200', textColor: 'text-campo-800', subColor: 'text-campo-500' },
+          { label: 'Stock Campo y Acopio', value: kpis.disponible, sub: 'Entradas - Salidas', pct: pctDisponible, color: COLORS.disponible, bg: 'bg-campo-50', border: 'border-campo-200', textColor: 'text-campo-800', subColor: 'text-campo-500' },
           { label: 'Entregado', value: kpis.entregado, sub: 'Descargas de CPE', pct: pctVendido, color: COLORS.entregado, bg: 'bg-blue-50', border: 'border-blue-200', textColor: 'text-blue-800', subColor: 'text-blue-500' },
-          { label: 'Comprometido', value: kpis.comprometido, sub: 'Contratos pendientes', pct: pctComprometido, color: COLORS.comprometido, bg: 'bg-orange-50', border: 'border-orange-200', textColor: 'text-orange-800', subColor: 'text-orange-500' },
+          { label: 'Pendiente de Entrega', value: kpis.comprometido, sub: 'Contratos pendientes', pct: pctComprometido, color: COLORS.comprometido, bg: 'bg-orange-50', border: 'border-orange-200', textColor: 'text-orange-800', subColor: 'text-orange-500' },
           { label: 'Margen para vender', value: kpis.margen, sub: 'Disponible - Comprometido', pct: pctMargen, color: kpis.margen >= 0 ? COLORS.margen : '#ef4444', bg: kpis.margen >= 0 ? 'bg-green-50' : 'bg-red-50', border: kpis.margen >= 0 ? 'border-green-200' : 'border-red-200', textColor: kpis.margen >= 0 ? 'text-green-800' : 'text-red-700', subColor: kpis.margen >= 0 ? 'text-green-500' : 'text-red-500' },
         ].map(kpi => (
           <div key={kpi.label} className={`rounded-2xl border ${kpi.bg} ${kpi.border} p-5 flex flex-col items-center text-center`}>
@@ -225,10 +216,7 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
         ))}
       </div>
 
-      {/* Gráfico + Tabla */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-
-        {/* Gráfico barras horizontales */}
         <div className="card lg:col-span-3">
           <h2 className="font-semibold text-campo-800 mb-5 text-base">Posición por Cultivo</h2>
           {chartData.length > 0 ? (
@@ -248,11 +236,7 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
                   formatter={(v: number, name: string) => [`${v.toLocaleString('es-AR')} tn`, name]}
                   cursor={{ fill: 'rgba(0,0,0,0.04)' }}
                 />
-                <Legend
-                  wrapperStyle={{ fontSize: 13, paddingTop: 16, fontWeight: 500 }}
-                  iconType="circle"
-                  iconSize={10}
-                />
+                <Legend wrapperStyle={{ fontSize: 13, paddingTop: 16, fontWeight: 500 }} iconType="circle" iconSize={10} />
                 <Bar dataKey="Disponible" fill={COLORS.disponible} radius={[0,4,4,0]} />
                 <Bar dataKey="Entregado" fill={COLORS.entregado} radius={[0,4,4,0]} />
                 <Bar dataKey="Comprometido" fill={COLORS.comprometido} radius={[0,4,4,0]} />
@@ -265,7 +249,6 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
           )}
         </div>
 
-        {/* Tabla detalle */}
         <div className="card overflow-hidden p-0 lg:col-span-2">
           <div className="px-5 py-4 border-b border-campo-100 bg-campo-50">
             <h2 className="font-semibold text-campo-800 text-base">Detalle por Cultivo</h2>
@@ -277,7 +260,7 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
                   <th className="text-left px-4 py-3 text-xs font-semibold text-campo-600">Cultivo</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold" style={{ color: COLORS.disponible }}>Dispon.</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold" style={{ color: COLORS.entregado }}>Entreg.</th>
-                  <th className="text-right px-3 py-3 text-xs font-semibold" style={{ color: COLORS.comprometido }}>Comprom.</th>
+                  <th className="text-right px-3 py-3 text-xs font-semibold" style={{ color: COLORS.comprometido }}>Pend.</th>
                   <th className="text-right px-3 py-3 text-xs font-semibold text-campo-600">Margen</th>
                 </tr>
               </thead>
