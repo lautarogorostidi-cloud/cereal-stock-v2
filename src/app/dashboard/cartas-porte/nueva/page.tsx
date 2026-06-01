@@ -1,5 +1,3 @@
-
-
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -207,7 +205,6 @@ export default function NuevaCartaPortePage() {
 
     const toneladas = pesoNeto ?? (form.toneladas_origen ? parseFloat(form.toneladas_origen) : 0)
     const extras = []
-    if (form.ctg) extras.push(`CTG: ${form.ctg}`)
     if (form.fecha_vencimiento) extras.push(`Venc: ${form.fecha_vencimiento}`)
     if (form.renspa) extras.push(`RENSPA: ${form.renspa}`)
     if (form.cuit_titular) extras.push(`CUIT Titular: ${form.cuit_titular}`)
@@ -242,6 +239,7 @@ export default function NuevaCartaPortePage() {
       usuario_id: session.user.id,
       observaciones: [form.observaciones, ...extras].filter(Boolean).join(' | '),
     }
+    if (form.ctg) payload.ctg = form.ctg
     if (form.lote_id) payload.lote_id = form.lote_id
     if (form.contrato_id) payload.contrato_id = form.contrato_id
     if (form.fecha_partida) payload.fecha_partida = form.fecha_partida.includes('T') ? form.fecha_partida.split('T')[0] : form.fecha_partida
@@ -278,7 +276,6 @@ export default function NuevaCartaPortePage() {
         </div>
       </div>
 
-      {/* Subir PDF */}
       <div className={`card border-2 border-dashed ${pdfLoaded ? 'border-campo-400 bg-campo-50' : 'border-campo-200'}`}>
         <div className="text-center py-4">
           {extracting ? (
