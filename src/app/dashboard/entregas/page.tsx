@@ -12,7 +12,7 @@ export default async function EntregasPage() {
     .limit(200)
 
   // Obtener clientes por separado
-  const clienteIds = [...new Set((movimientos ?? []).map(e => (e.contratos as any)?.cliente_id).filter(Boolean))]
+  const clienteIds = Array.from(new Set((movimientos ?? []).map(e => (e.contratos as any)?.cliente_id).filter(Boolean)))
   const { data: clientes } = clienteIds.length > 0
     ? await supabase.from('clientes').select('id, razon_social').in('id', clienteIds)
     : { data: [] }
