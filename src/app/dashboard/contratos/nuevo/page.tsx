@@ -19,36 +19,31 @@ export default function NuevoContratoPage() {
   const [success, setSuccess] = useState(false)
 
   const [form, setForm] = useState({
-    // Identificación
     numero: '',
     nro_operacion_corredor: '',
     fecha_contrato: new Date().toISOString().split('T')[0],
     campania_id: '',
     campania_grano_id: '',
     cultivo_id: '',
-    // Partes
     cliente_id: '',
     cuit_comprador: '',
     corredor: '',
     cuit_corredor: '',
     sucursal: '',
-    // Producto
     calidad_producto: '',
     condicion_entrega: 'puesto sobre camión',
     pct_condicion: '',
-    // Precio
     tipo_precio: 'disponible',
     precio_unitario: '',
+    precio_plus: '',
     moneda_id: '',
     toneladas_pactadas: '',
-    // Entrega
     puerto_id: '',
     acopio_id: '',
     procedencia: 'TRES LOMAS - Buenos Aires',
     destino: '',
     fecha_inicio_entrega: '',
     fecha_fin_entrega: '',
-    // Comercial
     plazo_fijacion: '',
     fecha_cobro_corredor: '',
     pago_vendedor_dias: '',
@@ -80,8 +75,7 @@ export default function NuevoContratoPage() {
       setMonedas(m.data ?? [])
       if (c.data?.length) setForm(f => ({ ...f, campania_id: c.data!.find((x:any) => x.activa)?.id ?? c.data![0].id }))
       if (m.data?.length) setForm(f => ({ ...f, moneda_id: m.data!.find((x:any) => x.codigo === 'USD')?.id ?? m.data![0].id }))
-      
-      // Auto-número: busca el más alto y suma 1
+
       const { data: ultimoContrato } = await supabase
         .from('contratos')
         .select('numero')
@@ -98,7 +92,6 @@ export default function NuevoContratoPage() {
       } else {
         setForm(f => ({ ...f, numero: '1' }))
       }
-      if (m.data?.length) setForm(f => ({ ...f, moneda_id: m.data!.find((x:any) => x.codigo === 'USD')?.id ?? m.data![0].id }))
     }
     load()
   }, [])
@@ -112,7 +105,6 @@ export default function NuevoContratoPage() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { setError('Sin sesión'); setLoading(false); return }
 
-    // Construir observaciones con campos extra del contrato
     const extras = []
     if (form.nro_operacion_corredor) extras.push(`N° Op. Corredor: ${form.nro_operacion_corredor}`)
     if (form.cuit_comprador) extras.push(`CUIT Comprador: ${form.cuit_comprador}`)
@@ -143,6 +135,7 @@ export default function NuevoContratoPage() {
       observaciones: [form.observaciones, ...extras].filter(Boolean).join(' | '),
     }
     if (form.precio_unitario) payload.precio_unitario = parseFloat(form.precio_unitario)
+    if (form.precio_plus) payload.precio_plus = parseFloat(form.precio_plus)
     if (form.puerto_id) payload.puerto_id = form.puerto_id
     if (form.acopio_id) payload.acopio_id = form.acopio_id
     if (form.fecha_inicio_entrega) payload.fecha_inicio_entrega = form.fecha_inicio_entrega
@@ -224,7 +217,15 @@ export default function NuevoContratoPage() {
               </div>
             </div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Moneda</label><select value={form.moneda_id} onChange={e => set('moneda_id', e.target.value)} className="input-field">{monedas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Precio por tonelada</label><input type="number" step="0.01" value={form.precio_unitario} onChange={e => set('precio_unitario', e.target.value)} placeholder="320" className="input-field" /></div>
+            <div>
+              <label className="block text-sm font-medium text-campo-700 mb-1">Precio por tonelada</label>
+              <div className="flex gap-2 items-center">
+                <input type="number" step="0.01" value={form.precio_unitario} onChange={e => set('precio_unitario', e.target.value)} placeholder="400" className="input-field" />
+                <span className="text-campo-500 font-bold text-lg">+</span>
+                <input type="number" step="0.01" value={form.precio_plus} onChange={e => set('precio_plus', e.target.value)} placeholder="30" className="input-field w-28" />
+                <span className="text-campo-400 text-sm whitespace-nowrap">plus</span>
+              </div>
+            </div>
           </div>
         </div>
 

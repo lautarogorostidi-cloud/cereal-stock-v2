@@ -27,7 +27,7 @@ export default function EditarContratoForm() {
     fecha_contrato: '', campania_id: '', campania_grano_id: '', cultivo_id: '', cliente_id: '',
     cuit_comprador: '', corredor: '', cuit_corredor: '', sucursal: '',
     calidad_producto: '', condicion_entrega: '', pct_condicion: '',
-    tipo_precio: 'disponible', precio_unitario: '', moneda_id: '',
+    tipo_precio: 'disponible', precio_unitario: '', precio_plus: '', moneda_id: '',
     toneladas_pactadas: '', puerto_id: '', acopio_id: '',
     procedencia: '', destino: '',
     fecha_inicio_entrega: '', fecha_fin_entrega: '',
@@ -77,6 +77,7 @@ export default function EditarContratoForm() {
             pct_condicion: contrato.pct_condicion ?? '',
             tipo_precio: contrato.tipo_precio ?? 'disponible',
             precio_unitario: contrato.precio_unitario ?? '',
+            precio_plus: contrato.precio_plus ?? '',
             moneda_id: contrato.moneda_id ?? '',
             toneladas_pactadas: contrato.toneladas_pactadas ?? '',
             puerto_id: contrato.puerto_id ?? '',
@@ -134,6 +135,7 @@ export default function EditarContratoForm() {
     if (form.condicion_entrega) payload.condicion_entrega = form.condicion_entrega
     if (form.pct_condicion) payload.pct_condicion = form.pct_condicion
     if (form.precio_unitario) payload.precio_unitario = parseFloat(form.precio_unitario)
+    if (form.precio_plus) payload.precio_plus = parseFloat(form.precio_plus)
     if (form.puerto_id) payload.puerto_id = form.puerto_id
     if (form.acopio_id) payload.acopio_id = form.acopio_id
     if (form.procedencia) payload.procedencia = form.procedencia
@@ -239,7 +241,15 @@ export default function EditarContratoForm() {
                 {monedas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
               </select>
             </div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Precio por tonelada</label><input type="number" step="0.01" value={form.precio_unitario} onChange={e => set('precio_unitario', e.target.value)} className="input-field" /></div>
+            <div>
+              <label className="block text-sm font-medium text-campo-700 mb-1">Precio por tonelada</label>
+              <div className="flex gap-2 items-center">
+                <input type="number" step="0.01" value={form.precio_unitario} onChange={e => set('precio_unitario', e.target.value)} className="input-field" />
+                <span className="text-campo-500 font-bold text-lg">+</span>
+                <input type="number" step="0.01" value={form.precio_plus} onChange={e => set('precio_plus', e.target.value)} placeholder="0" className="input-field w-28" />
+                <span className="text-campo-400 text-sm whitespace-nowrap">plus</span>
+              </div>
+            </div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Toneladas pactadas *</label><input type="number" step="0.001" value={form.toneladas_pactadas} onChange={e => set('toneladas_pactadas', e.target.value)} required className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Calidad</label><input value={form.calidad_producto} onChange={e => set('calidad_producto', e.target.value)} placeholder="Condición Cámara" className="input-field" /></div>
             <div>
