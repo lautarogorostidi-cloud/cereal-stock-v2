@@ -232,7 +232,7 @@ export default function EditarCartaPorteForm() {
     if (form.destino_acopio_id) payload.destino_acopio_id = form.destino_acopio_id
     if (pesoNetoDestino !== null) payload.toneladas_netas = pesoNetoDestino
     if (form.peso_bruto_destino) payload.toneladas_destino = parseFloat(form.peso_bruto_destino) / 1000
-    if (form.bonificacion_calidad) payload.bonificacion_calidad = parseFloat(form.bonificacion_calidad)
+    payload.bonificacion_calidad = form.bonificacion_calidad ? parseFloat(form.bonificacion_calidad) : null
 
     const { error } = await supabase.from('cartas_porte').update(payload).eq('id', cartaId)
     if (error) { setError(error.message); setSaving(false) }

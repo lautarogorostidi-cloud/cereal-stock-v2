@@ -71,6 +71,7 @@ SECCIÓN B - GRANO:
 - peso_bruto_kg: "Peso Bruto" en sección B
 - peso_tara_kg: "Peso Tara" en sección B
 - declaracion_calidad: "conforme" o "condicional"
+- humedad_origen: humedad en origen si aparece
 
 SECCIÓN C - PROCEDENCIA:
 - procedencia_localidad: "Localidad:" en sección C
@@ -95,7 +96,7 @@ IDENTIFICACIÓN CPE:
 SECCIÓN E - TRANSPORTE:
 - patente_camion: primera patente en "Dominios:"
 - patente_acoplado: segunda patente en "Dominios:"
-- fecha_partida: "Partida:" en formato "YYYY-MM-DDTHH:MM"
+- fecha_partida: "Partida:" convertí DD/MM/YYYY HH:MM:SS a formato "YYYY-MM-DDTHH:MM" (ej: "15/05/2026 10:00:00" → "2026-05-15T10:00")
 - km_recorrer: "Kms. a recorrer:"
 
 SECCIÓN G - DESCARGA:
