@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 const estadoColor: Record<string, string> = {
   emitida:     'badge-trigo',
@@ -12,40 +13,37 @@ const estadoColor: Record<string, string> = {
 
 export default function CartasPorteClient({ cartas, contratos }: { cartas: any[], contratos: any[] }) {
   const supabase = createClient()
+  const router = useRouter()
   const [lista, setLista] = useState(cartas)
-  const [editando, setEditando] = useState<any | null>(null)
+  const [vinculando, setVinculando] = useState<any | null>(null)
   const [contratoSel, setContratoSel] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   function abrirModal(carta: any) {
-    setEditando(carta)
+    setVinculando(carta)
     setContratoSel(carta.contrato_id ?? '')
     setError(null)
   }
 
   function cerrarModal() {
-    setEditando(null)
+    setVinculando(null)
     setContratoSel('')
     setError(null)
   }
 
   async function guardar() {
-    if (!editando) return
+    if (!vinculando) return
     setSaving(true)
     setError(null)
     const { error } = await supabase
       .from('cartas_porte')
       .update({ contrato_id: contratoSel || null })
-      .eq('id', editando.id)
-    if (error) {
-      setError(error.message)
-      setSaving(false)
-      return
-    }
+      .eq('id', vinculando.id)
+    if (error) { setError(error.message); setSaving(false); return }
     const contratoNumero = contratos.find(c => c.id === contratoSel)?.numero ?? null
     setLista(prev => prev.map(c =>
-      c.id === editando.id
+      c.id === vinculando.id
         ? { ...c, contrato_id: contratoSel || null, contratos: contratoNumero ? { numero: contratoNumero } : null }
         : c
     ))
@@ -84,12 +82,19 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                   <td className="px-4 py-3 text-right font-medium text-campo-800">
                     {c.toneladas_netas ? Number(c.toneladas_netas).toLocaleString('es-AR', { minimumFractionDigits: 3 }) : '—'}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-campo-500">{c.contratos?.numero ?? '—'}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-campo-500">
+                    <button onClick={() => abrirModal(c)} className="hover:text-campo-700">
+                      {c.contratos?.numero ?? '—'}
+                    </button>
+                  </td>
                   <td className="px-4 py-3">
                     <span className={estadoColor[c.estado] ?? 'badge-gris'}>{c.estado.replace('_', ' ')}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => abrirModal(c)} className="text-xs text-campo-500 hover:text-campo-700 underline">
+                    <button
+                      onClick={() => router.push(`/dashboard/cartas-porte/editar?numero_cpe=${c.numero_cpe}`)}
+                      className="text-xs text-campo-500 hover:text-campo-700 underline"
+                    >
                       editar
                     </button>
                   </td>
@@ -107,26 +112,19 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
         </div>
       </div>
 
-      {editando && (
+      {vinculando && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
             <h2 className="text-lg font-bold text-campo-900 mb-1">Vincular contrato</h2>
-            <p className="text-sm text-campo-500 mb-4">CPE {editando.numero_cpe}</p>
-
+            <p className="text-sm text-campo-500 mb-4">CPE {vinculando.numero_cpe}</p>
             <label className="block text-sm font-medium text-campo-700 mb-1">Contrato</label>
-            <select
-              value={contratoSel}
-              onChange={e => setContratoSel(e.target.value)}
-              className="input-field mb-4"
-            >
+            <select value={contratoSel} onChange={e => setContratoSel(e.target.value)} className="input-field mb-4">
               <option value="">Sin contrato</option>
               {contratos.map(c => (
                 <option key={c.id} value={c.id}>#{c.numero}</option>
               ))}
             </select>
-
             {error && <p className="text-red-500 text-sm mb-3">❌ {error}</p>}
-
             <div className="flex gap-3 justify-end">
               <button onClick={cerrarModal} className="btn-secondary">Cancelar</button>
               <button onClick={guardar} disabled={saving} className="btn-primary">
