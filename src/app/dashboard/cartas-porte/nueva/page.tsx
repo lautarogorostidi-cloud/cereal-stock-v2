@@ -58,7 +58,7 @@ export default function NuevaCartaPortePage() {
     destino_localidad: '', destino_provincia: '',
     nro_planta: '', destino_direccion: '',
     patente_camion: '', patente_acoplado: '',
-    fecha_partida: '', km_recorrer: '', tarifa_flete: '',
+    fecha_partida: '', hora_partida: '', km_recorrer: '', tarifa_flete: '',
     fecha_arribo: '', fecha_descarga: '', nro_turno: '',
     peso_bruto_destino: '', peso_tara_destino: '',
     humedad_destino: '', observaciones: '',
@@ -125,6 +125,19 @@ export default function NuevaCartaPortePage() {
         extracted.campania?.includes(c.nombre.replace('/', '-'))
       )
 
+      // Separar fecha y hora de partida
+      let fecha_partida = ''
+      let hora_partida = ''
+      if (extracted.fecha_partida) {
+        if (extracted.fecha_partida.includes('T')) {
+          const parts = extracted.fecha_partida.split('T')
+          fecha_partida = parts[0]
+          hora_partida = parts[1]?.substring(0, 5) ?? ''
+        } else {
+          fecha_partida = extracted.fecha_partida
+        }
+      }
+
       setForm(f => ({
         ...f,
         numero_cpe: extracted.numero_cpe || f.numero_cpe,
@@ -178,9 +191,10 @@ export default function NuevaCartaPortePage() {
         destino_direccion: extracted.destino_direccion || f.destino_direccion,
         patente_camion: extracted.patente_camion || f.patente_camion,
         patente_acoplado: extracted.patente_acoplado || f.patente_acoplado,
+        fecha_partida: fecha_partida || f.fecha_partida,
+        hora_partida: hora_partida || f.hora_partida,
         km_recorrer: extracted.km_recorrer || f.km_recorrer,
         nro_turno: extracted.nro_turno || f.nro_turno,
-        fecha_partida: extracted.fecha_partida || f.fecha_partida,
         fecha_arribo: extracted.fecha_arribo || f.fecha_arribo,
         fecha_descarga: extracted.fecha_descarga || f.fecha_descarga,
         peso_bruto_destino: extracted.peso_bruto_destino || f.peso_bruto_destino,
@@ -242,7 +256,8 @@ export default function NuevaCartaPortePage() {
     if (form.ctg) payload.ctg = form.ctg
     if (form.lote_id) payload.lote_id = form.lote_id
     if (form.contrato_id) payload.contrato_id = form.contrato_id
-    if (form.fecha_partida) payload.fecha_partida = form.fecha_partida.includes('T') ? form.fecha_partida.split('T')[0] : form.fecha_partida
+    if (form.fecha_partida) payload.fecha_partida = form.fecha_partida
+    if (form.hora_partida) payload.hora_partida = form.hora_partida
     if (form.humedad_origen) payload.humedad_origen = parseFloat(form.humedad_origen)
     if (form.humedad_destino) payload.humedad_destino = parseFloat(form.humedad_destino)
     if (form.proteina) payload.proteina = parseFloat(form.proteina)
@@ -397,7 +412,8 @@ export default function NuevaCartaPortePage() {
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Patente camión</label><input value={form.patente_camion} onChange={e => set('patente_camion', e.target.value.toUpperCase())} placeholder="AF456OU" className="input-field font-mono" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Patente acoplado</label><input value={form.patente_acoplado} onChange={e => set('patente_acoplado', e.target.value.toUpperCase())} placeholder="AF456OT" className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Fecha y hora de partida</label><input type="datetime-local" value={form.fecha_partida} onChange={e => set('fecha_partida', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Fecha de partida</label><input type="date" value={form.fecha_partida} onChange={e => set('fecha_partida', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Hora de partida</label><input type="time" value={form.hora_partida} onChange={e => set('hora_partida', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Km a recorrer</label><input type="number" value={form.km_recorrer} onChange={e => set('km_recorrer', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Tarifa flete ($/tn)</label><input type="number" step="0.01" value={form.tarifa_flete} onChange={e => set('tarifa_flete', e.target.value)} className="input-field" /></div>
           </div>
@@ -418,7 +434,7 @@ export default function NuevaCartaPortePage() {
 
         <div className="card">
           <label className="block text-sm font-medium text-campo-700 mb-1">Observaciones</label>
-          <textarea value={form.observaciones} onChange={e => set('observaciones', e.target.value)} rows={3} className="input-field resize-none" />
+          <textarea value={form.observaciones} onChange={e => set('observaciones', e.target.value)} rows={3} placeholder="por el tipo de cambio de hoy [Nro SIO-GRANOS:]" className="input-field resize-none" />
         </div>
 
         <div className="flex gap-3 justify-end">

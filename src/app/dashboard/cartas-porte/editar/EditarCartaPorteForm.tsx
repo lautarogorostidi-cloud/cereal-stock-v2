@@ -60,7 +60,7 @@ export default function EditarCartaPorteForm() {
     destino_localidad: '', destino_provincia: '',
     nro_planta: '', destino_direccion: '',
     patente_camion: '', patente_acoplado: '',
-    fecha_partida: '', km_recorrer: '', tarifa_flete: '',
+    fecha_partida: '', hora_partida: '', km_recorrer: '', tarifa_flete: '',
     fecha_arribo: '', fecha_descarga: '', nro_turno: '',
     peso_bruto_destino: '', peso_tara_destino: '',
     humedad_destino: '', observaciones: '',
@@ -150,6 +150,7 @@ export default function EditarCartaPorteForm() {
             patente_camion: obs.match(/Patentes: ([^-]+)/)?.[1]?.trim() ?? '',
             patente_acoplado: obs.match(/Patentes: [^-]+ - ([^\|]+)/)?.[1]?.trim() ?? '',
             fecha_partida: carta.fecha_partida ?? '',
+            hora_partida: carta.hora_partida ?? '',
             km_recorrer: obs.match(/Km: ([^\|]+)/)?.[1]?.trim() ?? '',
             tarifa_flete: obs.match(/Tarifa flete: ([^\|]+)/)?.[1]?.trim() ?? '',
             fecha_arribo: obs.match(/Arribo: ([^\|]+)/)?.[1]?.trim() ?? '',
@@ -221,7 +222,8 @@ export default function EditarCartaPorteForm() {
     if (form.lote_id) payload.lote_id = form.lote_id
     if (form.contrato_id) payload.contrato_id = form.contrato_id
     else payload.contrato_id = null
-    if (form.fecha_partida) payload.fecha_partida = form.fecha_partida.includes('T') ? form.fecha_partida.split('T')[0] : form.fecha_partida
+    if (form.fecha_partida) payload.fecha_partida = form.fecha_partida
+    if (form.hora_partida) payload.hora_partida = form.hora_partida
     if (form.humedad_origen) payload.humedad_origen = parseFloat(form.humedad_origen)
     if (form.humedad_destino) payload.humedad_destino = parseFloat(form.humedad_destino)
     if (form.proteina) payload.proteina = parseFloat(form.proteina)
@@ -355,7 +357,8 @@ export default function EditarCartaPorteForm() {
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Patente camión</label><input value={form.patente_camion} onChange={e => set('patente_camion', e.target.value.toUpperCase())} className="input-field font-mono" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Patente acoplado</label><input value={form.patente_acoplado} onChange={e => set('patente_acoplado', e.target.value.toUpperCase())} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Fecha y hora de partida</label><input type="datetime-local" value={form.fecha_partida} onChange={e => set('fecha_partida', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Fecha de partida</label><input type="date" value={form.fecha_partida} onChange={e => set('fecha_partida', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Hora de partida</label><input type="time" value={form.hora_partida} onChange={e => set('hora_partida', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Km a recorrer</label><input type="number" value={form.km_recorrer} onChange={e => set('km_recorrer', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Tarifa flete ($/tn)</label><input type="number" step="0.01" value={form.tarifa_flete} onChange={e => set('tarifa_flete', e.target.value)} className="input-field" /></div>
           </div>
