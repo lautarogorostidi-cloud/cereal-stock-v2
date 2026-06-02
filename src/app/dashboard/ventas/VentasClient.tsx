@@ -57,13 +57,13 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
 
     if (error) { setError(error.message); setSaving(false); return }
 
-    // Recalcular valores para esta fila
     const precio_base = Number(editando.precio_base ?? 0)
     const precio_plus = Number(editando.precio_plus ?? 0)
     const comision_tn = Number(editando.comision_tn ?? 0)
+    const tarifa_flete = Number(editando.tarifa_flete ?? 0)
     const toneladas = Number(editando.toneladas ?? 0)
     const bonif_usd = precio_base * bonif / 100
-    const total_tn = precio_base + bonif_usd + precio_plus - comision_tn
+    const total_tn = precio_base + bonif_usd + precio_plus - comision_tn - tarifa_flete
     const total_usd = total_tn * toneladas
 
     setVentas(prev => prev.map(v =>
@@ -104,6 +104,7 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Plus</th>
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Bonificación</th>
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Comisión/tn</th>
+                  <th className="text-right px-4 py-3 font-semibold text-campo-700">Flete/tn</th>
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Total/tn</th>
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Total USD</th>
                   <th className="px-4 py-3"></th>
@@ -127,6 +128,7 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-right text-red-500">{e.comision_tn ? `USD ${fmtUSD(e.comision_tn)}` : '—'}</td>
+                    <td className="px-4 py-3 text-right text-red-500">{e.tarifa_flete ? `USD ${fmtUSD(e.tarifa_flete)}` : '—'}</td>
                     <td className="px-4 py-3 text-right font-medium text-campo-800">{e.total_tn ? `USD ${fmtUSD(e.total_tn)}` : '—'}</td>
                     <td className="px-4 py-3 text-right font-semibold text-campo-900">{e.total_usd ? `USD ${fmtUSD(e.total_usd)}` : '—'}</td>
                     <td className="px-4 py-3">
@@ -139,7 +141,7 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
                   </tr>
                 ))}
                 {filtradas.length === 0 && (
-                  <tr><td colSpan={14} className="px-4 py-10 text-center text-campo-400">Sin ventas registradas</td></tr>
+                  <tr><td colSpan={15} className="px-4 py-10 text-center text-campo-400">Sin ventas registradas</td></tr>
                 )}
               </tbody>
               {filtradas.length > 0 && (
@@ -147,7 +149,7 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
                   <tr className="border-t-2 border-campo-200 bg-campo-50">
                     <td colSpan={4} className="px-4 py-3 font-bold text-campo-800 text-sm">Total</td>
                     <td className="px-4 py-3 text-right font-bold text-campo-800">{fmt(totalTon)}</td>
-                    <td colSpan={7} />
+                    <td colSpan={8} />
                     <td className="px-4 py-3 text-right font-bold text-campo-900">USD {fmtUSD(totalUSD)}</td>
                     <td />
                   </tr>
