@@ -44,8 +44,110 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
     cerrarModal()
   }
 
+  function descargarExcel() {
+    const sep = ';'
+    const headers = [
+      'N° CPE', 'CTG', 'Fecha Emisión', 'Fecha Vencimiento',
+      'Campaña', 'Cultivo', 'Contrato',
+      // A - Intervinientes
+      'CUIT Titular', 'Flete Pagador', 'Chofer', 'CUIL Chofer',
+      'Remitente Comercial', 'CUIT Remitente',
+      'Remitente Venta Secundaria', 'CUIT Rte. Secundaria',
+      'Destinatario', 'CUIT Destinatario',
+      'Destino', 'CUIT Destino',
+      // B - Grano
+      'Declaración Calidad', 'Peso Bruto Origen (kg)', 'Peso Tara Origen (kg)', 'Toneladas Origen',
+      'Humedad Origen (%)', 'Proteína (%)', 'Gluten (%)', 'Peso Hectolítrico', 'Zaranda (%)',
+      // C - Procedencia
+      'Procedencia Localidad', 'Procedencia Provincia', 'RENSPA', 'Descripción Campo', 'Latitud', 'Longitud',
+      // D - Destino
+      'Destino Localidad', 'Destino Provincia', 'N° Planta', 'Dirección Destino',
+      // E - Transporte
+      'Patente Camión', 'Patente Acoplado', 'Fecha Partida', 'Hora Partida', 'Km a Recorrer', 'Tarifa Flete',
+      // G - Descarga
+      'Fecha Arribo', 'Fecha Descarga', 'N° Turno',
+      'Peso Bruto Destino (kg)', 'Peso Tara Destino (kg)', 'Toneladas Netas',
+      'Humedad Destino (%)', 'Bonificación Calidad (%)', 'Merma Humedad',
+    ]
+
+    const rows = lista.map(c => [
+      c.numero_cpe ?? '',
+      c.ctg ?? '',
+      c.fecha_emision ? new Date(c.fecha_emision).toLocaleDateString('es-AR') : '',
+      c.observaciones?.match(/Venc: ([^\|]+)/)?.[1]?.trim() ?? '',
+      c.campanias?.nombre ?? '',
+      c.cultivos?.nombre ?? '',
+      c.contratos?.numero ?? '',
+      // A
+      c.cuit_titular ?? '',
+      c.flete_pagador ?? '',
+      c.chofer_nombre ?? '',
+      c.chofer_cuil ?? '',
+      c.remitente_comercial ?? '',
+      c.cuit_remitente ?? '',
+      c.remitente_venta_secundaria ?? '',
+      c.cuit_rte_secundaria ?? '',
+      c.destinatario ?? '',
+      c.cuit_destinatario ?? '',
+      c.destino_nombre ?? '',
+      c.cuit_destino ?? '',
+      // B
+      c.declaracion_calidad ?? '',
+      c.peso_bruto_kg ?? '',
+      c.peso_tara_kg ?? '',
+      c.toneladas_origen ?? '',
+      c.humedad_origen ?? '',
+      c.proteina ?? '',
+      c.gluten ?? '',
+      c.peso_hectolitrico ?? '',
+      c.zaranda ?? '',
+      // C
+      c.procedencia_localidad ?? '',
+      c.procedencia_provincia ?? '',
+      c.renspa ?? '',
+      c.descripcion_campo ?? '',
+      c.latitud ?? '',
+      c.longitud ?? '',
+      // D
+      c.destino_localidad ?? '',
+      c.destino_provincia ?? '',
+      c.nro_planta ?? '',
+      c.destino_direccion ?? '',
+      // E
+      c.patente_camion ?? '',
+      c.patente_acoplado ?? '',
+      c.fecha_partida ? new Date(c.fecha_partida).toLocaleDateString('es-AR') : '',
+      c.hora_partida ?? '',
+      c.km_recorrer ?? '',
+      c.tarifa_flete ?? '',
+      // G
+      c.fecha_arribo ? new Date(c.fecha_arribo).toLocaleDateString('es-AR') : '',
+      c.fecha_descarga ? new Date(c.fecha_descarga).toLocaleDateString('es-AR') : '',
+      c.nro_turno ?? '',
+      c.peso_bruto_destino ?? '',
+      c.peso_tara_destino ?? '',
+      c.toneladas_netas ?? '',
+      c.humedad_destino ?? '',
+      c.bonificacion_calidad ?? '',
+      c.merma_humedad ?? '',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`))
+
+    const csv = [headers.map(h => `"${h}"`), ...rows].map(r => r.join(sep)).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `cartas-porte-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <>
+      <div className="flex justify-end mb-2">
+        <button onClick={descargarExcel} className="btn-secondary">⬇ Descargar Excel</button>
+      </div>
+
       <div className="card overflow-hidden p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -56,9 +158,9 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
-                <th className="text-right px-4 py-3 font-semibold text-campo-700">Tn Origen</th>
-                <th className="text-right px-4 py-3 font-semibold text-campo-700">Humedad</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Tn Netas</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Destinatario</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Destino</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Contrato</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -71,11 +173,11 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                   <td className="px-4 py-3 text-campo-600">{new Date(c.fecha_emision).toLocaleDateString('es-AR')}</td>
                   <td className="px-4 py-3 font-medium text-campo-900">{c.cultivos?.nombre}</td>
                   <td className="px-4 py-3 text-campo-600">{c.campanias?.nombre}</td>
-                  <td className="px-4 py-3 text-right">{Number(c.toneladas_origen).toLocaleString('es-AR', { minimumFractionDigits: 3 })}</td>
-                  <td className="px-4 py-3 text-right text-campo-500">{c.humedad_origen ? `${c.humedad_origen}%` : '—'}</td>
                   <td className="px-4 py-3 text-right font-medium text-campo-800">
                     {c.toneladas_netas ? Number(c.toneladas_netas).toLocaleString('es-AR', { minimumFractionDigits: 3 }) : '—'}
                   </td>
+                  <td className="px-4 py-3 text-campo-700 text-xs">{c.destinatario ?? '—'}</td>
+                  <td className="px-4 py-3 text-campo-600 text-xs">{c.destino_localidad ?? '—'}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">
                     <button onClick={() => abrirModal(c)} className="hover:text-campo-700">
                       {c.contratos?.numero ?? '—'}

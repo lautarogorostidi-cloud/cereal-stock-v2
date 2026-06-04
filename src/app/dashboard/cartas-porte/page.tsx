@@ -3,7 +3,6 @@ import CartasPorteClient from './CartasPorteClient'
 
 export default async function CartasPortePage() {
   const supabase = createClient()
-
   const [{ data: cartas }, { data: contratos }] = await Promise.all([
     supabase
       .from('cartas_porte')
