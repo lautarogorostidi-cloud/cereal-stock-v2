@@ -12,6 +12,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
       r.campania?.toLowerCase().includes(q) ||
       r.cultivo?.toLowerCase().includes(q) ||
       r.cliente?.toLowerCase().includes(q) ||
+      r.ctg?.toLowerCase().includes(q) ||
       String(r.contrato ?? '').toLowerCase().includes(q)
     )
   }, [resultados, busqueda])
@@ -26,13 +27,14 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
   const fmt0 = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 0 })
 
   function descargarCSV() {
-    const headers = ['Campaña', 'Cultivo', 'Cliente', 'Contrato', 'Entregas', 'Toneladas', 'Precio Base', 'Plus', 'Bonif %', 'Bonif USD', 'Comisión', 'Neto Total', 'Precio Neto/tn']
+    const headers = ['Fecha', 'CTG', 'Campaña', 'Cultivo', 'Cliente', 'Contrato', 'Toneladas', 'Precio Base', 'Plus', 'Bonif %', 'Bonif USD', 'Comisión', 'Neto Total', 'Precio Neto/tn']
     const rows = filtrados.map(r => [
+      r.fecha ? new Date(r.fecha).toLocaleDateString('es-AR') : '',
+      r.ctg ?? '',
       r.campania,
       r.cultivo,
       r.cliente,
       r.contrato,
-      r.cantidad_entregas,
       Number(r.ton_totales ?? 0).toFixed(3),
       Number(r.precio_base_promedio ?? 0).toFixed(2),
       Number(r.plus_promedio ?? 0).toFixed(2),
@@ -78,7 +80,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
         <input
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar por campaña, cultivo, cliente, contrato..."
+          placeholder="Buscar por fecha, CTG, campaña, cultivo, cliente, contrato..."
           className="input-field flex-1"
         />
         <button onClick={descargarCSV} className="btn-secondary whitespace-nowrap">
@@ -91,11 +93,12 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-campo-100 bg-campo-50">
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">CTG</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cliente</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Contrato</th>
-                <th className="text-right px-4 py-3 font-semibold text-campo-700">Entregas</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Toneladas</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Precio Base</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Plus</th>
@@ -109,11 +112,12 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
             <tbody>
               {filtrados.map((r, i) => (
                 <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
+                  <td className="px-4 py-3 text-campo-600">{r.fecha ? new Date(r.fecha).toLocaleDateString('es-AR') : '—'}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-campo-500">{r.ctg ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-600">{r.campania}</td>
                   <td className="px-4 py-3 font-medium text-campo-900">{r.cultivo}</td>
                   <td className="px-4 py-3 text-campo-700">{r.cliente}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{r.contrato}</td>
-                  <td className="px-4 py-3 text-right text-campo-600">{r.cantidad_entregas}</td>
                   <td className="px-4 py-3 text-right font-medium">{fmt3(Number(r.ton_totales ?? 0))}</td>
                   <td className="px-4 py-3 text-right text-campo-700">USD {fmt2(Number(r.precio_base_promedio ?? 0))}</td>
                   <td className="px-4 py-3 text-right text-campo-700">{Number(r.plus_promedio ?? 0) > 0 ? `USD ${fmt2(Number(r.plus_promedio))}` : '—'}</td>
@@ -125,13 +129,13 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                 </tr>
               ))}
               {filtrados.length === 0 && (
-                <tr><td colSpan={13} className="px-4 py-10 text-center text-campo-400">Sin datos</td></tr>
+                <tr><td colSpan={14} className="px-4 py-10 text-center text-campo-400">Sin datos</td></tr>
               )}
             </tbody>
             {filtrados.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-campo-200 bg-campo-50">
-                  <td colSpan={5} className="px-4 py-3 font-bold text-campo-800">Total</td>
+                  <td colSpan={6} className="px-4 py-3 font-bold text-campo-800">Total</td>
                   <td className="px-4 py-3 text-right font-bold text-campo-800">{fmt3(totalTon)}</td>
                   <td colSpan={3} />
                   <td className="px-4 py-3 text-right font-bold text-green-600">USD {fmt2(totalBonif)}</td>
