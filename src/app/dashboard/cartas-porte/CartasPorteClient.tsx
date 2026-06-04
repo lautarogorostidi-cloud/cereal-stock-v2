@@ -4,13 +4,6 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
-const estadoColor: Record<string, string> = {
-  emitida:     'badge-trigo',
-  en_transito: 'badge-azul',
-  descargada:  'badge-verde',
-  anulada:     'badge-rojo',
-}
-
 export default function CartasPorteClient({ cartas, contratos }: { cartas: any[], contratos: any[] }) {
   const supabase = createClient()
   const router = useRouter()
@@ -59,6 +52,7 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
             <thead>
               <tr className="border-b border-campo-100 bg-campo-50">
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Nº CPE</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">CTG</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
@@ -66,7 +60,6 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Humedad</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Tn Netas</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Contrato</th>
-                <th className="text-left px-4 py-3 font-semibold text-campo-700">Estado</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -74,6 +67,7 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
               {lista.map(c => (
                 <tr key={c.id} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-campo-600">{c.numero_cpe}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-campo-500">{c.ctg ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-600">{new Date(c.fecha_emision).toLocaleDateString('es-AR')}</td>
                   <td className="px-4 py-3 font-medium text-campo-900">{c.cultivos?.nombre}</td>
                   <td className="px-4 py-3 text-campo-600">{c.campanias?.nombre}</td>
@@ -86,9 +80,6 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                     <button onClick={() => abrirModal(c)} className="hover:text-campo-700">
                       {c.contratos?.numero ?? '—'}
                     </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={estadoColor[c.estado] ?? 'badge-gris'}>{c.estado.replace('_', ' ')}</span>
                   </td>
                   <td className="px-4 py-3">
                     <button
