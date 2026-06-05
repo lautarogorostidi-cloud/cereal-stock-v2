@@ -3,12 +3,14 @@
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[] }) {
+export default function VentasClient({ ventas: ventasIniciales, contratos }: { ventas: any[], contratos: any[] }) {
   const supabase = createClient()
   const [ventas, setVentas] = useState(ventasIniciales)
   const [busqueda, setBusqueda] = useState('')
   const [editando, setEditando] = useState<any | null>(null)
   const [bonifInput, setBonifInput] = useState('')
+  const [vinculando, setVinculando] = useState<any | null>(null)
+  const [contratoSel, setContratoSel] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,15 +33,27 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
   const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
   const fmtUSD = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-  function abrirModal(e: any) {
+  function abrirModalBonif(e: any) {
     setEditando(e)
     setBonifInput(e.bonificacion ? String(e.bonificacion) : '')
     setError(null)
   }
 
-  function cerrarModal() {
+  function cerrarModalBonif() {
     setEditando(null)
     setBonifInput('')
+    setError(null)
+  }
+
+  function abrirModalContrato(e: any) {
+    setVinculando(e)
+    setContratoSel(e.contrato_id ?? '')
+    setError(null)
+  }
+
+  function cerrarModalContrato() {
+    setVinculando(null)
+    setContratoSel('')
     setError(null)
   }
 
@@ -49,7 +63,6 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
     setError(null)
 
     const bonif = parseFloat(bonifInput) || 0
-
     const { error } = await supabase
       .from('cartas_porte')
       .update({ bonificacion_calidad: bonif })
@@ -71,9 +84,35 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
         ? { ...v, bonificacion: bonif || null, bonif_usd: bonif_usd || null, total_tn: total_tn || null, total_usd: total_usd || null }
         : v
     ))
-
     setSaving(false)
-    cerrarModal()
+    cerrarModalBonif()
+  }
+
+  async function guardarContrato() {
+    if (!vinculando) return
+    setSaving(true)
+    setError(null)
+
+    const { error } = await supabase
+      .from('movimientos_cereal')
+      .update({ contrato_id: contratoSel || null })
+      .eq('id', vinculando.id)
+
+    if (error) { setError(error.message); setSaving(false); return }
+
+    const contratoData = contratos.find(c => c.id === contratoSel)
+    setVentas(prev => prev.map(v =>
+      v.id === vinculando.id
+        ? {
+            ...v,
+            contrato_id: contratoSel || null,
+            contrato: contratoData?.numero ?? null,
+            cliente: (contratoData?.clientes as any)?.razon_social ?? null,
+          }
+        : v
+    ))
+    setSaving(false)
+    cerrarModalContrato()
   }
 
   return (
@@ -132,11 +171,16 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
                     <td className="px-4 py-3 text-right font-medium text-campo-800">{e.total_tn ? `USD ${fmtUSD(e.total_tn)}` : '—'}</td>
                     <td className="px-4 py-3 text-right font-semibold text-campo-900">{e.total_usd ? `USD ${fmtUSD(e.total_usd)}` : '—'}</td>
                     <td className="px-4 py-3">
-                      {e.carta_porte_id && (
-                        <button onClick={() => abrirModal(e)} className="text-xs text-campo-500 hover:text-campo-700 underline">
-                          bonif.
+                      <div className="flex gap-2">
+                        <button onClick={() => abrirModalContrato(e)} className="text-xs text-campo-500 hover:text-campo-700 underline">
+                          contrato
                         </button>
-                      )}
+                        {e.carta_porte_id && (
+                          <button onClick={() => abrirModalBonif(e)} className="text-xs text-campo-500 hover:text-campo-700 underline">
+                            bonif.
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -160,13 +204,13 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
         </div>
       </div>
 
+      {/* Modal bonificación */}
       {editando && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <h2 className="text-lg font-bold text-campo-900 mb-1">Cargar bonificación</h2>
             <p className="text-sm text-campo-500 mb-1">CTG {editando.ctg ?? '—'}</p>
             <p className="text-xs text-campo-400 mb-4">{editando.cultivo} — {editando.campania} — {fmt(Number(editando.toneladas))} tn</p>
-
             <label className="block text-sm font-medium text-campo-700 mb-1">% Bonificación</label>
             <input
               type="number"
@@ -182,12 +226,34 @@ export default function VentasClient({ ventas: ventasIniciales }: { ventas: any[
                 USD {fmtUSD(Number(editando.precio_base ?? 0) * parseFloat(bonifInput) / 100)} por tonelada
               </p>
             )}
-
             {error && <p className="text-red-500 text-sm mb-3">❌ {error}</p>}
-
             <div className="flex gap-3 justify-end">
-              <button onClick={cerrarModal} className="btn-secondary">Cancelar</button>
+              <button onClick={cerrarModalBonif} className="btn-secondary">Cancelar</button>
               <button onClick={guardarBonificacion} disabled={saving} className="btn-primary">
+                {saving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal contrato */}
+      {vinculando && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h2 className="text-lg font-bold text-campo-900 mb-1">Vincular contrato</h2>
+            <p className="text-xs text-campo-400 mb-4">{vinculando.cultivo} — {vinculando.campania} — {fmt(Number(vinculando.toneladas))} tn</p>
+            <label className="block text-sm font-medium text-campo-700 mb-1">Contrato</label>
+            <select value={contratoSel} onChange={e => setContratoSel(e.target.value)} className="input-field mb-4">
+              <option value="">Sin contrato</option>
+              {contratos.map(c => (
+                <option key={c.id} value={c.id}>#{c.numero} — {(c.clientes as any)?.razon_social}</option>
+              ))}
+            </select>
+            {error && <p className="text-red-500 text-sm mb-3">❌ {error}</p>}
+            <div className="flex gap-3 justify-end">
+              <button onClick={cerrarModalContrato} className="btn-secondary">Cancelar</button>
+              <button onClick={guardarContrato} disabled={saving} className="btn-primary">
                 {saving ? 'Guardando...' : 'Guardar'}
               </button>
             </div>

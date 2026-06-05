@@ -4,12 +4,18 @@ import VentasClient from './VentasClient'
 export default async function VentasPage() {
   const supabase = createClient()
 
-  const { data: movimientos } = await supabase
-    .from('movimientos_cereal')
-    .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id, precio_unitario, precio_plus, comision_corredor), cartas_porte(ctg, bonificacion_calidad, tarifa_flete)`)
-    .eq('tipo', 'entrega')
-    .order('fecha', { ascending: false })
-    .limit(200)
+  const [{ data: movimientos }, { data: contratos }] = await Promise.all([
+    supabase
+      .from('movimientos_cereal')
+      .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id, precio_unitario, precio_plus, comision_corredor), cartas_porte(ctg, bonificacion_calidad, tarifa_flete)`)
+      .eq('tipo', 'entrega')
+      .order('fecha', { ascending: false })
+      .limit(200),
+    supabase
+      .from('contratos')
+      .select('id, numero, cultivo_id, clientes(razon_social)')
+      .order('numero', { ascending: false })
+  ])
 
   const clienteIds = Array.from(new Set((movimientos ?? []).map(e => (e.contratos as any)?.cliente_id).filter(Boolean)))
   const { data: clientes } = clienteIds.length > 0
@@ -25,7 +31,6 @@ export default async function VentasPage() {
     const bonificacion = Number((e.cartas_porte as any)?.bonificacion_calidad ?? 0)
     const tarifa_flete = Number((e.cartas_porte as any)?.tarifa_flete ?? 0)
     const toneladas = Number(e.toneladas ?? 0)
-
     const bonif_usd = precio_base * bonificacion / 100
     const comision_tn = (precio_base + precio_plus) * comision_pct / 100
     const total_tn = precio_base + bonif_usd + precio_plus - comision_tn - tarifa_flete
@@ -33,6 +38,7 @@ export default async function VentasPage() {
 
     return {
       id: e.id,
+      contrato_id: e.contrato_id,
       fecha: e.fecha,
       ctg: (e.cartas_porte as any)?.ctg ?? null,
       carta_porte_id: e.carta_porte_id,
@@ -61,7 +67,7 @@ export default async function VentasPage() {
         </div>
         <a href="/dashboard/ventas/nuevo" className="btn-primary">+ Nuevo movimiento</a>
       </div>
-      <VentasClient ventas={ventas} />
+      <VentasClient ventas={ventas} contratos={contratos ?? []} />
     </div>
   )
 }
