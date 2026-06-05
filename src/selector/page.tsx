@@ -1,20 +1,17 @@
 'use client'
-
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
 import { MODULOS } from '@/config/modulos'
 import type { Perfil } from '@/types'
 
 export default function SelectorPage() {
-  const router = useRouter()
   const supabase = createClient()
   const [perfil, setPerfil] = useState<Perfil | null>(null)
 
   useEffect(() => {
     async function cargarPerfil() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/auth/login'); return }
+      if (!user) { window.location.href = '/auth/login'; return }
       const { data } = await supabase.from('perfiles').select('*').eq('id', user.id).single()
       setPerfil(data)
     }
@@ -23,7 +20,7 @@ export default function SelectorPage() {
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    router.push('/auth/login')
+    window.location.href = '/auth/login'
   }
 
   return (
@@ -77,7 +74,7 @@ export default function SelectorPage() {
           {MODULOS.map((mod) => (
             <button
               key={mod.titulo}
-              onClick={() => mod.activo && router.push(mod.href)}
+              onClick={() => mod.activo && (window.location.href = mod.href)}
               disabled={!mod.activo}
               className={`relative text-left rounded-2xl border bg-white/5 backdrop-blur-sm p-6 transition-all duration-200 ${mod.color}`}
             >
