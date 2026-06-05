@@ -1,67 +1,17 @@
 'use client'
-
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
+import { MODULOS } from '@/config/modulos'
 import type { Perfil } from '@/types'
 
-const modulos = [
-  {
-    href: '/dashboard',
-    icon: '🌾',
-    titulo: 'Cereal',
-    descripcion: 'Stock, contratos, ventas, entregas y cartas de porte',
-    color: 'border-campo-600 hover:border-campo-400 hover:bg-campo-900',
-    badge: 'Activo',
-    badgeColor: 'bg-campo-700 text-campo-100',
-  },
-  {
-    href: '/dashboard/agroquimicos',
-    icon: '🧪',
-    titulo: 'Agroquímicos',
-    descripcion: 'Stock de productos, compras, aplicaciones por lote y campaña',
-    color: 'border-emerald-700 hover:border-emerald-500 hover:bg-emerald-950',
-    badge: 'Activo',
-    badgeColor: 'bg-emerald-800 text-emerald-100',
-  },
-  {
-    href: '#',
-    icon: '🌱',
-    titulo: 'Semillas',
-    descripcion: 'Próximamente disponible',
-    color: 'border-campo-800 opacity-50 cursor-not-allowed',
-    badge: 'Próximamente',
-    badgeColor: 'bg-campo-800 text-campo-400',
-  },
-  {
-    href: '#',
-    icon: '🧱',
-    titulo: 'Fertilizantes',
-    descripcion: 'Próximamente disponible',
-    color: 'border-campo-800 opacity-50 cursor-not-allowed',
-    badge: 'Próximamente',
-    badgeColor: 'bg-campo-800 text-campo-400',
-  },
-  {
-    href: '#',
-    icon: '⛽',
-    titulo: 'Combustible',
-    descripcion: 'Próximamente disponible',
-    color: 'border-campo-800 opacity-50 cursor-not-allowed',
-    badge: 'Próximamente',
-    badgeColor: 'bg-campo-800 text-campo-400',
-  },
-]
-
 export default function SelectorPage() {
-  const router = useRouter()
   const supabase = createClient()
   const [perfil, setPerfil] = useState<Perfil | null>(null)
 
   useEffect(() => {
     async function cargarPerfil() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/auth/login'); return }
+      if (!user) { window.location.href = '/auth/login'; return }
       const { data } = await supabase.from('perfiles').select('*').eq('id', user.id).single()
       setPerfil(data)
     }
@@ -70,18 +20,13 @@ export default function SelectorPage() {
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    router.push('/auth/login')
+    window.location.href = '/auth/login'
   }
 
   return (
     <div className="min-h-screen bg-campo-950 relative overflow-hidden">
-      {/* Fondo igual al login */}
       <div className="absolute inset-0 bg-grain opacity-20" />
-      <div className="absolute inset-0"
-        style={{
-          background: 'radial-gradient(ellipse at 20% 60%, #445722 0%, transparent 55%), radial-gradient(ellipse at 85% 15%, #86411c 0%, transparent 45%)'
-        }}
-      />
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 20% 60%, #445722 0%, transparent 55%), radial-gradient(ellipse at 85% 15%, #86411c 0%, transparent 45%)' }} />
 
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between px-8 py-5 border-b border-white/10">
@@ -99,10 +44,7 @@ export default function SelectorPage() {
               <div className="text-xs text-campo-400 capitalize">{perfil.rol}</div>
             </div>
           )}
-          <button
-            onClick={handleLogout}
-            className="text-xs text-campo-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/10"
-          >
+          <button onClick={handleLogout} className="text-xs text-campo-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/10">
             Cerrar sesión
           </button>
         </div>
@@ -115,24 +57,18 @@ export default function SelectorPage() {
           <p className="text-campo-300 text-base">Seleccioná el módulo al que querés acceder</p>
         </div>
 
-        {/* Tarjetas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 w-full max-w-4xl">
-          {modulos.map((mod) => (
+          {MODULOS.map((mod) => (
             <button
               key={mod.titulo}
-              onClick={() => mod.href !== '#' && router.push(mod.href)}
-              disabled={mod.href === '#'}
+              onClick={() => mod.activo && (window.location.href = mod.href)}
+              disabled={!mod.activo}
               className={`relative text-left rounded-2xl border bg-white/5 backdrop-blur-sm p-6 transition-all duration-200 ${mod.color}`}
             >
-              {/* Badge */}
               <span className={`absolute top-4 right-4 text-xs font-medium px-2 py-0.5 rounded-full ${mod.badgeColor}`}>
-                {mod.badge}
+                {mod.activo ? 'Activo' : 'Próximamente'}
               </span>
-
-              {/* Ícono */}
               <div className="text-4xl mb-4">{mod.icon}</div>
-
-              {/* Texto */}
               <div className="font-bold text-white text-lg mb-1">{mod.titulo}</div>
               <div className="text-campo-300 text-sm leading-relaxed">{mod.descripcion}</div>
             </button>
