@@ -25,8 +25,8 @@ export default function LoginPage() {
       return
     }
 
-    // Forzar recarga completa para que el servidor reconozca la sesión
-    window.location.href = '/dashboard'
+    // Redirige al selector de módulos en vez del dashboard directo
+    window.location.href = '/selector'
   }
 
   return (
