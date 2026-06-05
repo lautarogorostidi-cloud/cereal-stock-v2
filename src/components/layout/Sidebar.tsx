@@ -1,4 +1,5 @@
 'use client'
+'use client'
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -16,9 +17,17 @@ const nav = [
   { href: '/dashboard/reportes',     label: 'Reportes',        icon: '📈' },
 ]
 
+const navInsumos = [
+  { href: '/dashboard/agroquimicos', label: 'Agroquímicos', icon: '🧪' },
+  // Próximamente:
+  // { href: '/dashboard/semillas',      label: 'Semillas',      icon: '🌱' },
+  // { href: '/dashboard/fertilizantes', label: 'Fertilizantes', icon: '🧱' },
+  // { href: '/dashboard/combustible',   label: 'Combustible',   icon: '⛽' },
+]
+
 const navAdmin = [
-  { href: '/dashboard/admin/usuarios',    label: 'Usuarios',    icon: '👥' },
-  { href: '/dashboard/admin/maestros',    label: 'Datos maestros', icon: '⚙️' },
+  { href: '/dashboard/admin/usuarios', label: 'Usuarios',       icon: '👥' },
+  { href: '/dashboard/admin/maestros', label: 'Datos maestros', icon: '⚙️' },
 ]
 
 interface SidebarProps { perfil: Perfil | null }
@@ -31,6 +40,24 @@ export default function Sidebar({ perfil }: SidebarProps) {
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/auth/login')
+  }
+
+  const navLink = (item: { href: string; label: string; icon: string }) => {
+    const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+          active
+            ? 'bg-campo-700 text-white font-medium'
+            : 'text-campo-300 hover:bg-campo-800 hover:text-white'
+        }`}
+      >
+        <span className="text-base">{item.icon}</span>
+        {item.label}
+      </Link>
+    )
   }
 
   return (
@@ -46,49 +73,28 @@ export default function Sidebar({ perfil }: SidebarProps) {
         </div>
       </div>
 
-      {/* Nav principal */}
+      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {nav.map(item => {
-          const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                active
-                  ? 'bg-campo-700 text-white font-medium'
-                  : 'text-campo-300 hover:bg-campo-800 hover:text-white'
-              }`}
-            >
-              <span className="text-base">{item.icon}</span>
-              {item.label}
-            </Link>
-          )
-        })}
 
-        {/* Sección admin */}
+        {/* Sección Cereal */}
+        <div className="pb-1 px-3">
+          <span className="text-xs font-semibold text-campo-500 uppercase tracking-wider">Cereal</span>
+        </div>
+        {nav.map(navLink)}
+
+        {/* Sección Insumos */}
+        <div className="pt-4 pb-1 px-3">
+          <span className="text-xs font-semibold text-campo-500 uppercase tracking-wider">Insumos</span>
+        </div>
+        {navInsumos.map(navLink)}
+
+        {/* Sección Admin */}
         {perfil?.rol === 'admin' && (
           <>
             <div className="pt-4 pb-1 px-3">
               <span className="text-xs font-semibold text-campo-500 uppercase tracking-wider">Administración</span>
             </div>
-            {navAdmin.map(item => {
-              const active = pathname.startsWith(item.href)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                    active
-                      ? 'bg-campo-700 text-white font-medium'
-                      : 'text-campo-300 hover:bg-campo-800 hover:text-white'
-                  }`}
-                >
-                  <span className="text-base">{item.icon}</span>
-                  {item.label}
-                </Link>
-              )
-            })}
+            {navAdmin.map(navLink)}
           </>
         )}
       </nav>
