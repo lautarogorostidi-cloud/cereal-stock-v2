@@ -25,7 +25,6 @@ export default function LoginPage() {
       return
     }
 
-    // Redirige al selector de módulos en vez del dashboard directo
     window.location.href = '/selector'
   }
 
