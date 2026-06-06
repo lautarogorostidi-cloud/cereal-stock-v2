@@ -31,6 +31,7 @@ export default function LotesPage() {
   const [campanas, setCampanas] = useState<string[]>([])
   const [campanaSeleccionada, setCampanaSeleccionada] = useState('')
   const [filtroCampo, setFiltroCampo] = useState('')
+  const [busqueda, setBusqueda] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -53,12 +54,20 @@ export default function LotesPage() {
 
   const campos = Array.from(new Set(lotes.map(l => l.establecimiento))).sort()
 
-  const lotesFiltrados = lotes.filter(l =>
-    !filtroCampo || l.establecimiento === filtroCampo
-  )
-
   const getCiclo = (loteNombre: string) =>
     ciclos.find(c => c.lote === loteNombre && c.campana === campanaSeleccionada)
+
+  const lotesFiltrados = lotes.filter(l => {
+    if (filtroCampo && l.establecimiento !== filtroCampo) return false
+    if (busqueda) {
+      const q = busqueda.toLowerCase()
+      const ciclo = getCiclo(l.nombre)
+      const matchLote = l.nombre.toLowerCase().includes(q)
+      const matchCultivo = ciclo?.cultivo?.toLowerCase().includes(q) ?? false
+      return matchLote || matchCultivo
+    }
+    return true
+  })
 
   const fmt = (n: number | null | undefined) =>
     n != null ? Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 }) : '—'
@@ -69,23 +78,28 @@ export default function LotesPage() {
     return acc
   }, {})
 
+  const totalLotes = lotesFiltrados.length
+  const totalConCiclo = lotesFiltrados.filter(l => getCiclo(l.nombre)).length
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-campo-900">Lotes</h1>
-          <p className="text-campo-500 text-sm mt-0.5">{lotes.length} lotes en {campos.length} establecimientos</p>
-        </div>
-        <Link
-          href="/seguimiento/lotes/nuevo"
-          className="bg-lime-700 hover:bg-lime-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          + Nuevo ciclo
-        </Link>
+      <div>
+        <h1 className="text-2xl font-bold text-campo-900">Lotes</h1>
+        <p className="text-campo-500 text-sm mt-0.5">
+          {totalConCiclo} de {totalLotes} lotes con ciclo en {campanaSeleccionada}
+        </p>
       </div>
 
       {/* Filtros */}
       <div className="flex gap-3 flex-wrap items-center">
+        {/* Buscador */}
+        <input
+          type="text"
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="Buscar lote o cultivo..."
+          className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 w-56"
+        />
         <div>
           <label className="text-xs font-medium text-campo-600 mr-2">Campaña</label>
           <select
@@ -107,9 +121,23 @@ export default function LotesPage() {
             {campos.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
+        {busqueda && (
+          <button
+            onClick={() => setBusqueda('')}
+            className="text-xs text-campo-400 hover:text-campo-700 px-2 py-1.5 rounded-lg hover:bg-campo-100 transition-colors"
+          >
+            ✕ Limpiar
+          </button>
+        )}
       </div>
 
       {loading && <div className="text-center text-campo-400 py-10">Cargando...</div>}
+
+      {!loading && Object.keys(lotesPorCampo).length === 0 && (
+        <div className="card p-10 text-center text-campo-400">
+          No se encontraron lotes con ese criterio
+        </div>
+      )}
 
       {!loading && Object.entries(lotesPorCampo).map(([campo, ls]) => (
         <div key={campo} className="card overflow-hidden p-0">
