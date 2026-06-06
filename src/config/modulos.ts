@@ -33,7 +33,16 @@ export const MODULOS: Modulo[] = [
     color: 'border-emerald-700 hover:border-emerald-500 hover:bg-emerald-950',
     badgeColor: 'bg-emerald-800 text-emerald-100',
   },
-  {
+ {
+  href: '/seguimiento',
+  icon: '🌱',
+  titulo: 'Seguimiento Agronómico',
+  descripcion: 'Trazabilidad por lote: siembra, aplicaciones, cosecha y costos',
+  activo: true,
+  color: 'border-lime-700 hover:border-lime-500 hover:bg-lime-950',
+  badgeColor: 'bg-lime-800 text-lime-100',
+}, 
+{
     href: '/semillas',
     icon: '🌱',
     titulo: 'Semillas',
