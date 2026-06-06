@@ -15,21 +15,20 @@ type Movimiento = {
   agroquimicos_productos: { nombre: string; unidad: string } | null
 }
 
-type Producto = {
-  id: number
-  nombre: string
-  unidad: string
-  marca: string
-}
+type Producto = { id: number; nombre: string; unidad: string; marca: string }
+type Lote = { id: string; nombre: string; establecimiento: string }
+type Cultivo = { id: string; nombre: string }
+type Campana = { id: number; nombre: string }
 
 const TIPOS = ['compra', 'aplicacion', 'devolucion', 'ajuste']
-const CULTIVOS = ['soja', 'trigo', 'maiz', 'girasol', 'centeno', 'cebada', 'sorgo', 'otro']
-const CAMPANIAS = ['25-26', '24-25', '23-24']
 
 export default function MovimientosPage() {
   const supabase = createClient()
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
+  const [lotes, setLotes] = useState<Lote[]>([])
+  const [cultivos, setCultivos] = useState<Cultivo[]>([])
+  const [campanas, setCampanas] = useState<Campana[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState('')
@@ -43,7 +42,7 @@ export default function MovimientosPage() {
     cantidad: '',
     lote: '',
     cultivo: '',
-    campaña: '25-26',
+    campaña: '',
     observaciones: '',
   })
 
@@ -58,18 +57,24 @@ export default function MovimientosPage() {
     setLoading(false)
   }
 
-  async function cargarProductos() {
-    const { data } = await supabase
-      .from('agroquimicos_productos')
-      .select('id, nombre, unidad, marca')
-      .eq('activo', true)
-      .order('nombre')
-    setProductos(data ?? [])
+  async function cargarMaestros() {
+    const [{ data: prods }, { data: ls }, { data: cs }, { data: caps }] = await Promise.all([
+      supabase.from('agroquimicos_productos').select('id, nombre, unidad, marca').eq('activo', true).order('nombre'),
+      supabase.from('lotes').select('id, nombre, establecimiento').order('establecimiento').order('nombre'),
+      supabase.from('cultivos').select('id, nombre').eq('activo', true).order('nombre'),
+      supabase.from('campanas').select('id, nombre').eq('activo', true).order('nombre', { ascending: false }),
+    ])
+    setProductos(prods ?? [])
+    setLotes(ls ?? [])
+    setCultivos(cs ?? [])
+    setCampanas(caps ?? [])
+    // Setear campaña por defecto
+    if (caps && caps.length > 0) setForm(f => ({ ...f, campaña: caps[0].nombre }))
   }
 
   useEffect(() => {
     cargar()
-    cargarProductos()
+    cargarMaestros()
   }, [])
 
   async function handleGuardar() {
@@ -96,22 +101,27 @@ export default function MovimientosPage() {
       setError(error.message)
     } else {
       setShowForm(false)
-      setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', lote: '', cultivo: '', campaña: '25-26', observaciones: '' })
+      setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', lote: '', cultivo: '', campaña: campanas[0]?.nombre ?? '', observaciones: '' })
       cargar()
     }
     setSaving(false)
   }
 
   const movFiltrados = filtroTipo ? movimientos.filter(m => m.tipo === filtroTipo) : movimientos
-
   const fmt = (n: number) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 })
-
   const badgeColor = (tipo: string) => {
     if (tipo === 'compra')     return 'bg-blue-100 text-blue-700'
     if (tipo === 'aplicacion') return 'bg-orange-100 text-orange-700'
     if (tipo === 'devolucion') return 'bg-purple-100 text-purple-700'
     return 'bg-campo-100 text-campo-600'
   }
+
+  // Agrupar lotes por establecimiento para el select
+  const lotesPorCampo = lotes.reduce((acc: Record<string, Lote[]>, l) => {
+    if (!acc[l.establecimiento]) acc[l.establecimiento] = []
+    acc[l.establecimiento].push(l)
+    return acc
+  }, {})
 
   return (
     <div className="space-y-6">
@@ -188,14 +198,22 @@ export default function MovimientosPage() {
               <>
                 <div>
                   <label className="block text-xs font-medium text-campo-700 mb-1">Lote</label>
-                  <input
-                    type="text"
+                  <select
                     value={form.lote}
                     onChange={e => setForm(f => ({ ...f, lote: e.target.value }))}
-                    placeholder="Ej: Lote 5"
                     className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  />
+                  >
+                    <option value="">Seleccioná un lote</option>
+                    {Object.entries(lotesPorCampo).map(([campo, ls]) => (
+                      <optgroup key={campo} label={campo}>
+                        {ls.map(l => (
+                          <option key={l.id} value={l.nombre}>{l.nombre}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
                 </div>
+
                 <div>
                   <label className="block text-xs font-medium text-campo-700 mb-1">Cultivo</label>
                   <select
@@ -203,12 +221,13 @@ export default function MovimientosPage() {
                     onChange={e => setForm(f => ({ ...f, cultivo: e.target.value }))}
                     className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                   >
-                    <option value="">Seleccioná</option>
-                    {CULTIVOS.map(c => (
-                      <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                    <option value="">Seleccioná un cultivo</option>
+                    {cultivos.map(c => (
+                      <option key={c.id} value={c.nombre}>{c.nombre}</option>
                     ))}
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-xs font-medium text-campo-700 mb-1">Campaña</label>
                   <select
@@ -216,8 +235,8 @@ export default function MovimientosPage() {
                     onChange={e => setForm(f => ({ ...f, campaña: e.target.value }))}
                     className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                   >
-                    {CAMPANIAS.map(c => (
-                      <option key={c} value={c}>{c}</option>
+                    {campanas.map(c => (
+                      <option key={c.id} value={c.nombre}>{c.nombre}</option>
                     ))}
                   </select>
                 </div>
@@ -317,7 +336,7 @@ export default function MovimientosPage() {
                     {fmt(m.cantidad)} <span className="text-xs text-campo-400">{m.agroquimicos_productos?.unidad}</span>
                   </td>
                   <td className="px-5 py-3 text-campo-600">{m.lote ?? '—'}</td>
-                  <td className="px-5 py-3 text-campo-600 capitalize">{m.cultivo ?? '—'}</td>
+                  <td className="px-5 py-3 text-campo-600">{m.cultivo ?? '—'}</td>
                   <td className="px-5 py-3 text-campo-600">{m.campaña ?? '—'}</td>
                   <td className="px-5 py-3 text-campo-500 text-xs">{m.observaciones ?? '—'}</td>
                 </tr>
