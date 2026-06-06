@@ -51,7 +51,7 @@ export default function LotesPage() {
     cargar()
   }, [])
 
-  const campos = [...new Set(lotes.map(l => l.establecimiento))].sort()
+  const campos = Array.from(new Set(lotes.map(l => l.establecimiento))).sort()
 
   const lotesFiltrados = lotes.filter(l =>
     !filtroCampo || l.establecimiento === filtroCampo
@@ -63,7 +63,6 @@ export default function LotesPage() {
   const fmt = (n: number | null | undefined) =>
     n != null ? Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 }) : '—'
 
-  // Agrupar por campo
   const lotesPorCampo = lotesFiltrados.reduce((acc: Record<string, Lote[]>, l) => {
     if (!acc[l.establecimiento]) acc[l.establecimiento] = []
     acc[l.establecimiento].push(l)
@@ -112,7 +111,6 @@ export default function LotesPage() {
 
       {loading && <div className="text-center text-campo-400 py-10">Cargando...</div>}
 
-      {/* Tablas por campo */}
       {!loading && Object.entries(lotesPorCampo).map(([campo, ls]) => (
         <div key={campo} className="card overflow-hidden p-0">
           <div className="px-5 py-3 border-b border-campo-100 bg-campo-50">
