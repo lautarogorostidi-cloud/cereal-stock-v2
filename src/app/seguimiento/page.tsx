@@ -1,31 +1,64 @@
-import { createClient } from '@/lib/supabase/server'
+'use client'
 
-export default async function SeguimientoDashboard() {
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+
+type Resumen = {
+  ciclo_id: number
+  campana: string
+  lote: string
+  campo: string
+  hectareas: number
+  cultivo: string
+  sup_sembrada: number
+  rinde_kg_ha: number | null
+  rinde_kg_total: number | null
+  costo_semillas_usd: number
+  costo_insumos_usd: number
+  costo_fertilizantes_usd: number
+  costo_servicios_usd: number
+  costo_fijos_usd: number
+}
+
+export default function SeguimientoDashboard() {
   const supabase = createClient()
+  const [ciclos, setCiclos] = useState<Resumen[]>([])
+  const [campanas, setCampanas] = useState<string[]>([])
+  const [campanaActual, setCampanaActual] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  const [{ data: ciclos }, { data: campanas }] = await Promise.all([
-    supabase.from('vw_sa_resumen_ciclo').select('*'),
-    supabase.from('campanas').select('*').order('nombre', { ascending: false }),
-  ])
+  useEffect(() => {
+    async function cargar() {
+      setLoading(true)
+      const [{ data: cs }, { data: caps }] = await Promise.all([
+        supabase.from('vw_sa_resumen_ciclo').select('*'),
+        supabase.from('campanas').select('nombre').order('nombre', { ascending: false }),
+      ])
+      const lista = cs ?? []
+      const nombres = (caps ?? []).map((c: any) => c.nombre)
+      setCiclos(lista)
+      setCampanas(nombres)
+      setCampanaActual(nombres[0] ?? '')
+      setLoading(false)
+    }
+    cargar()
+  }, [])
 
-  const lista = ciclos ?? []
-  const campanaActual = (campanas ?? [])[0]?.nombre ?? ''
-  const ciclosCampana = lista.filter((r: any) => r.campana === campanaActual)
+  const fmt = (n: number | null | undefined) =>
+    Number(n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 1 })
+  const fmtUsd = (n: number) =>
+    `USD ${Number(n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
 
-  const fmt = (n: number) => Number(n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 1 })
-  const fmtUsd = (n: number) => `USD ${Number(n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
+  const ciclosCampana = ciclos.filter(r => r.campana === campanaActual)
 
-  // KPIs campaña actual
-  const totalHa = ciclosCampana.reduce((acc: number, r: any) => acc + Number(r.sup_sembrada ?? r.hectareas ?? 0), 0)
-  const totalLotes = ciclosCampana.length
-  const totalKg = ciclosCampana.reduce((acc: number, r: any) => acc + Number(r.rinde_kg_total ?? 0), 0)
-  const costoTotal = ciclosCampana.reduce((acc: number, r: any) =>
+  const totalHa = ciclosCampana.reduce((acc, r) => acc + Number(r.sup_sembrada ?? r.hectareas ?? 0), 0)
+  const totalKg = ciclosCampana.reduce((acc, r) => acc + Number(r.rinde_kg_total ?? 0), 0)
+  const costoTotal = ciclosCampana.reduce((acc, r) =>
     acc + Number(r.costo_semillas_usd ?? 0) + Number(r.costo_insumos_usd ?? 0) +
     Number(r.costo_fertilizantes_usd ?? 0) + Number(r.costo_servicios_usd ?? 0) +
     Number(r.costo_fijos_usd ?? 0), 0)
 
-  // Agrupar por cultivo
-  const porCultivo = ciclosCampana.reduce((acc: Record<string, any>, r: any) => {
+  const porCultivo = ciclosCampana.reduce((acc: Record<string, any>, r) => {
     if (!acc[r.cultivo]) acc[r.cultivo] = { lotes: 0, ha: 0, kg: 0 }
     acc[r.cultivo].lotes++
     acc[r.cultivo].ha += Number(r.sup_sembrada ?? r.hectareas ?? 0)
@@ -33,18 +66,29 @@ export default async function SeguimientoDashboard() {
     return acc
   }, {})
 
+  if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-campo-900">Seguimiento Agronómico</h1>
-        <p className="text-campo-500 text-sm mt-0.5">Campaña actual: {campanaActual}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-campo-900">Seguimiento Agronómico</h1>
+          <p className="text-campo-500 text-sm mt-0.5">Campaña actual: {campanaActual}</p>
+        </div>
+        <select
+          value={campanaActual}
+          onChange={e => setCampanaActual(e.target.value)}
+          className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
+        >
+          {campanas.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Lotes</div>
-          <div className="text-2xl font-bold text-campo-900">{totalLotes}</div>
+          <div className="text-2xl font-bold text-campo-900">{ciclosCampana.length}</div>
           <div className="text-xs text-campo-400 mt-0.5">en campaña {campanaActual}</div>
         </div>
         <div className="card p-5">
@@ -82,11 +126,7 @@ export default async function SeguimientoDashboard() {
             </thead>
             <tbody>
               {Object.keys(porCultivo).length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-campo-400">
-                    No hay ciclos registrados para esta campaña
-                  </td>
-                </tr>
+                <tr><td colSpan={5} className="px-5 py-10 text-center text-campo-400">No hay ciclos registrados para esta campaña</td></tr>
               )}
               {Object.entries(porCultivo).map(([cultivo, data]: [string, any]) => (
                 <tr key={cultivo} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
@@ -108,9 +148,7 @@ export default async function SeguimientoDashboard() {
       <div className="card overflow-hidden p-0">
         <div className="px-5 py-4 border-b border-campo-100 flex items-center justify-between">
           <h2 className="font-semibold text-campo-900">Lotes — {campanaActual}</h2>
-          <a href="/seguimiento/lotes" className="text-sm text-lime-700 hover:text-lime-600 font-medium">
-            Ver todos →
-          </a>
+          <a href="/seguimiento/lotes" className="text-sm text-lime-700 hover:text-lime-600 font-medium">Ver todos →</a>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -126,13 +164,9 @@ export default async function SeguimientoDashboard() {
             </thead>
             <tbody>
               {ciclosCampana.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-campo-400">
-                    No hay ciclos registrados todavía
-                  </td>
-                </tr>
+                <tr><td colSpan={6} className="px-5 py-10 text-center text-campo-400">No hay ciclos registrados todavía</td></tr>
               )}
-              {ciclosCampana.slice(0, 10).map((r: any, i: number) => (
+              {ciclosCampana.slice(0, 10).map((r, i) => (
                 <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-5 py-3 font-medium text-campo-900">{r.lote}</td>
                   <td className="px-5 py-3 text-campo-500 text-xs">{r.campo}</td>
@@ -143,10 +177,8 @@ export default async function SeguimientoDashboard() {
                   </td>
                   <td className="px-5 py-3 text-right text-campo-700">
                     {fmtUsd(
-                      Number(r.costo_semillas_usd ?? 0) +
-                      Number(r.costo_insumos_usd ?? 0) +
-                      Number(r.costo_fertilizantes_usd ?? 0) +
-                      Number(r.costo_servicios_usd ?? 0) +
+                      Number(r.costo_semillas_usd ?? 0) + Number(r.costo_insumos_usd ?? 0) +
+                      Number(r.costo_fertilizantes_usd ?? 0) + Number(r.costo_servicios_usd ?? 0) +
                       Number(r.costo_fijos_usd ?? 0)
                     )}
                   </td>
