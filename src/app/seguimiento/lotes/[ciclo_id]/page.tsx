@@ -5,8 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type Ciclo = {
   ciclo_id: number
   campana: string
@@ -85,8 +83,6 @@ type CostoFijo = {
   costo_total_usd: number
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const fmt = (n: number | null | undefined, dec = 1) =>
   n != null ? Number(n).toLocaleString('es-AR', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—'
 
@@ -132,8 +128,6 @@ const TIPOS_ORDEN = [
   'rescate', 'desecacion', 'insecticida', 'fungicida',
 ]
 
-// ─── Componentes ──────────────────────────────────────────────────────────────
-
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="card overflow-hidden p-0">
@@ -159,8 +153,6 @@ function KPI({ label, value, sub }: { label: string; value: string; sub?: string
     </div>
   )
 }
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FichaCicloPage() {
   const { ciclo_id } = useParams<{ ciclo_id: string }>()
@@ -219,7 +211,6 @@ export default function FichaCicloPage() {
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!ciclo) return <div className="text-center text-campo-400 py-20">Ciclo no encontrado</div>
 
-  // Costos
   const costoInsumos = Number(ciclo.costo_semillas_usd ?? 0) + Number(ciclo.costo_insumos_usd ?? 0) + Number(ciclo.costo_fertilizantes_usd ?? 0)
   const costoServicios = Number(ciclo.costo_servicios_usd ?? 0)
   const totalFijos = costosFijos.reduce((acc, f) => acc + Number(f.costo_total_usd), 0)
@@ -229,20 +220,17 @@ export default function FichaCicloPage() {
   const asesor = costosFijos.find(f => f.tipo === 'asesor')
   const seguro = costosFijos.find(f => f.tipo === 'seguro')
 
-  // Aplicaciones agrupadas por tipo
   const aplPorTipo = aplicaciones.reduce((acc: Record<string, Aplicacion[]>, a) => {
     if (!acc[a.tipo]) acc[a.tipo] = []
     acc[a.tipo].push(a)
     return acc
   }, {})
 
-  // Densidad con unidad dinámica
   const unidadDensidad = siembra?.unidad_densidad === 'pl_ha' ? 'pl/ha' : 'kg/ha'
 
   return (
     <div className="space-y-6">
 
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <Link href="/seguimiento/lotes" className="text-sm text-campo-400 hover:text-campo-700">← Lotes</Link>
@@ -254,7 +242,6 @@ export default function FichaCicloPage() {
         </span>
       </div>
 
-      {/* KPIs fila 1: Superficie + Costos Fijos desglosados */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <KPI label="Superficie" value={`${fmt(ciclo.sup_sembrada ?? ciclo.hectareas)} ha`} />
         <div className="card p-4 lg:col-span-3">
@@ -279,14 +266,12 @@ export default function FichaCicloPage() {
         </div>
       </div>
 
-      {/* KPIs fila 2: Insumos, Servicios, Total */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <KPI label="Costo Insumos" value={fmtUsd(costoInsumos)} sub="semillas + fertilizantes + fitosanitarios" />
         <KPI label="Costo Servicios" value={fmtUsd(costoServicios)} sub="siembra + pulverización + cosecha" />
         <KPI label="Costo Total" value={fmtUsd(costoTotal)} sub="insumos + servicios + fijos" />
       </div>
 
-      {/* Siembra */}
       <Section title="Siembra" action={
         <button className="text-xs text-lime-700 hover:text-lime-600 font-medium">
           {siembra ? 'Editar' : '+ Agregar'}
@@ -328,9 +313,10 @@ export default function FichaCicloPage() {
         )}
       </Section>
 
-      {/* Aplicaciones */}
       <Section title="Aplicaciones" action={
-        <button className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</button>
+        <Link href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/nueva`} className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+          + Agregar
+        </Link>
       }>
         {aplicaciones.length === 0 ? <Empty msg="Sin aplicaciones registradas" /> : (
           <div className="space-y-5">
@@ -385,7 +371,6 @@ export default function FichaCicloPage() {
         )}
       </Section>
 
-      {/* Fertilizaciones */}
       <Section title="Fertilizaciones" action={
         <button className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</button>
       }>
@@ -419,7 +404,6 @@ export default function FichaCicloPage() {
         )}
       </Section>
 
-      {/* Cosecha */}
       <Section title="Cosecha" action={
         <button className="text-xs text-lime-700 hover:text-lime-600 font-medium">
           {cosecha ? 'Editar' : '+ Agregar'}
@@ -436,7 +420,6 @@ export default function FichaCicloPage() {
         )}
       </Section>
 
-      {/* Costos Fijos */}
       <Section title="Costos Fijos" action={
         <button className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</button>
       }>
