@@ -314,16 +314,12 @@ export default function FichaCicloPage() {
       </Section>
 
       <Section title="Aplicaciones" action={
-<<<<<<< HEAD
         <Link
           href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/nueva`}
           className="text-xs text-lime-700 hover:text-lime-600 font-medium"
           target="_blank"
           rel="noopener noreferrer"
         >
-=======
-        <Link href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/nueva`} className="text-xs text-lime-700 hover:text-lime-600 font-medium">
->>>>>>> f6e890133c6d7b9635439645c8c738b1b6027f8d
           + Agregar
         </Link>
       }>
@@ -463,4 +459,3 @@ export default function FichaCicloPage() {
     </div>
   )
 }
- 
