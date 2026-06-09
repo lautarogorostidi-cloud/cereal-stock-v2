@@ -154,10 +154,10 @@ export default function FichaCicloPage() {
     setLoading(true)
     const id = Number(ciclo_id)
 
+    // Primera tanda — no depende de otras
     const [
       { data: cicloData },
       { data: apls },
-      { data: prods },
       { data: siembraData },
       { data: fertData },
       { data: cosechaData },
@@ -165,15 +165,17 @@ export default function FichaCicloPage() {
     ] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('*').eq('ciclo_id', id).single(),
       supabase.from('sa_aplicaciones').select('*').eq('ciclo_id', id).order('tipo').order('numero'),
-      supabase.from('sa_aplicacion_productos').select('*').in(
-        'aplicacion_id',
-        (apls ?? []).map((a: any) => a.id)
-      ),
       supabase.from('sa_siembras').select('*').eq('ciclo_id', id).maybeSingle(),
       supabase.from('sa_fertilizaciones').select('*').eq('ciclo_id', id).order('numero'),
       supabase.from('sa_cosechas').select('*').eq('ciclo_id', id).maybeSingle(),
       supabase.from('sa_costos_fijos').select('*').eq('ciclo_id', id).order('tipo'),
     ])
+
+    // Segunda tanda — depende de apls
+    const aplIds = (apls ?? []).map((a: any) => a.id as number)
+    const { data: prods } = aplIds.length > 0
+      ? await supabase.from('sa_aplicacion_productos').select('*').in('aplicacion_id', aplIds)
+      : { data: [] }
 
     setCiclo(cicloData ?? null)
 
