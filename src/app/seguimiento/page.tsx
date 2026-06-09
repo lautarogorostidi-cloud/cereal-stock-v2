@@ -11,6 +11,7 @@ type Resumen = {
   hectareas: number
   cultivo: string
   sup_sembrada: number
+  sup_cosechada: number | null
   rinde_kg_ha: number | null
   rinde_kg_total: number | null
   costo_semillas_usd: number
@@ -49,7 +50,8 @@ export default function SeguimientoDashboard() {
     `USD ${Number(n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
 
   const ciclosCampana = ciclos.filter(r => r.campana === campanaActual)
-  const totalHa = ciclosCampana.reduce((acc, r) => acc + Number(r.sup_sembrada ?? r.hectareas ?? 0), 0)
+  const totalHaSembrada = ciclosCampana.reduce((acc, r) => acc + Number(r.sup_sembrada ?? r.hectareas ?? 0), 0)
+  const totalHaCosechada = ciclosCampana.reduce((acc, r) => acc + Number(r.sup_cosechada ?? 0), 0)
   const totalKg = ciclosCampana.reduce((acc, r) => acc + Number(r.rinde_kg_total ?? 0), 0)
   const costoTotal = ciclosCampana.reduce((acc, r) =>
     acc + Number(r.costo_semillas_usd ?? 0) + Number(r.costo_insumos_usd ?? 0) +
@@ -57,9 +59,10 @@ export default function SeguimientoDashboard() {
     Number(r.costo_fijos_usd ?? 0), 0)
 
   const porCultivo = ciclosCampana.reduce((acc: Record<string, any>, r) => {
-    if (!acc[r.cultivo]) acc[r.cultivo] = { lotes: 0, ha: 0, kg: 0 }
+    if (!acc[r.cultivo]) acc[r.cultivo] = { lotes: 0, haSembrada: 0, haCosechada: 0, kg: 0 }
     acc[r.cultivo].lotes++
-    acc[r.cultivo].ha += Number(r.sup_sembrada ?? r.hectareas ?? 0)
+    acc[r.cultivo].haSembrada += Number(r.sup_sembrada ?? r.hectareas ?? 0)
+    acc[r.cultivo].haCosechada += Number(r.sup_cosechada ?? 0)
     acc[r.cultivo].kg += Number(r.rinde_kg_total ?? 0)
     return acc
   }, {})
@@ -91,8 +94,8 @@ export default function SeguimientoDashboard() {
         </div>
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Superficie</div>
-          <div className="text-2xl font-bold text-campo-900">{fmt(totalHa)}</div>
-          <div className="text-xs text-campo-400 mt-0.5">hectáreas sembradas</div>
+          <div className="text-2xl font-bold text-campo-900">{fmt(totalHaSembrada)}</div>
+          <div className="text-xs text-campo-400 mt-0.5">ha sembradas · {fmt(totalHaCosechada)} cosechadas</div>
         </div>
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Producción</div>
@@ -117,23 +120,29 @@ export default function SeguimientoDashboard() {
               <tr className="border-b border-campo-100 bg-campo-50">
                 <th className="text-left px-5 py-3 font-semibold text-campo-700">Cultivo</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Lotes</th>
-                <th className="text-right px-5 py-3 font-semibold text-campo-700">Hectáreas</th>
+                <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha sembradas</th>
+                <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha cosechadas</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Producción (kg)</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Rinde (kg/ha)</th>
               </tr>
             </thead>
             <tbody>
               {Object.keys(porCultivo).length === 0 && (
-                <tr><td colSpan={5} className="px-5 py-10 text-center text-campo-400">No hay ciclos para esta campaña</td></tr>
+                <tr><td colSpan={6} className="px-5 py-10 text-center text-campo-400">No hay ciclos para esta campaña</td></tr>
               )}
               {Object.entries(porCultivo).map(([cultivo, data]: [string, any]) => (
                 <tr key={cultivo} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-5 py-3 font-medium text-campo-900">{cultivo}</td>
                   <td className="px-5 py-3 text-right text-campo-700">{data.lotes}</td>
-                  <td className="px-5 py-3 text-right text-campo-700">{fmt(data.ha)}</td>
-                  <td className="px-5 py-3 text-right text-campo-700">{fmt(data.kg)}</td>
+                  <td className="px-5 py-3 text-right text-campo-700">{fmt(data.haSembrada)}</td>
+                  <td className="px-5 py-3 text-right text-campo-700">
+                    {data.haCosechada > 0 ? fmt(data.haCosechada) : '—'}
+                  </td>
+                  <td className="px-5 py-3 text-right text-campo-700">
+                    {data.kg > 0 ? fmt(data.kg) : '—'}
+                  </td>
                   <td className="px-5 py-3 text-right font-medium text-campo-900">
-                    {data.ha > 0 ? fmt(data.kg / data.ha) : '—'}
+                    {data.haCosechada > 0 ? fmt(data.kg / data.haCosechada) : '—'}
                   </td>
                 </tr>
               ))}
@@ -155,33 +164,36 @@ export default function SeguimientoDashboard() {
                 <th className="text-left px-5 py-3 font-semibold text-campo-700">Lote</th>
                 <th className="text-left px-5 py-3 font-semibold text-campo-700">Campo</th>
                 <th className="text-left px-5 py-3 font-semibold text-campo-700">Cultivo</th>
-                <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha</th>
+                <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha sembradas</th>
+                <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha cosechadas</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Rinde kg/ha</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Costo USD</th>
               </tr>
             </thead>
             <tbody>
               {ciclosCampana.length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-10 text-center text-campo-400">No hay ciclos registrados</td></tr>
+                <tr><td colSpan={7} className="px-5 py-10 text-center text-campo-400">No hay ciclos registrados</td></tr>
               )}
-              {ciclosCampana.slice(0, 10).map((r, i) => (
-                <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-campo-900">{r.lote}</td>
-                  <td className="px-5 py-3 text-campo-500 text-xs">{r.campo}</td>
-                  <td className="px-5 py-3 text-campo-700">{r.cultivo}</td>
-                  <td className="px-5 py-3 text-right text-campo-700">{fmt(r.sup_sembrada ?? r.hectareas)}</td>
-                  <td className="px-5 py-3 text-right font-medium text-campo-900">
-                    {r.rinde_kg_ha ? fmt(r.rinde_kg_ha) : '—'}
-                  </td>
-                  <td className="px-5 py-3 text-right text-campo-700">
-                    {fmtUsd(
-                      Number(r.costo_semillas_usd ?? 0) + Number(r.costo_insumos_usd ?? 0) +
-                      Number(r.costo_fertilizantes_usd ?? 0) + Number(r.costo_servicios_usd ?? 0) +
-                      Number(r.costo_fijos_usd ?? 0)
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {ciclosCampana.slice(0, 10).map((r, i) => {
+                const costoLote = Number(r.costo_semillas_usd ?? 0) + Number(r.costo_insumos_usd ?? 0) +
+                  Number(r.costo_fertilizantes_usd ?? 0) + Number(r.costo_servicios_usd ?? 0) +
+                  Number(r.costo_fijos_usd ?? 0)
+                return (
+                  <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
+                    <td className="px-5 py-3 font-medium text-campo-900">{r.lote}</td>
+                    <td className="px-5 py-3 text-campo-500 text-xs">{r.campo}</td>
+                    <td className="px-5 py-3 text-campo-700">{r.cultivo}</td>
+                    <td className="px-5 py-3 text-right text-campo-700">{fmt(r.sup_sembrada ?? r.hectareas)}</td>
+                    <td className="px-5 py-3 text-right text-campo-700">
+                      {r.sup_cosechada ? fmt(r.sup_cosechada) : '—'}
+                    </td>
+                    <td className="px-5 py-3 text-right font-medium text-campo-900">
+                      {r.rinde_kg_ha ? fmt(r.rinde_kg_ha) : '—'}
+                    </td>
+                    <td className="px-5 py-3 text-right text-campo-700">{fmtUsd(costoLote)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
