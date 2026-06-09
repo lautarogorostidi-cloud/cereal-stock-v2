@@ -165,6 +165,7 @@ export default function FichaCicloPage() {
   const [cosecha, setCosecha] = useState<Cosecha | null>(null)
   const [costosFijos, setCostosFijos] = useState<CostoFijo[]>([])
   const [loading, setLoading] = useState(true)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!ciclo_id) return
@@ -206,6 +207,15 @@ export default function FichaCicloPage() {
     setCosecha(cosechaData ?? null)
     setCostosFijos(fijosData ?? [])
     setLoading(false)
+  }
+
+  async function handleBorrarAplicacion(aplId: number) {
+    if (!confirm('¿Seguro que querés borrar esta aplicación y todos sus productos?')) return
+    setDeletingId(aplId)
+    await supabase.from('sa_aplicacion_productos').delete().eq('aplicacion_id', aplId)
+    await supabase.from('sa_aplicaciones').delete().eq('id', aplId)
+    setDeletingId(null)
+    cargar()
   }
 
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
@@ -341,6 +351,7 @@ export default function FichaCicloPage() {
                         <th className="text-right px-4 py-2 font-semibold text-campo-700">Serv. USD/ha</th>
                         <th className="text-left px-4 py-2 font-semibold text-campo-700">Productos</th>
                         <th className="text-right px-4 py-2 font-semibold text-campo-700">Total insumos</th>
+                        <th className="text-center px-4 py-2 font-semibold text-campo-700">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -364,6 +375,25 @@ export default function FichaCicloPage() {
                               ))}
                             </td>
                             <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(totalInsumos)}</td>
+                            <td className="px-4 py-2 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <Link
+                                  href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/${a.id}/editar`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-lime-700 hover:text-lime-600 font-medium"
+                                >
+                                  Editar
+                                </Link>
+                                <button
+                                  onClick={() => handleBorrarAplicacion(a.id)}
+                                  disabled={deletingId === a.id}
+                                  className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
+                                >
+                                  {deletingId === a.id ? '...' : 'Borrar'}
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         )
                       })}
