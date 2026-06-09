@@ -54,45 +54,61 @@ export default function LotesPage() {
 
   const campos = Array.from(new Set(lotes.map(l => l.establecimiento))).sort()
 
-  const getCiclo = (loteNombre: string) =>
-    ciclos.find(c => c.lote === loteNombre && c.campana === campanaSeleccionada)
+  // Ciclos de la campaña seleccionada
+  const ciclosCampana = ciclos.filter(c => c.campana === campanaSeleccionada)
 
+  // Para un lote, devuelve TODOS sus ciclos en la campaña seleccionada
+  const getCiclos = (loteNombre: string) =>
+    ciclosCampana.filter(c => c.lote === loteNombre)
+
+  // Filas a mostrar: una por ciclo, más una fila "Sin ciclo" si el lote no tiene ninguno
+  type Fila = { lote: Lote; ciclo: Ciclo | null }
+
+  const filas: Fila[] = []
   const lotesFiltrados = lotes.filter(l => {
     if (filtroCampo && l.establecimiento !== filtroCampo) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
-      const ciclo = getCiclo(l.nombre)
       const matchLote = l.nombre.toLowerCase().includes(q)
-      const matchCultivo = ciclo?.cultivo?.toLowerCase().includes(q) ?? false
+      const matchCultivo = getCiclos(l.nombre).some(c => c.cultivo.toLowerCase().includes(q))
       return matchLote || matchCultivo
     }
     return true
   })
 
+  lotesFiltrados.forEach(l => {
+    const cs = getCiclos(l.nombre)
+    if (cs.length === 0) {
+      filas.push({ lote: l, ciclo: null })
+    } else {
+      cs.forEach(c => filas.push({ lote: l, ciclo: c }))
+    }
+  })
+
   const fmt = (n: number | null | undefined) =>
     n != null ? Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 }) : '—'
 
-  const lotesPorCampo = lotesFiltrados.reduce((acc: Record<string, Lote[]>, l) => {
-    if (!acc[l.establecimiento]) acc[l.establecimiento] = []
-    acc[l.establecimiento].push(l)
+  // Agrupar filas por campo
+  const filasPorCampo = filas.reduce((acc: Record<string, Fila[]>, f) => {
+    const campo = f.lote.establecimiento
+    if (!acc[campo]) acc[campo] = []
+    acc[campo].push(f)
     return acc
   }, {})
 
-  const totalLotes = lotesFiltrados.length
-  const totalConCiclo = lotesFiltrados.filter(l => getCiclo(l.nombre)).length
+  const totalLotesConCiclo = new Set(filas.filter(f => f.ciclo).map(f => f.lote.nombre)).size
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-campo-900">Lotes</h1>
         <p className="text-campo-500 text-sm mt-0.5">
-          {totalConCiclo} de {totalLotes} lotes con ciclo en {campanaSeleccionada}
+          {totalLotesConCiclo} de {lotesFiltrados.length} lotes con ciclo en {campanaSeleccionada}
         </p>
       </div>
 
       {/* Filtros */}
       <div className="flex gap-3 flex-wrap items-center">
-        {/* Buscador */}
         <input
           type="text"
           value={busqueda}
@@ -133,16 +149,18 @@ export default function LotesPage() {
 
       {loading && <div className="text-center text-campo-400 py-10">Cargando...</div>}
 
-      {!loading && Object.keys(lotesPorCampo).length === 0 && (
+      {!loading && Object.keys(filasPorCampo).length === 0 && (
         <div className="card p-10 text-center text-campo-400">
           No se encontraron lotes con ese criterio
         </div>
       )}
 
-      {!loading && Object.entries(lotesPorCampo).map(([campo, ls]) => (
+      {!loading && Object.entries(filasPorCampo).map(([campo, fs]) => (
         <div key={campo} className="card overflow-hidden p-0">
           <div className="px-5 py-3 border-b border-campo-100 bg-campo-50">
-            <h2 className="font-semibold text-campo-700 text-sm">🏡 {campo} — {ls.length} lotes</h2>
+            <h2 className="font-semibold text-campo-700 text-sm">
+              🏡 {campo} — {new Set(fs.map(f => f.lote.nombre)).size} lotes
+            </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -159,57 +177,54 @@ export default function LotesPage() {
                 </tr>
               </thead>
               <tbody>
-                {ls.map(l => {
-                  const ciclo = getCiclo(l.nombre)
-                  return (
-                    <tr key={l.id} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
-                      <td className="px-5 py-3 font-medium text-campo-900">{l.nombre}</td>
-                      <td className="px-5 py-3 text-right text-campo-600">{fmt(l.hectareas)}</td>
-                      <td className="px-5 py-3">
-                        {ciclo ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-100 text-lime-800">
-                            {ciclo.cultivo}
-                          </span>
-                        ) : (
-                          <span className="text-campo-400 text-xs">Sin ciclo</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 text-right text-campo-600">
-                        {ciclo ? fmt(ciclo.sup_sembrada) : '—'}
-                      </td>
-                      <td className="px-5 py-3 text-campo-600">
-                        {ciclo?.fecha_siembra
-                          ? new Date(ciclo.fecha_siembra + 'T00:00:00').toLocaleDateString('es-AR')
-                          : '—'}
-                      </td>
-                      <td className="px-5 py-3 text-campo-600">
-                        {ciclo?.fecha_cosecha
-                          ? new Date(ciclo.fecha_cosecha + 'T00:00:00').toLocaleDateString('es-AR')
-                          : '—'}
-                      </td>
-                      <td className="px-5 py-3 text-right font-medium text-campo-900">
-                        {fmt(ciclo?.rinde_kg_ha)}
-                      </td>
-                      <td className="px-5 py-3 text-center">
-                        {ciclo ? (
-                          <Link
-                            href={`/seguimiento/lotes/${ciclo.ciclo_id}`}
-                            className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-                          >
-                            Ver ficha →
-                          </Link>
-                        ) : (
-                          <Link
-                            href={`/seguimiento/lotes/nuevo?lote=${l.id}`}
-                            className="text-xs text-campo-400 hover:text-lime-700 font-medium"
-                          >
-                            + Agregar
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {fs.map((f, i) => (
+                  <tr key={`${f.lote.id}-${f.ciclo?.ciclo_id ?? 'sin'}`} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
+                    <td className="px-5 py-3 font-medium text-campo-900">{f.lote.nombre}</td>
+                    <td className="px-5 py-3 text-right text-campo-600">{fmt(f.lote.hectareas)}</td>
+                    <td className="px-5 py-3">
+                      {f.ciclo ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-100 text-lime-800">
+                          {f.ciclo.cultivo}
+                        </span>
+                      ) : (
+                        <span className="text-campo-400 text-xs">Sin ciclo</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-right text-campo-600">
+                      {f.ciclo ? fmt(f.ciclo.sup_sembrada) : '—'}
+                    </td>
+                    <td className="px-5 py-3 text-campo-600">
+                      {f.ciclo?.fecha_siembra
+                        ? new Date(f.ciclo.fecha_siembra + 'T00:00:00').toLocaleDateString('es-AR')
+                        : '—'}
+                    </td>
+                    <td className="px-5 py-3 text-campo-600">
+                      {f.ciclo?.fecha_cosecha
+                        ? new Date(f.ciclo.fecha_cosecha + 'T00:00:00').toLocaleDateString('es-AR')
+                        : '—'}
+                    </td>
+                    <td className="px-5 py-3 text-right font-medium text-campo-900">
+                      {fmt(f.ciclo?.rinde_kg_ha)}
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                      {f.ciclo ? (
+                        <Link
+                          href={`/seguimiento/lotes/${f.ciclo.ciclo_id}`}
+                          className="text-xs text-lime-700 hover:text-lime-600 font-medium"
+                        >
+                          Ver ficha →
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/seguimiento/lotes/nuevo?lote=${f.lote.id}`}
+                          className="text-xs text-campo-400 hover:text-lime-700 font-medium"
+                        >
+                          + Agregar
+                        </Link>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
