@@ -58,17 +58,26 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
   }
 
   async function guardarBonificacion() {
-    if (!editando?.carta_porte_id) return
+    if (!editando) return
     setSaving(true)
     setError(null)
 
     const bonif = parseFloat(bonifInput) || 0
-    const { error } = await supabase
-      .from('cartas_porte')
-      .update({ bonificacion_calidad: bonif })
-      .eq('id', editando.carta_porte_id)
 
-    if (error) { setError(error.message); setSaving(false); return }
+    // Si tiene carta de porte, guardar ahí. Si no, guardar en movimientos_cereal
+    if (editando.carta_porte_id) {
+      const { error } = await supabase
+        .from('cartas_porte')
+        .update({ bonificacion_calidad: bonif })
+        .eq('id', editando.carta_porte_id)
+      if (error) { setError(error.message); setSaving(false); return }
+    } else {
+      const { error } = await supabase
+        .from('movimientos_cereal')
+        .update({ bonificacion_calidad: bonif })
+        .eq('id', editando.id)
+      if (error) { setError(error.message); setSaving(false); return }
+    }
 
     const precio_base = Number(editando.precio_base ?? 0)
     const precio_plus = Number(editando.precio_plus ?? 0)
@@ -80,7 +89,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
     const total_usd = total_tn * toneladas
 
     setVentas(prev => prev.map(v =>
-      v.carta_porte_id === editando.carta_porte_id
+      v.id === editando.id
         ? { ...v, bonificacion: bonif || null, bonif_usd: bonif_usd || null, total_tn: total_tn || null, total_usd: total_usd || null }
         : v
     ))
@@ -175,11 +184,9 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                         <button onClick={() => abrirModalContrato(e)} className="text-xs text-campo-500 hover:text-campo-700 underline">
                           contrato
                         </button>
-                        {e.carta_porte_id && (
-                          <button onClick={() => abrirModalBonif(e)} className="text-xs text-campo-500 hover:text-campo-700 underline">
-                            bonif.
-                          </button>
-                        )}
+                        <button onClick={() => abrirModalBonif(e)} className="text-xs text-campo-500 hover:text-campo-700 underline">
+                          bonif.
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -209,7 +216,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <h2 className="text-lg font-bold text-campo-900 mb-1">Cargar bonificación</h2>
-            <p className="text-sm text-campo-500 mb-1">CTG {editando.ctg ?? '—'}</p>
+            <p className="text-sm text-campo-500 mb-1">{editando.ctg ? `CTG ${editando.ctg}` : `Movimiento #${editando.id}`}</p>
             <p className="text-xs text-campo-400 mb-4">{editando.cultivo} — {editando.campania} — {fmt(Number(editando.toneladas))} tn</p>
             <label className="block text-sm font-medium text-campo-700 mb-1">% Bonificación</label>
             <input

@@ -36,6 +36,7 @@ export default function NuevoContratoPage() {
     tipo_precio: 'disponible',
     precio_unitario: '',
     precio_plus: '',
+    bonificacion_calidad: '',
     moneda_id: '',
     toneladas_pactadas: '',
     puerto_id: '',
@@ -82,13 +83,8 @@ export default function NuevoContratoPage() {
         .order('created_at', { ascending: false })
         .limit(10)
       if (ultimoContrato && ultimoContrato.length > 0) {
-        const numeros = ultimoContrato
-          .map((c: any) => parseInt(c.numero))
-          .filter((n: number) => !isNaN(n))
-        if (numeros.length > 0) {
-          const siguiente = Math.max(...numeros) + 1
-          setForm(f => ({ ...f, numero: String(siguiente) }))
-        }
+        const numeros = ultimoContrato.map((c: any) => parseInt(c.numero)).filter((n: number) => !isNaN(n))
+        if (numeros.length > 0) setForm(f => ({ ...f, numero: String(Math.max(...numeros) + 1) }))
       } else {
         setForm(f => ({ ...f, numero: '1' }))
       }
@@ -136,6 +132,7 @@ export default function NuevoContratoPage() {
     }
     if (form.precio_unitario) payload.precio_unitario = parseFloat(form.precio_unitario)
     if (form.precio_plus) payload.precio_plus = parseFloat(form.precio_plus)
+    if (form.bonificacion_calidad) payload.bonificacion_calidad = parseFloat(form.bonificacion_calidad)
     if (form.puerto_id) payload.puerto_id = form.puerto_id
     if (form.acopio_id) payload.acopio_id = form.acopio_id
     if (form.fecha_inicio_entrega) payload.fecha_inicio_entrega = form.fecha_inicio_entrega
@@ -225,6 +222,11 @@ export default function NuevoContratoPage() {
                 <input type="number" step="0.01" value={form.precio_plus} onChange={e => set('precio_plus', e.target.value)} placeholder="30" className="input-field w-28" />
                 <span className="text-campo-400 text-sm whitespace-nowrap">plus</span>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-campo-700 mb-1">Bonificación calidad (%)</label>
+              <input type="number" step="0.01" min="0" value={form.bonificacion_calidad} onChange={e => set('bonificacion_calidad', e.target.value)} placeholder="2.00" className="input-field" />
+              <p className="text-xs text-campo-400 mt-1">Se aplica a todas las entregas de este contrato</p>
             </div>
           </div>
         </div>
