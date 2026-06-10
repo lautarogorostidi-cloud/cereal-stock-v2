@@ -56,7 +56,6 @@ export default function SelectorPage() {
           <h1 className="text-3xl font-bold text-white mb-2">Bienvenido{perfil ? `, ${perfil.nombre}` : ''}</h1>
           <p className="text-campo-300 text-base">Seleccioná el módulo al que querés acceder</p>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 w-full max-w-4xl">
           {MODULOS.map((mod) => (
             <button
@@ -65,16 +64,17 @@ export default function SelectorPage() {
               disabled={!mod.activo}
               className={`relative text-left rounded-2xl border bg-white/5 backdrop-blur-sm p-6 transition-all duration-200 ${mod.color}`}
             >
-              <span className={`absolute top-4 right-4 text-xs font-medium px-2 py-0.5 rounded-full ${mod.badgeColor}`}>
-                {mod.activo ? 'Activo' : 'Próximamente'}
-              </span>
+              {!mod.activo && (
+                <span className={`absolute top-4 right-4 text-xs font-medium px-2 py-0.5 rounded-full ${mod.badgeColor}`}>
+                  Próximamente
+                </span>
+              )}
               <div className="text-4xl mb-4">{mod.icon}</div>
               <div className="font-bold text-white text-lg mb-1">{mod.titulo}</div>
               <div className="text-campo-300 text-sm leading-relaxed">{mod.descripcion}</div>
             </button>
           ))}
         </div>
-
         <p className="text-campo-600 text-xs mt-12">© {new Date().getFullYear()} Sistema Agropecuario</p>
       </div>
     </div>
