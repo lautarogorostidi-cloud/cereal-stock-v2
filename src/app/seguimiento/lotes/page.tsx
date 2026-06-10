@@ -34,7 +34,19 @@ type Aplicacion = {
   productos: string[]
 }
 
-export default function LotesPage() {
+const TIPO_LABELS: Record<string, string> = {
+  barbecho: 'Barbecho',
+  pre_siembra: 'Pre-siembra',
+  pre_emergente: 'Pre-Emergente',
+  post_emergente_temprano: 'Post-Emerg. Temprano',
+  post_emergente: 'Post-Emergente',
+  rescate: 'Rescate',
+  desecacion: 'Desecación',
+  insecticida: 'Insecticida',
+  fungicida: 'Fungicida',
+}
+
+export default function LotesCultivosPage() {
   const supabase = createClient()
   const [lotes, setLotes] = useState<Lote[]>([])
   const [ciclos, setCiclos] = useState<Ciclo[]>([])
@@ -64,9 +76,8 @@ export default function LotesPage() {
       const prodsMap: Record<number, string[]> = {}
       ;(prods ?? []).forEach((p: any) => {
         if (!prodsMap[p.aplicacion_id]) prodsMap[p.aplicacion_id] = []
-        if (!prodsMap[p.aplicacion_id].includes(p.producto)) {
+        if (!prodsMap[p.aplicacion_id].includes(p.producto))
           prodsMap[p.aplicacion_id].push(p.producto)
-        }
       })
 
       setAplicaciones((apls ?? []).map((a: any) => ({
@@ -85,37 +96,34 @@ export default function LotesPage() {
   const campos = Array.from(new Set(lotes.map(l => l.establecimiento))).sort()
   const ciclosCampana = ciclos.filter(c => c.campana === campanaSeleccionada)
 
-  const getCiclos = (loteNombre: string) =>
-    ciclosCampana.filter(c => c.lote === loteNombre)
+  const getCiclos = (loteNombre: string) => ciclosCampana.filter(c => c.lote === loteNombre)
+  const getAplicaciones = (cicloId: number) => aplicaciones.filter(a => a.ciclo_id === cicloId)
+  const getHaPulv = (cicloId: number) => aplicaciones.filter(a => a.ciclo_id === cicloId).reduce((acc, a) => acc + Number(a.superficie_ha ?? 0), 0)
 
-  const getAplicaciones = (cicloId: number) =>
-    aplicaciones.filter(a => a.ciclo_id === cicloId)
-
-  const getHaPulverizadas = (cicloId: number) =>
-    aplicaciones.filter(a => a.ciclo_id === cicloId).reduce((acc, a) => acc + Number(a.superficie_ha ?? 0), 0)
-
-  const toggleExpandido = (cicloId: number) => {
+  const toggleExpandido = (id: number) => {
     setExpandidos(prev => {
       const next = new Set(prev)
-      if (next.has(cicloId)) next.delete(cicloId)
-      else next.add(cicloId)
+      next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
   }
 
-  type Fila = { lote: Lote; ciclo: Ciclo | null }
+  const fmt = (n: number | null | undefined, dec = 1) =>
+    n != null && Number(n) > 0 ? Number(n).toLocaleString('es-AR', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—'
+
+  const fmtFecha = (s: string | null) =>
+    s ? new Date(s + 'T00:00:00').toLocaleDateString('es-AR') : '—'
 
   const lotesFiltrados = lotes.filter(l => {
     if (filtroCampo && l.establecimiento !== filtroCampo) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
-      const matchLote = l.nombre.toLowerCase().includes(q)
-      const matchCultivo = getCiclos(l.nombre).some(c => c.cultivo.toLowerCase().includes(q))
-      return matchLote || matchCultivo
+      return l.nombre.toLowerCase().includes(q) || getCiclos(l.nombre).some(c => c.cultivo.toLowerCase().includes(q))
     }
     return true
   })
 
+  type Fila = { lote: Lote; ciclo: Ciclo | null }
   const filas: Fila[] = []
   lotesFiltrados.forEach(l => {
     const cs = getCiclos(l.nombre)
@@ -123,13 +131,12 @@ export default function LotesPage() {
     else cs.forEach(c => filas.push({ lote: l, ciclo: c }))
   })
 
-  const fmt = (n: number | null | undefined) =>
-    n != null ? Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 }) : '—'
+  const filasPorCampo = filas.reduce((acc: Record<string, Fila[]>, f) => {
+    if (!acc[f.lote.establecimiento]) acc[f.lote.establecimiento] = []
+    acc[f.lote.establecimiento].push(f)
+    return acc
+  }, {})
 
-  const fmtFecha = (s: string | null) =>
-    s ? new Date(s + 'T00:00:00').toLocaleDateString('es-AR') : '—'
-
-  // ─── Vista por Cultivo ────────────────────────────────────────────────────
   const porCultivo = ciclosCampana
     .filter(c => lotesFiltrados.some(l => l.nombre === c.lote))
     .reduce((acc: Record<string, { ciclos: Ciclo[]; haSembrada: number; haCosechada: number; haPulv: number; kg: number }>, c) => {
@@ -137,30 +144,25 @@ export default function LotesPage() {
       acc[c.cultivo].ciclos.push(c)
       acc[c.cultivo].haSembrada += Number(c.sup_sembrada ?? 0)
       acc[c.cultivo].haCosechada += Number(c.sup_cosechada ?? 0)
-      acc[c.cultivo].haPulv += getHaPulverizadas(c.ciclo_id)
+      acc[c.cultivo].haPulv += getHaPulv(c.ciclo_id)
       acc[c.cultivo].kg += Number(c.rinde_kg_ha && c.sup_cosechada ? c.rinde_kg_ha * c.sup_cosechada : 0)
       return acc
     }, {})
 
-  const filasPorCampo = filas.reduce((acc: Record<string, Fila[]>, f) => {
-    const campo = f.lote.establecimiento
-    if (!acc[campo]) acc[campo] = []
-    acc[campo].push(f)
-    return acc
-  }, {})
-
   const totalLotesConCiclo = new Set(filas.filter(f => f.ciclo).map(f => f.lote.nombre)).size
+
+  // Columnas de la tabla de lotes (11 columnas)
+  const COL_WIDTHS = ['w-28', 'w-16', 'w-24', 'w-24', 'w-28', 'w-28', 'w-24', 'w-24', 'w-24', 'w-24', 'w-24']
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-campo-900">Lotes y Cultivos</h1>
+          <h1 className="text-2xl font-bold text-campo-900">Lotes / Cultivos</h1>
           <p className="text-campo-500 text-sm mt-0.5">
             {totalLotesConCiclo} de {lotesFiltrados.length} lotes con ciclo en {campanaSeleccionada}
           </p>
         </div>
-        {/* Selector Vista */}
         <div className="flex rounded-lg border border-campo-200 overflow-hidden text-sm">
           <button
             onClick={() => setVistaSeleccionada('lote')}
@@ -188,30 +190,22 @@ export default function LotesPage() {
         />
         <div>
           <label className="text-xs font-medium text-campo-600 mr-2">Campaña</label>
-          <select
-            value={campanaSeleccionada}
-            onChange={e => setCampanaSeleccionada(e.target.value)}
-            className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-          >
+          <select value={campanaSeleccionada} onChange={e => setCampanaSeleccionada(e.target.value)}
+            className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
             {campanas.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <div>
           <label className="text-xs font-medium text-campo-600 mr-2">Campo</label>
-          <select
-            value={filtroCampo}
-            onChange={e => setFiltroCampo(e.target.value)}
-            className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-          >
+          <select value={filtroCampo} onChange={e => setFiltroCampo(e.target.value)}
+            className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
             <option value="">Todos</option>
             {campos.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         {busqueda && (
-          <button
-            onClick={() => setBusqueda('')}
-            className="text-xs text-campo-400 hover:text-campo-700 px-2 py-1.5 rounded-lg hover:bg-campo-100 transition-colors"
-          >
+          <button onClick={() => setBusqueda('')}
+            className="text-xs text-campo-400 hover:text-campo-700 px-2 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
             ✕ Limpiar
           </button>
         )}
@@ -236,82 +230,87 @@ export default function LotesPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-campo-100">
-                      <th className="text-left px-5 py-3 font-semibold text-campo-700">Lote</th>
-                      <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha lote</th>
-                      <th className="text-left px-5 py-3 font-semibold text-campo-700">Cultivo</th>
-                      <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha sembradas</th>
-                      <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha cosechadas</th>
-                      <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha pulverizadas</th>
-                      <th className="text-left px-5 py-3 font-semibold text-campo-700">Siembra</th>
-                      <th className="text-left px-5 py-3 font-semibold text-campo-700">Cosecha</th>
-                      <th className="text-right px-5 py-3 font-semibold text-campo-700">Rinde kg/ha</th>
-                      <th className="text-center px-5 py-3 font-semibold text-campo-700">Pulverizaciones</th>
-                      <th className="text-center px-5 py-3 font-semibold text-campo-700">Acciones</th>
+                      <th className="text-left px-4 py-3 font-semibold text-campo-700">Lote</th>
+                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha lote</th>
+                      <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
+                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha sembradas</th>
+                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha cosechadas</th>
+                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha pulverizadas</th>
+                      <th className="text-left px-4 py-3 font-semibold text-campo-700">Siembra</th>
+                      <th className="text-left px-4 py-3 font-semibold text-campo-700">Cosecha</th>
+                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Rinde kg/ha</th>
+                      <th className="text-center px-4 py-3 font-semibold text-campo-700">Aplicaciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {fs.map((f) => {
-                      const apls = f.ciclo ? getAplicaciones(f.ciclo.ciclo_id) : []
-                      const haPulv = f.ciclo ? getHaPulverizadas(f.ciclo.ciclo_id) : 0
+                      const apls = f.ciclo ? getAplicaciones(f.ciclo.ciclo_id).sort((a, b) => (a.fecha ?? '').localeCompare(b.fecha ?? '')) : []
+                      const haPulv = f.ciclo ? getHaPulv(f.ciclo.ciclo_id) : 0
                       const expandido = f.ciclo ? expandidos.has(f.ciclo.ciclo_id) : false
                       return (
                         <>
                           <tr key={`${f.lote.id}-${f.ciclo?.ciclo_id ?? 'sin'}`} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
-                            <td className="px-5 py-3 font-medium text-campo-900">{f.lote.nombre}</td>
-                            <td className="px-5 py-3 text-right text-campo-600">{fmt(f.lote.hectareas)}</td>
-                            <td className="px-5 py-3">
+                            <td className="px-4 py-3 font-medium text-campo-900">{f.lote.nombre}</td>
+                            <td className="px-4 py-3 text-right text-campo-600">{fmt(f.lote.hectareas)}</td>
+                            <td className="px-4 py-3">
                               {f.ciclo ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-100 text-lime-800">
-                                  {f.ciclo.cultivo}
-                                </span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-100 text-lime-800">{f.ciclo.cultivo}</span>
                               ) : (
                                 <span className="text-campo-400 text-xs">Sin ciclo</span>
                               )}
                             </td>
-                            <td className="px-5 py-3 text-right text-campo-600">{f.ciclo ? fmt(f.ciclo.sup_sembrada) : '—'}</td>
-                            <td className="px-5 py-3 text-right text-campo-600">{f.ciclo?.sup_cosechada ? fmt(f.ciclo.sup_cosechada) : '—'}</td>
-                            <td className="px-5 py-3 text-right text-campo-600">{f.ciclo ? fmt(haPulv) : '—'}</td>
-                            <td className="px-5 py-3 text-campo-600">{fmtFecha(f.ciclo?.fecha_siembra ?? null)}</td>
-                            <td className="px-5 py-3 text-campo-600">{fmtFecha(f.ciclo?.fecha_cosecha ?? null)}</td>
-                            <td className="px-5 py-3 text-right font-medium text-campo-900">{fmt(f.ciclo?.rinde_kg_ha)}</td>
-                            <td className="px-5 py-3 text-center">
-                              {f.ciclo && apls.length > 0 ? (
-                                <button
-                                  onClick={() => toggleExpandido(f.ciclo!.ciclo_id)}
-                                  className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-                                >
-                                  {expandido ? '▲ Ocultar' : `▼ Ver (${apls.length})`}
-                                </button>
-                              ) : '—'}
-                            </td>
-                            <td className="px-5 py-3 text-center">
-                              {f.ciclo ? (
-                                <Link href={`/seguimiento/lotes/${f.ciclo.ciclo_id}`} className="text-xs text-lime-700 hover:text-lime-600 font-medium">
-                                  Ver ficha →
-                                </Link>
-                              ) : (
-                                <Link href={`/seguimiento/lotes/nuevo?lote=${f.lote.id}`} className="text-xs text-campo-400 hover:text-lime-700 font-medium">
-                                  + Agregar
-                                </Link>
-                              )}
+                            <td className="px-4 py-3 text-right text-campo-600">{f.ciclo ? fmt(f.ciclo.sup_sembrada) : '—'}</td>
+                            <td className="px-4 py-3 text-right text-campo-600">{f.ciclo?.sup_cosechada ? fmt(f.ciclo.sup_cosechada) : '—'}</td>
+                            <td className="px-4 py-3 text-right text-campo-600">{f.ciclo ? fmt(haPulv) : '—'}</td>
+                            <td className="px-4 py-3 text-campo-600">{fmtFecha(f.ciclo?.fecha_siembra ?? null)}</td>
+                            <td className="px-4 py-3 text-campo-600">{fmtFecha(f.ciclo?.fecha_cosecha ?? null)}</td>
+                            <td className="px-4 py-3 text-right font-medium text-campo-900">{fmt(f.ciclo?.rinde_kg_ha)}</td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex flex-col items-center gap-1">
+                                {f.ciclo && apls.length > 0 && (
+                                  <button onClick={() => toggleExpandido(f.ciclo!.ciclo_id)}
+                                    className="text-xs text-campo-500 hover:text-lime-700 font-medium">
+                                    {expandido ? '▲ Ocultar' : `▼ Ver (${apls.length})`}
+                                  </button>
+                                )}
+                                {f.ciclo ? (
+                                  <Link href={`/seguimiento/lotes/${f.ciclo.ciclo_id}`}
+                                    className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                                    Ver ficha →
+                                  </Link>
+                                ) : (
+                                  <Link href={`/seguimiento/lotes/nuevo?lote=${f.lote.id}`}
+                                    className="text-xs text-campo-400 hover:text-lime-700 font-medium">
+                                    + Agregar
+                                  </Link>
+                                )}
+                              </div>
                             </td>
                           </tr>
-                          {/* Fila expandida de pulverizaciones */}
+                          {/* Fila expandida */}
                           {expandido && f.ciclo && (
-                            <tr key={`exp-${f.ciclo.ciclo_id}`} className="bg-campo-50/50">
-                              <td colSpan={11} className="px-8 py-3">
-                                <div className="space-y-1">
-                                  {apls
-                                    .sort((a, b) => (a.fecha ?? '').localeCompare(b.fecha ?? ''))
-                                    .map(a => (
-                                      <div key={a.id} className="flex items-start gap-4 text-xs text-campo-600">
-                                        <span className="text-campo-400 w-20 shrink-0">{fmtFecha(a.fecha)}</span>
-                                        <span className="text-campo-500 w-32 shrink-0">{a.tipo.replace(/_/g, ' ')}</span>
-                                        <span className="text-campo-500 w-16 shrink-0 text-right">{fmt(a.superficie_ha)} ha</span>
-                                        <span className="text-campo-700">{a.productos.join(', ')}</span>
-                                      </div>
+                            <tr key={`exp-${f.ciclo.ciclo_id}`} className="bg-campo-50/30 border-b border-campo-50">
+                              <td colSpan={10} className="px-4 py-2">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="text-campo-400">
+                                      <th className="text-left py-1 pr-4 font-medium w-24">Fecha</th>
+                                      <th className="text-left py-1 pr-4 font-medium w-36">Tipo</th>
+                                      <th className="text-right py-1 pr-4 font-medium w-20">Ha</th>
+                                      <th className="text-left py-1 font-medium">Productos</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {apls.map(a => (
+                                      <tr key={a.id} className="border-t border-campo-100/50">
+                                        <td className="py-1 pr-4 text-campo-500 w-24">{fmtFecha(a.fecha)}</td>
+                                        <td className="py-1 pr-4 text-campo-600 w-36">{TIPO_LABELS[a.tipo] ?? a.tipo}</td>
+                                        <td className="py-1 pr-4 text-right text-campo-500 w-20">{fmt(a.superficie_ha)}</td>
+                                        <td className="py-1 text-campo-700">{a.productos.join(', ')}</td>
+                                      </tr>
                                     ))}
-                                </div>
+                                  </tbody>
+                                </table>
                               </td>
                             </tr>
                           )}
@@ -347,16 +346,13 @@ export default function LotesPage() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(porCultivo).map(([cultivo, data]) => {
-                  const expandido = expandidos.has(-Object.keys(porCultivo).indexOf(cultivo) - 1)
-                  const idx = -Object.keys(porCultivo).indexOf(cultivo) - 1
+                {Object.entries(porCultivo).map(([cultivo, data], idx) => {
+                  const expandido = expandidos.has(-(idx + 1))
                   return (
                     <>
                       <tr key={cultivo} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                         <td className="px-5 py-3 font-medium text-campo-900">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-100 text-lime-800">
-                            {cultivo}
-                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-100 text-lime-800">{cultivo}</span>
                         </td>
                         <td className="px-5 py-3 text-right text-campo-600">{data.ciclos.length}</td>
                         <td className="px-5 py-3 text-right text-campo-600">{fmt(data.haSembrada)}</td>
@@ -367,31 +363,44 @@ export default function LotesPage() {
                           {data.haCosechada > 0 ? fmt(data.kg / data.haCosechada) : '—'}
                         </td>
                         <td className="px-5 py-3 text-center">
-                          <button
-                            onClick={() => toggleExpandido(idx)}
-                            className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-                          >
+                          <button onClick={() => toggleExpandido(-(idx + 1))}
+                            className="text-xs text-lime-700 hover:text-lime-600 font-medium">
                             {expandido ? '▲ Ocultar' : '▼ Ver lotes'}
                           </button>
                         </td>
                       </tr>
                       {expandido && (
-                        <tr key={`exp-${cultivo}`} className="bg-campo-50/50">
-                          <td colSpan={8} className="px-8 py-3">
-                            <div className="space-y-1">
-                              {data.ciclos.map(c => (
-                                <div key={c.ciclo_id} className="flex items-center gap-6 text-xs text-campo-600">
-                                  <span className="w-32 font-medium text-campo-800">{c.lote}</span>
-                                  <span className="w-24">{c.campo}</span>
-                                  <span>{fmt(c.sup_sembrada)} ha sembradas</span>
-                                  {c.sup_cosechada ? <span>{fmt(c.sup_cosechada)} ha cosechadas</span> : null}
-                                  {c.rinde_kg_ha ? <span>{fmt(c.rinde_kg_ha)} kg/ha</span> : null}
-                                  <Link href={`/seguimiento/lotes/${c.ciclo_id}`} className="text-lime-700 hover:text-lime-600 font-medium">
-                                    Ver ficha →
-                                  </Link>
-                                </div>
-                              ))}
-                            </div>
+                        <tr key={`exp-${cultivo}`} className="bg-campo-50/30 border-b border-campo-50">
+                          <td colSpan={8} className="px-5 py-2">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-campo-400">
+                                  <th className="text-left py-1 pr-4 font-medium w-32">Lote</th>
+                                  <th className="text-left py-1 pr-4 font-medium w-32">Campo</th>
+                                  <th className="text-right py-1 pr-4 font-medium w-24">Ha sembradas</th>
+                                  <th className="text-right py-1 pr-4 font-medium w-24">Ha cosechadas</th>
+                                  <th className="text-right py-1 pr-4 font-medium w-24">Rinde kg/ha</th>
+                                  <th className="text-center py-1 font-medium w-20">Ficha</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {data.ciclos.map(c => (
+                                  <tr key={c.ciclo_id} className="border-t border-campo-100/50">
+                                    <td className="py-1 pr-4 font-medium text-campo-800 w-32">{c.lote}</td>
+                                    <td className="py-1 pr-4 text-campo-500 w-32">{c.campo}</td>
+                                    <td className="py-1 pr-4 text-right text-campo-600 w-24">{fmt(c.sup_sembrada)}</td>
+                                    <td className="py-1 pr-4 text-right text-campo-600 w-24">{c.sup_cosechada ? fmt(c.sup_cosechada) : '—'}</td>
+                                    <td className="py-1 pr-4 text-right text-campo-600 w-24">{c.rinde_kg_ha ? fmt(c.rinde_kg_ha) : '—'}</td>
+                                    <td className="py-1 text-center w-20">
+                                      <Link href={`/seguimiento/lotes/${c.ciclo_id}`}
+                                        className="text-lime-700 hover:text-lime-600 font-medium">
+                                        Ver ficha →
+                                      </Link>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </td>
                         </tr>
                       )}

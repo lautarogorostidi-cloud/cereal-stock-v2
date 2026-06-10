@@ -7,10 +7,10 @@ import { useRouter } from 'next/navigation'
 import type { Perfil } from '@/types'
 
 const nav = [
-  { href: '/seguimiento',        label: 'Dashboard',  icon: '📊' },
-  { href: '/seguimiento/lotes',  label: 'Lotes',      icon: '🗺️' },
-  { href: '/seguimiento/costos', label: 'Costos',     icon: '💰' },
-  { href: '/seguimiento/reportes', label: 'Reportes', icon: '📈' },
+  { href: '/seguimiento',        label: 'Dashboard',        icon: '📊' },
+  { href: '/seguimiento/lotes',  label: 'Lotes / Cultivos', icon: '🗺️' },
+  { href: '/seguimiento/costos', label: 'Costos',           icon: '💰' },
+  { href: '/seguimiento/reportes', label: 'Reportes',       icon: '📈' },
 ]
 
 interface SidebarProps { perfil: Perfil | null }
@@ -27,7 +27,6 @@ export default function SidebarSeguimiento({ perfil }: SidebarProps) {
 
   return (
     <aside className="w-60 flex flex-col bg-campo-950 text-campo-100 shrink-0">
-      {/* Logo */}
       <div className="px-5 py-5 border-b border-campo-800">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-lime-700 flex items-center justify-center text-base">🌱</div>
@@ -38,7 +37,6 @@ export default function SidebarSeguimiento({ perfil }: SidebarProps) {
         </div>
       </div>
 
-      {/* Volver al selector */}
       <div className="px-3 pt-3">
         <Link
           href="/selector"
@@ -48,7 +46,6 @@ export default function SidebarSeguimiento({ perfil }: SidebarProps) {
         </Link>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
         {nav.map(item => {
           const active =
@@ -71,7 +68,6 @@ export default function SidebarSeguimiento({ perfil }: SidebarProps) {
         })}
       </nav>
 
-      {/* Perfil y logout */}
       <div className="px-3 py-4 border-t border-campo-800">
         <div className="flex items-center gap-2 px-3 py-2 mb-1">
           <div className="w-7 h-7 rounded-full bg-lime-700 flex items-center justify-center text-xs font-bold text-white">
