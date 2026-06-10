@@ -19,8 +19,8 @@ export const MODULOS: Modulo[] = [
     titulo: 'Stock Cereal',
     descripcion: 'Stock, contratos, ventas, entregas y cartas de porte',
     activo: true,
-    color: 'border-lime-700 hover:border-lime-500 hover:bg-lime-950',
-    badgeColor: 'bg-lime-800 text-lime-100',
+    color: 'border-lime-400 bg-lime-500/20 hover:bg-lime-500/30',
+    badgeColor: 'bg-lime-400 text-lime-950 font-semibold',
   },
   {
     href: '/agroquimicos',
@@ -28,8 +28,8 @@ export const MODULOS: Modulo[] = [
     titulo: 'Agroquímicos',
     descripcion: 'Stock de productos, compras y aplicaciones por lote y campaña',
     activo: true,
-    color: 'border-lime-700 hover:border-lime-500 hover:bg-lime-950',
-    badgeColor: 'bg-lime-800 text-lime-100',
+    color: 'border-lime-400 bg-lime-500/20 hover:bg-lime-500/30',
+    badgeColor: 'bg-lime-400 text-lime-950 font-semibold',
   },
   {
     href: '/seguimiento',
@@ -37,8 +37,8 @@ export const MODULOS: Modulo[] = [
     titulo: 'Seguimiento Agronómico',
     descripcion: 'Trazabilidad por lote: siembra, aplicaciones, cosecha y costos',
     activo: true,
-    color: 'border-lime-700 hover:border-lime-500 hover:bg-lime-950',
-    badgeColor: 'bg-lime-800 text-lime-100',
+    color: 'border-lime-400 bg-lime-500/20 hover:bg-lime-500/30',
+    badgeColor: 'bg-lime-400 text-lime-950 font-semibold',
   },
   {
     href: '/semillas',
