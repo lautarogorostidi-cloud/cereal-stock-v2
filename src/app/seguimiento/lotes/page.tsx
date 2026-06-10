@@ -240,6 +240,7 @@ export default function LotesCultivosPage() {
                       <th className="text-left px-4 py-3 font-semibold text-campo-700">Cosecha</th>
                       <th className="text-right px-4 py-3 font-semibold text-campo-700">Rinde kg/ha</th>
                       <th className="text-center px-4 py-3 font-semibold text-campo-700">Aplicaciones</th>
+                      <th className="text-center px-4 py-3 font-semibold text-campo-700">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -266,31 +267,31 @@ export default function LotesCultivosPage() {
                             <td className="px-4 py-3 text-campo-600">{fmtFecha(f.ciclo?.fecha_cosecha ?? null)}</td>
                             <td className="px-4 py-3 text-right font-medium text-campo-900">{fmt(f.ciclo?.rinde_kg_ha)}</td>
                             <td className="px-4 py-3 text-center">
-                              <div className="flex flex-col items-center gap-1">
-                                {f.ciclo && apls.length > 0 && (
-                                  <button onClick={() => toggleExpandido(f.ciclo!.ciclo_id)}
-                                    className="text-xs text-campo-500 hover:text-lime-700 font-medium">
-                                    {expandido ? '▲ Ocultar' : `▼ Ver (${apls.length})`}
-                                  </button>
-                                )}
-                                {f.ciclo ? (
-                                  <Link href={`/seguimiento/lotes/${f.ciclo.ciclo_id}`}
-                                    className="text-xs text-lime-700 hover:text-lime-600 font-medium">
-                                    Ver ficha →
-                                  </Link>
-                                ) : (
-                                  <Link href={`/seguimiento/lotes/nuevo?lote=${f.lote.id}`}
-                                    className="text-xs text-campo-400 hover:text-lime-700 font-medium">
-                                    + Agregar
-                                  </Link>
-                                )}
-                              </div>
+                              {f.ciclo && apls.length > 0 ? (
+                                <button onClick={() => toggleExpandido(f.ciclo!.ciclo_id)}
+                                  className="text-xs text-campo-500 hover:text-lime-700 font-medium">
+                                  {expandido ? '▲ Ocultar' : `▼ Ver (${apls.length})`}
+                                </button>
+                              ) : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {f.ciclo ? (
+                                <Link href={`/seguimiento/lotes/${f.ciclo.ciclo_id}`}
+                                  className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                                  Ver ficha →
+                                </Link>
+                              ) : (
+                                <Link href={`/seguimiento/lotes/nuevo?lote=${f.lote.id}`}
+                                  className="text-xs text-campo-400 hover:text-lime-700 font-medium">
+                                  + Agregar
+                                </Link>
+                              )}
                             </td>
                           </tr>
                           {/* Fila expandida */}
                           {expandido && f.ciclo && (
                             <tr key={`exp-${f.ciclo.ciclo_id}`} className="bg-campo-50/30 border-b border-campo-50">
-                              <td colSpan={10} className="px-4 py-2">
+                              <td colSpan={11} className="px-4 py-2">
                                 <table className="w-full text-xs">
                                   <thead>
                                     <tr className="text-campo-400">
