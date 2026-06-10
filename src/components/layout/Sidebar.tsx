@@ -46,8 +46,18 @@ export default function Sidebar({ perfil }: SidebarProps) {
         </div>
       </div>
 
+      {/* Volver al inicio */}
+      <div className="px-3 pt-3">
+        <Link
+          href="/selector"
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-campo-400 hover:text-white hover:bg-campo-800 transition-colors"
+        >
+          <span>←</span> Volver al inicio
+        </Link>
+      </div>
+
       {/* Nav principal */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
         {nav.map(item => {
           const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
           return (

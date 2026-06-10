@@ -1,7 +1,5 @@
 // ============================================================
 //  CONFIGURACIÓN CENTRAL DE MÓDULOS
-//  Para agregar un módulo nuevo, solo añadí un objeto acá.
-//  El selector lo muestra automáticamente.
 // ============================================================
 
 export interface Modulo {
@@ -18,11 +16,11 @@ export const MODULOS: Modulo[] = [
   {
     href: '/dashboard',
     icon: '🌾',
-    titulo: 'Cereal',
+    titulo: 'Stock Cereal',
     descripcion: 'Stock, contratos, ventas, entregas y cartas de porte',
     activo: true,
-    color: 'border-campo-600 hover:border-campo-400 hover:bg-campo-900',
-    badgeColor: 'bg-campo-700 text-campo-100',
+    color: 'border-lime-700 hover:border-lime-500 hover:bg-lime-950',
+    badgeColor: 'bg-lime-800 text-lime-100',
   },
   {
     href: '/agroquimicos',
@@ -30,19 +28,19 @@ export const MODULOS: Modulo[] = [
     titulo: 'Agroquímicos',
     descripcion: 'Stock de productos, compras y aplicaciones por lote y campaña',
     activo: true,
-    color: 'border-emerald-700 hover:border-emerald-500 hover:bg-emerald-950',
-    badgeColor: 'bg-emerald-800 text-emerald-100',
+    color: 'border-lime-700 hover:border-lime-500 hover:bg-lime-950',
+    badgeColor: 'bg-lime-800 text-lime-100',
   },
- {
-  href: '/seguimiento',
-  icon: '🌱',
-  titulo: 'Seguimiento Agronómico',
-  descripcion: 'Trazabilidad por lote: siembra, aplicaciones, cosecha y costos',
-  activo: true,
-  color: 'border-lime-700 hover:border-lime-500 hover:bg-lime-950',
-  badgeColor: 'bg-lime-800 text-lime-100',
-}, 
-{
+  {
+    href: '/seguimiento',
+    icon: '🌱',
+    titulo: 'Seguimiento Agronómico',
+    descripcion: 'Trazabilidad por lote: siembra, aplicaciones, cosecha y costos',
+    activo: true,
+    color: 'border-lime-700 hover:border-lime-500 hover:bg-lime-950',
+    badgeColor: 'bg-lime-800 text-lime-100',
+  },
+  {
     href: '/semillas',
     icon: '🌱',
     titulo: 'Semillas',
