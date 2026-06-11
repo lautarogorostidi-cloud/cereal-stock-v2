@@ -7,7 +7,7 @@ export default async function VentasPage() {
   const [{ data: movimientos }, { data: contratos }] = await Promise.all([
     supabase
       .from('movimientos_cereal')
-      .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id, precio_unitario, precio_plus, comision_corredor), cartas_porte(ctg, bonificacion_calidad, tarifa_flete)`)
+      .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id, precio_unitario, precio_plus, comision_corredor, bonificacion_calidad), cartas_porte(ctg, bonificacion_calidad, tarifa_flete)`)
       .eq('tipo', 'entrega')
       .order('fecha', { ascending: false })
       .limit(200),
@@ -28,9 +28,15 @@ export default async function VentasPage() {
     const precio_base = Number((e.contratos as any)?.precio_unitario ?? 0)
     const precio_plus = Number((e.contratos as any)?.precio_plus ?? 0)
     const comision_pct = Number((e.contratos as any)?.comision_corredor ?? 0)
-    const bonificacion = Number((e.cartas_porte as any)?.bonificacion_calidad ?? 0)
     const tarifa_flete = Number((e.cartas_porte as any)?.tarifa_flete ?? 0)
     const toneladas = Number(e.toneladas ?? 0)
+
+    // Bonificación: primero carta de porte, luego movimiento, luego contrato
+    const bonificacion =
+      Number((e.cartas_porte as any)?.bonificacion_calidad ?? 0) ||
+      Number((e as any).bonificacion_calidad ?? 0) ||
+      Number((e.contratos as any)?.bonificacion_calidad ?? 0)
+
     const bonif_usd = precio_base * bonificacion / 100
     const comision_tn = (precio_base + precio_plus) * comision_pct / 100
     const total_tn = precio_base + bonif_usd + precio_plus - comision_tn - tarifa_flete

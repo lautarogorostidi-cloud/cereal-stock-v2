@@ -27,7 +27,9 @@ export default function EditarContratoForm() {
     fecha_contrato: '', campania_id: '', campania_grano_id: '', cultivo_id: '', cliente_id: '',
     cuit_comprador: '', corredor: '', cuit_corredor: '', sucursal: '',
     calidad_producto: '', condicion_entrega: '', pct_condicion: '',
-    tipo_precio: 'disponible', precio_unitario: '', precio_plus: '', moneda_id: '',
+    tipo_precio: 'disponible', precio_unitario: '', precio_plus: '',
+    bonificacion_calidad: '',
+    moneda_id: '',
     toneladas_pactadas: '', puerto_id: '', acopio_id: '',
     procedencia: '', destino: '',
     fecha_inicio_entrega: '', fecha_fin_entrega: '',
@@ -78,6 +80,7 @@ export default function EditarContratoForm() {
             tipo_precio: contrato.tipo_precio ?? 'disponible',
             precio_unitario: contrato.precio_unitario ?? '',
             precio_plus: contrato.precio_plus ?? '',
+            bonificacion_calidad: contrato.bonificacion_calidad ?? '',
             moneda_id: contrato.moneda_id ?? '',
             toneladas_pactadas: contrato.toneladas_pactadas ?? '',
             puerto_id: contrato.puerto_id ?? '',
@@ -126,6 +129,7 @@ export default function EditarContratoForm() {
       corredor_nombre: form.corredor ? form.corredor : null,
       campania_grano_id: form.campania_grano_id || null,
       corredor_cuit: form.cuit_corredor ? form.cuit_corredor : null,
+      bonificacion_calidad: form.bonificacion_calidad ? parseFloat(form.bonificacion_calidad) : 0,
     }
 
     if (form.nro_operacion_corredor) payload.nro_operacion_corredor = form.nro_operacion_corredor
@@ -249,6 +253,11 @@ export default function EditarContratoForm() {
                 <input type="number" step="0.01" value={form.precio_plus} onChange={e => set('precio_plus', e.target.value)} placeholder="0" className="input-field w-28" />
                 <span className="text-campo-400 text-sm whitespace-nowrap">plus</span>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-campo-700 mb-1">Bonificación calidad (%)</label>
+              <input type="number" step="0.01" min="0" value={form.bonificacion_calidad} onChange={e => set('bonificacion_calidad', e.target.value)} placeholder="2.00" className="input-field" />
+              <p className="text-xs text-campo-400 mt-1">Se aplica a todas las entregas de este contrato</p>
             </div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Toneladas pactadas *</label><input type="number" step="0.001" value={form.toneladas_pactadas} onChange={e => set('toneladas_pactadas', e.target.value)} required className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Calidad</label><input value={form.calidad_producto} onChange={e => set('calidad_producto', e.target.value)} placeholder="Condición Cámara" className="input-field" /></div>
