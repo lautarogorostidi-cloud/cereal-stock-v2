@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 type Ciclo = {
@@ -157,6 +157,7 @@ function KPI({ label, value, sub }: { label: string; value: string; sub?: string
 export default function FichaCicloPage() {
   const { ciclo_id } = useParams<{ ciclo_id: string }>()
   const supabase = createClient()
+  const router = useRouter()
 
   const [ciclo, setCiclo] = useState<Ciclo | null>(null)
   const [aplicaciones, setAplicaciones] = useState<Aplicacion[]>([])
@@ -166,6 +167,7 @@ export default function FichaCicloPage() {
   const [costosFijos, setCostosFijos] = useState<CostoFijo[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [deletingCiclo, setDeletingCiclo] = useState(false)
 
   useEffect(() => {
     if (!ciclo_id) return
@@ -218,6 +220,24 @@ export default function FichaCicloPage() {
     cargar()
   }
 
+  async function handleBorrarCiclo() {
+    if (!confirm('¿Seguro que querés borrar este ciclo? Se borrarán también todas sus aplicaciones, siembra, cosecha y costos.')) return
+    setDeletingCiclo(true)
+    const id = Number(ciclo_id)
+    // Borrar productos de aplicaciones
+    const { data: apls } = await supabase.from('sa_aplicaciones').select('id').eq('ciclo_id', id)
+    if (apls && apls.length > 0) {
+      await supabase.from('sa_aplicacion_productos').delete().in('aplicacion_id', apls.map((a: any) => a.id))
+    }
+    await supabase.from('sa_aplicaciones').delete().eq('ciclo_id', id)
+    await supabase.from('sa_siembras').delete().eq('ciclo_id', id)
+    await supabase.from('sa_fertilizaciones').delete().eq('ciclo_id', id)
+    await supabase.from('sa_cosechas').delete().eq('ciclo_id', id)
+    await supabase.from('sa_costos_fijos').delete().eq('ciclo_id', id)
+    await supabase.from('sa_ciclos').delete().eq('id', id)
+    router.push('/seguimiento/lotes')
+  }
+
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!ciclo) return <div className="text-center text-campo-400 py-20">Ciclo no encontrado</div>
 
@@ -247,9 +267,24 @@ export default function FichaCicloPage() {
           <h1 className="text-2xl font-bold text-campo-900 mt-1">{ciclo.lote}</h1>
           <p className="text-campo-500 text-sm mt-0.5">{ciclo.campo} · {ciclo.campana} · {ciclo.propiedad}</p>
         </div>
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-lime-100 text-lime-800">
-          {ciclo.cultivo}
-        </span>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/seguimiento/lotes/nuevo?lote=${(ciclo as any).lote_id ?? ''}&ciclo=${ciclo_id}`}
+            className="text-xs text-lime-700 hover:text-lime-600 font-medium px-3 py-1.5 rounded-lg border border-lime-200 hover:bg-lime-50 transition-colors"
+          >
+            Editar ciclo
+          </Link>
+          <button
+            onClick={handleBorrarCiclo}
+            disabled={deletingCiclo}
+            className="text-xs text-red-400 hover:text-red-600 font-medium px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50"
+          >
+            {deletingCiclo ? 'Borrando...' : 'Borrar ciclo'}
+          </button>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-lime-100 text-lime-800">
+            {ciclo.cultivo}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">

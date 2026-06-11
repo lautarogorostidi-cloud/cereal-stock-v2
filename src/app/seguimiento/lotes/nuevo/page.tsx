@@ -27,6 +27,9 @@ export default function NuevoCicloPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const loteId = searchParams.get('lote')
+  const cicloId = searchParams.get('ciclo') // para editar
+
+  const esEdicion = !!cicloId
 
   const [lote, setLote] = useState<Lote | null>(null)
   const [cultivos, setCultivos] = useState<Cultivo[]>([])
@@ -48,10 +51,11 @@ export default function NuevoCicloPage() {
   useEffect(() => {
     if (!loteId) return
     cargar()
-  }, [loteId])
+  }, [loteId, cicloId])
 
   async function cargar() {
     setLoading(true)
+
     const [{ data: loteData }, { data: cultivosData }, { data: campanasData }] = await Promise.all([
       supabase.from('lotes').select('*').eq('id', loteId).single(),
       supabase.from('cultivos').select('*').order('nombre'),
@@ -62,18 +66,36 @@ export default function NuevoCicloPage() {
     setCultivos(cultivosData ?? [])
     setCampanas(campanasData ?? [])
 
-    // Asignar propiedad automática según campo
-    const propiedad = loteData?.establecimiento === 'La Media Luna' ? 'Propio' : 'No Propio'
+    if (esEdicion) {
+      // Cargar datos del ciclo existente
+      const { data: cicloData } = await supabase
+        .from('sa_ciclos')
+        .select('*')
+        .eq('id', Number(cicloId))
+        .single()
 
-    // Campaña más reciente por defecto
-    const campanaDefault = (campanasData ?? [])[0]?.id?.toString() ?? ''
-
-    setForm(f => ({
-      ...f,
-      campana_id: campanaDefault,
-      propiedad,
-      sup_sembrada: loteData?.hectareas?.toString() ?? '',
-    }))
+      if (cicloData) {
+        setForm({
+          campana_id: cicloData.campana_id?.toString() ?? '',
+          cultivo_id: cicloData.cultivo_id ?? '',
+          sup_sembrada: cicloData.sup_sembrada?.toString() ?? '',
+          propiedad: cicloData.propiedad ?? '',
+          antecesor_1: cicloData.antecesor_1 ?? '',
+          antecesor_2: cicloData.antecesor_2 ?? '',
+          observaciones: cicloData.observaciones ?? '',
+        })
+      }
+    } else {
+      // Nuevo ciclo — valores por defecto
+      const propiedad = loteData?.establecimiento === 'La Media Luna' ? 'Propio' : 'No Propio'
+      const campanaDefault = (campanasData ?? [])[0]?.id?.toString() ?? ''
+      setForm(f => ({
+        ...f,
+        campana_id: campanaDefault,
+        propiedad,
+        sup_sembrada: loteData?.hectareas?.toString() ?? '',
+      }))
+    }
 
     setLoading(false)
   }
@@ -92,30 +114,37 @@ export default function NuevoCicloPage() {
 
     setSaving(true)
 
-    const { data, error: err } = await supabase
-      .from('sa_ciclos')
-      .insert({
-        campana_id: Number(form.campana_id),
-        lote_id: loteId,
-        cultivo_id: form.cultivo_id,
-        sup_sembrada: Number(form.sup_sembrada),
-        propiedad: form.propiedad || null,
-        antecesor_1: form.antecesor_1 || null,
-        antecesor_2: form.antecesor_2 || null,
-        observaciones: form.observaciones || null,
-      })
-      .select('id')
-      .single()
-
-    setSaving(false)
-
-    if (err) {
-      setError(`Error al crear ciclo: ${err.message}`)
-      return
+    const payload = {
+      campana_id: Number(form.campana_id),
+      lote_id: loteId,
+      cultivo_id: form.cultivo_id,
+      sup_sembrada: Number(form.sup_sembrada),
+      propiedad: form.propiedad || null,
+      antecesor_1: form.antecesor_1 || null,
+      antecesor_2: form.antecesor_2 || null,
+      observaciones: form.observaciones || null,
     }
 
-    // Redirigir a la ficha del ciclo recién creado
-    router.push(`/seguimiento/lotes/${data.id}`)
+    if (esEdicion) {
+      const { error: err } = await supabase
+        .from('sa_ciclos')
+        .update(payload)
+        .eq('id', Number(cicloId))
+
+      setSaving(false)
+      if (err) { setError(`Error al actualizar: ${err.message}`); return }
+      router.push(`/seguimiento/lotes/${cicloId}`)
+    } else {
+      const { data, error: err } = await supabase
+        .from('sa_ciclos')
+        .insert(payload)
+        .select('id')
+        .single()
+
+      setSaving(false)
+      if (err) { setError(`Error al crear ciclo: ${err.message}`); return }
+      router.push(`/seguimiento/lotes/${data.id}`)
+    }
   }
 
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
@@ -124,21 +153,18 @@ export default function NuevoCicloPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
 
-      {/* Header */}
       <div>
         <div className="mb-1">
           <Link href="/seguimiento/lotes" className="text-sm text-campo-400 hover:text-campo-700">← Lotes</Link>
         </div>
-        <h1 className="text-2xl font-bold text-campo-900">Nuevo ciclo</h1>
+        <h1 className="text-2xl font-bold text-campo-900">{esEdicion ? 'Editar ciclo' : 'Nuevo ciclo'}</h1>
         <p className="text-campo-500 text-sm mt-0.5">
           {lote.nombre} · {lote.establecimiento} · {lote.hectareas} ha
         </p>
       </div>
 
-      {/* Formulario */}
       <div className="card p-6 space-y-5">
 
-        {/* Campaña */}
         <div>
           <label className="block text-sm font-medium text-campo-700 mb-1">Campaña *</label>
           <select
@@ -154,7 +180,6 @@ export default function NuevoCicloPage() {
           </select>
         </div>
 
-        {/* Cultivo */}
         <div>
           <label className="block text-sm font-medium text-campo-700 mb-1">Cultivo *</label>
           <select
@@ -170,7 +195,6 @@ export default function NuevoCicloPage() {
           </select>
         </div>
 
-        {/* Superficie */}
         <div>
           <label className="block text-sm font-medium text-campo-700 mb-1">Superficie sembrada (ha) *</label>
           <input
@@ -185,7 +209,6 @@ export default function NuevoCicloPage() {
           <p className="text-xs text-campo-400 mt-1">Superficie total del lote: {lote.hectareas} ha</p>
         </div>
 
-        {/* Propiedad */}
         <div>
           <label className="block text-sm font-medium text-campo-700 mb-1">Propiedad</label>
           <div className="flex gap-4">
@@ -203,12 +226,11 @@ export default function NuevoCicloPage() {
               </label>
             ))}
           </div>
-          {lote.establecimiento === 'La Media Luna' && (
+          {!esEdicion && lote.establecimiento === 'La Media Luna' && (
             <p className="text-xs text-lime-700 mt-1">✓ Asignado automáticamente como Propio</p>
           )}
         </div>
 
-        {/* Antecesor 1 */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-campo-700 mb-1">Antecesor 1</label>
@@ -234,7 +256,6 @@ export default function NuevoCicloPage() {
           </div>
         </div>
 
-        {/* Observaciones */}
         <div>
           <label className="block text-sm font-medium text-campo-700 mb-1">Observaciones</label>
           <textarea
@@ -247,21 +268,19 @@ export default function NuevoCicloPage() {
           />
         </div>
 
-        {/* Error */}
         {error && (
           <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
-        {/* Botones */}
         <div className="flex gap-3 pt-2">
           <button
             onClick={handleSubmit}
             disabled={saving}
             className="flex-1 bg-lime-600 hover:bg-lime-700 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors"
           >
-            {saving ? 'Creando ciclo...' : 'Crear ciclo'}
+            {saving ? 'Guardando...' : esEdicion ? 'Guardar cambios' : 'Crear ciclo'}
           </button>
           <Link
             href="/seguimiento/lotes"
