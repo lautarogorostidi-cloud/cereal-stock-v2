@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
 
 type CicloInfo = {
   lote: string
@@ -20,12 +19,11 @@ type Hibrido = {
   cu_usd: string
 }
 
-const SISTEMAS = ['SD', 'SC', 'Convencional', 'Otro']
+const SISTEMAS = ['SD', 'SD c/DF', 'SC', 'SC c/DF', 'Laboreo mínimo', 'Otro']
 const TIPOS_SEMILLA = ['Inoculada', 'Curada', 'Inoculada - Curada', 'Sin tratamiento']
 
 export default function NuevaSiembraPage() {
   const { ciclo_id } = useParams<{ ciclo_id: string }>()
-  const router = useRouter()
   const supabase = createClient()
 
   const [ciclo, setCiclo] = useState<CicloInfo | null>(null)
@@ -44,6 +42,10 @@ export default function NuevaSiembraPage() {
     pl_logradas: '',
     costo_servicio_usd_ha: '',
     proveedor_servicio: '',
+    fertilizante_1: '',
+    fertilizante_1_kg_ha: '',
+    fertilizante_2: '',
+    fertilizante_2_kg_ha: '',
     observaciones: '',
   })
 
@@ -79,19 +81,20 @@ export default function NuevaSiembraPage() {
         pl_logradas: siembraData.pl_logradas?.toString() ?? '',
         costo_servicio_usd_ha: siembraData.costo_servicio_usd_ha?.toString() ?? '',
         proveedor_servicio: siembraData.proveedor_servicio ?? '',
+        fertilizante_1: siembraData.fertilizante_1 ?? '',
+        fertilizante_1_kg_ha: siembraData.fertilizante_1_kg_ha?.toString() ?? '',
+        fertilizante_2: siembraData.fertilizante_2 ?? '',
+        fertilizante_2_kg_ha: siembraData.fertilizante_2_kg_ha?.toString() ?? '',
         observaciones: siembraData.observaciones ?? '',
       })
-      // Cargar híbridos existentes
       const hibs: Hibrido[] = []
       if (siembraData.hibrido_1) hibs.push({ nombre: siembraData.hibrido_1, sup_ha: siembraData.sup_hibrido_1?.toString() ?? '', cu_usd: siembraData.cu_hibrido_1?.toString() ?? '' })
       if (siembraData.hibrido_2) hibs.push({ nombre: siembraData.hibrido_2, sup_ha: siembraData.sup_hibrido_2?.toString() ?? '', cu_usd: siembraData.cu_hibrido_2?.toString() ?? '' })
       if (siembraData.hibrido_3) hibs.push({ nombre: siembraData.hibrido_3, sup_ha: siembraData.sup_hibrido_3?.toString() ?? '', cu_usd: siembraData.cu_hibrido_3?.toString() ?? '' })
       if (hibs.length > 0) setHibridos(hibs)
     } else {
-      // Pre-completar superficie con la del ciclo
       const supTotal = cicloData?.sup_sembrada ?? cicloData?.hectareas ?? 0
       setHibridos([{ nombre: '', sup_ha: supTotal.toString(), cu_usd: '' }])
-      // Unidad densidad según cultivo
       const cultivosMaiz = ['Maíz Temprano', 'Maíz Tardío', 'Maíz 2', 'Girasol']
       if (cicloData && cultivosMaiz.includes(cicloData.cultivo)) {
         setForm(f => ({ ...f, unidad_densidad: 'pl_ha' }))
@@ -118,17 +121,16 @@ export default function NuevaSiembraPage() {
     setHibridos(hs => hs.filter((_, idx) => idx !== i))
   }
 
-  // Calcular costos
   const supTotal = hibridos.reduce((acc, h) => acc + Number(h.sup_ha || 0), 0)
-  const costoSemillaTotal = hibridos.reduce((acc, h) => {
-    return acc + Number(h.sup_ha || 0) * Number(h.cu_usd || 0)
-  }, 0)
+  const costoSemillaTotal = hibridos.reduce((acc, h) => acc + Number(h.sup_ha || 0) * Number(h.cu_usd || 0), 0)
   const costoServicioTotal = supTotal * Number(form.costo_servicio_usd_ha || 0)
+
+  const fmtUsd = (n: number) => n > 0 ? `USD ${n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'
 
   async function handleSubmit() {
     setError(null)
     if (!form.fecha) { setError('La fecha es obligatoria.'); return }
-    if (hibridos[0].nombre === '') { setError('Ingresá al menos un híbrido o variedad.'); return }
+    if (!hibridos[0].nombre) { setError('Ingresá al menos un híbrido o variedad.'); return }
 
     setSaving(true)
 
@@ -144,6 +146,10 @@ export default function NuevaSiembraPage() {
       costo_servicio_total: costoServicioTotal || null,
       costo_semilla_total: costoSemillaTotal || null,
       proveedor_servicio: form.proveedor_servicio || null,
+      fertilizante_1: form.fertilizante_1 || null,
+      fertilizante_1_kg_ha: form.fertilizante_1_kg_ha ? Number(form.fertilizante_1_kg_ha) : null,
+      fertilizante_2: form.fertilizante_2 || null,
+      fertilizante_2_kg_ha: form.fertilizante_2_kg_ha ? Number(form.fertilizante_2_kg_ha) : null,
       observaciones: form.observaciones || null,
       hibrido_1: hibridos[0]?.nombre || null,
       sup_hibrido_1: hibridos[0]?.sup_ha ? Number(hibridos[0].sup_ha) : null,
@@ -171,19 +177,13 @@ export default function NuevaSiembraPage() {
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!ciclo) return <div className="text-center text-campo-400 py-20">Ciclo no encontrado</div>
 
-  const fmtUsd = (n: number) => n > 0 ? `USD ${n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'
-
   return (
     <div className="max-w-2xl mx-auto space-y-6 p-6">
 
       <div>
-        <div className="mb-1">
-          <button onClick={() => window.close()} className="text-sm text-campo-400 hover:text-campo-700">← Volver</button>
-        </div>
+        <button onClick={() => window.close()} className="text-sm text-campo-400 hover:text-campo-700 mb-1">← Volver</button>
         <h1 className="text-2xl font-bold text-campo-900">{esEdicion ? 'Editar siembra' : 'Cargar siembra'}</h1>
-        <p className="text-campo-500 text-sm mt-0.5">
-          {ciclo.lote} · {ciclo.campo} · {ciclo.campana} · {ciclo.cultivo}
-        </p>
+        <p className="text-campo-500 text-sm mt-0.5">{ciclo.lote} · {ciclo.campo} · {ciclo.campana} · {ciclo.cultivo}</p>
       </div>
 
       <div className="card p-6 space-y-5">
@@ -275,16 +275,13 @@ export default function NuevaSiembraPage() {
                     className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
                 </div>
                 <div className="col-span-1 flex justify-center">
-                  {i === 0 && <div className="text-xs text-campo-500 mb-1 invisible">x</div>}
+                  {i === 0 && <div className="text-xs invisible mb-1">x</div>}
                   <button onClick={() => quitarHibrido(i)} disabled={hibridos.length <= 1}
                     className="text-campo-300 hover:text-red-400 disabled:opacity-0 text-lg leading-none pb-2">×</button>
                 </div>
               </div>
             ))}
           </div>
-          {hibridos.length > 3 && (
-            <p className="text-xs text-amber-600 mt-2">⚠ Solo se guardan los primeros 3 híbridos en la BD.</p>
-          )}
           {costoSemillaTotal > 0 && (
             <div className="mt-3 pt-3 border-t border-campo-100 text-xs text-campo-500">
               Costo semilla total: <span className="font-semibold text-campo-900">{fmtUsd(costoSemillaTotal)}</span>
@@ -309,6 +306,37 @@ export default function NuevaSiembraPage() {
             <input type="text" name="proveedor_servicio" value={form.proveedor_servicio} onChange={handleFormChange}
               placeholder="Ej: Juan Pérez"
               className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+          </div>
+        </div>
+
+        {/* Fertilizantes en siembra */}
+        <div>
+          <div className="text-sm font-medium text-campo-700 mb-3">Fertilizantes en siembra</div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-campo-500 mb-1">Fertilizante 1</label>
+              <input type="text" name="fertilizante_1" value={form.fertilizante_1} onChange={handleFormChange}
+                placeholder="Ej: Fosfato diamónico"
+                className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+            </div>
+            <div>
+              <label className="block text-xs text-campo-500 mb-1">Cantidad (kg/ha)</label>
+              <input type="number" name="fertilizante_1_kg_ha" value={form.fertilizante_1_kg_ha} onChange={handleFormChange}
+                step="0.1" placeholder="0"
+                className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+            </div>
+            <div>
+              <label className="block text-xs text-campo-500 mb-1">Fertilizante 2</label>
+              <input type="text" name="fertilizante_2" value={form.fertilizante_2} onChange={handleFormChange}
+                placeholder="Ej: Urea"
+                className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+            </div>
+            <div>
+              <label className="block text-xs text-campo-500 mb-1">Cantidad (kg/ha)</label>
+              <input type="number" name="fertilizante_2_kg_ha" value={form.fertilizante_2_kg_ha} onChange={handleFormChange}
+                step="0.1" placeholder="0"
+                className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+            </div>
           </div>
         </div>
 
