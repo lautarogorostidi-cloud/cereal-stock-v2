@@ -318,9 +318,14 @@ export default function FichaCicloPage() {
       </div>
 
       <Section title="Siembra" action={
-        <button className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+        <Link
+          href={`/seguimiento/lotes/${ciclo_id}/siembra`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-lime-700 hover:text-lime-600 font-medium"
+        >
           {siembra ? 'Editar' : '+ Agregar'}
-        </button>
+        </Link>
       }>
         {!siembra ? <Empty msg="Sin datos de siembra" /> : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
