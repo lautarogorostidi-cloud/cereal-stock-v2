@@ -323,6 +323,12 @@ export default function FichaCicloPage() {
         <KPI label="Costo Total" value={fmtUsd(costoTotal)} sub="insumos + servicios + fijos" />
       </div>
 
+      <Section title="Acondicionamiento de suelo" action={
+        <Link href={`/seguimiento/lotes/${ciclo_id}/acondicionamiento`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</Link>
+      }>
+        <Empty msg="Sin registros de acondicionamiento" />
+      </Section>
+
       <Section title="Siembra" action={
         <Link
           href={`/seguimiento/lotes/${ciclo_id}/siembra`}
