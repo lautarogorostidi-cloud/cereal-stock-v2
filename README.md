@@ -1,160 +1,117 @@
-# 🌾 Campo — Sistema Agropecuario · Módulo Stock de Cereal
+# Baratza SRL — App Agropecuaria
 
-Sistema web profesional para gestión de stock, contratos y comercialización de cereal.
-
-**Stack:** Next.js 14 · Supabase (PostgreSQL) · Vercel · TypeScript · Tailwind CSS
-
----
-
-## Roles de usuario
-
-| Rol | Permisos |
-|-----|----------|
-| **admin** | Acceso total. Gestiona usuarios, datos maestros, todos los módulos |
-| **comercial** | Carga contratos, precios, liquidaciones, ve reportes |
-| **operario** | Carga movimientos, cartas de porte, entregas |
+**URL:** https://cereal-stock.vercel.app  
+**Repo:** `lautarogorostidi-cloud/cereal-stock-v2`  
+**Stack:** Next.js 14 + Supabase + TypeScript + Tailwind CSS
 
 ---
 
-## Módulos incluidos
+## Módulos
 
-- 📊 **Dashboard** — KPIs de stock, posición comercial, gráficos
-- 🌾 **Stock** — Stock físico, disponible, comprometido y vendido por cultivo/campaña
-- 📋 **Contratos** — Contratos de venta con seguimiento de cumplimiento
-- 💰 **Ventas/Movimientos** — Todos los movimientos de cereal
-- 🚛 **Entregas** — Historial de entregas por contrato
-- 📄 **Cartas de Porte** — Trazabilidad CPE
-- 📈 **Reportes** — Resultado comercial neto por cultivo y campaña
+### 🌾 Seguimiento Agronómico (`/seguimiento`)
+- **Dashboard** — KPIs por campaña: lotes, superficie, producción, costo total
+- **Lotes / Cultivos** — tabla por lote o por cultivo, con selector de campaña y campo
+- **Ficha de ciclo** — acondicionamiento, siembra, aplicaciones, fertilizaciones, cosecha, costos fijos
 
----
-
-## GUÍA DE INSTALACIÓN PASO A PASO
-
-### PASO 1 — Supabase: crear el proyecto
-
-1. Ir a [supabase.com](https://supabase.com) → **New project**
-2. Elegir nombre (ej: `cereal-stock`), contraseña para la DB, región (South America)
-3. Esperar ~2 minutos a que el proyecto se cree
-
-**Obtener las credenciales:**
-- Ir a ⚙️ **Settings → API**
-- Copiar `Project URL` → es tu `NEXT_PUBLIC_SUPABASE_URL`
-- Copiar `anon public` → es tu `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- Copiar `service_role secret` → es tu `SUPABASE_SERVICE_ROLE_KEY`
-
-### PASO 2 — Supabase: ejecutar el schema SQL
-
-1. En tu proyecto de Supabase ir a **SQL Editor**
-2. Click en **New query**
-3. Copiar todo el contenido de `supabase/migrations/001_schema_inicial.sql`
-4. Pegar en el editor y click **Run** (o Ctrl+Enter)
-5. Verificar que no haya errores (debe decir "Success")
-
-### PASO 3 — Supabase: crear el primer usuario admin
-
-1. Ir a **Authentication → Users → Add user**
-2. Ingresar email y contraseña del admin
-3. Luego en **SQL Editor** ejecutar:
-
-```sql
-UPDATE perfiles SET rol = 'admin' WHERE email = 'tu@email.com';
-```
-
-### PASO 4 — GitHub: subir el código
-
-```bash
-# En tu computadora, abrir una terminal en la carpeta del proyecto
-git init
-git add .
-git commit -m "feat: sistema agropecuario - módulo stock cereal"
-
-# Crear un repositorio nuevo en github.com (sin README)
-# Luego ejecutar los comandos que GitHub te muestra, tipo:
-git remote add origin https://github.com/TU_USUARIO/cereal-stock.git
-git branch -M main
-git push -u origin main
-```
-
-### PASO 5 — Vercel: desplegar
-
-1. Ir a [vercel.com](https://vercel.com) → **Add New → Project**
-2. Importar el repositorio de GitHub que acabás de crear
-3. En **Environment Variables** agregar:
-   - `NEXT_PUBLIC_SUPABASE_URL` = tu URL de Supabase
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = tu anon key
-   - `SUPABASE_SERVICE_ROLE_KEY` = tu service role key
-4. Click **Deploy**
-5. En ~2 minutos tu app estará en `https://cereal-stock.vercel.app`
-
-### PASO 6 — Configurar Supabase Auth redirect
-
-1. En Supabase → ⚙️ **Authentication → URL Configuration**
-2. **Site URL**: poner tu URL de Vercel (ej: `https://cereal-stock.vercel.app`)
-3. **Redirect URLs**: agregar `https://cereal-stock.vercel.app/**`
+### 🌽 Stock Cereal (`/dashboard`)
+- **Ventas** — liquidación por entrega con bonificación
+- **Contratos** — con bonificación calidad
+- **Stock, Entregas, Cartas de Porte, Reportes**
 
 ---
 
-## Desarrollo local
+## Base de Datos (Supabase)
 
-```bash
-# Instalar dependencias
-npm install
-
-# Copiar variables de entorno
-cp .env.example .env.local
-# Editar .env.local con tus credenciales de Supabase
-
-# Iniciar servidor de desarrollo
-npm run dev
-# Abrir http://localhost:3000
-```
-
----
-
-## Estructura del proyecto
-
-```
-src/
-├── app/
-│   ├── auth/login/          # Página de login
-│   └── dashboard/
-│       ├── layout.tsx       # Layout con sidebar
-│       ├── page.tsx         # Dashboard principal
-│       ├── stock/           # Módulo stock
-│       ├── contratos/       # Módulo contratos
-│       ├── ventas/          # Módulo movimientos/ventas
-│       ├── entregas/        # Módulo entregas
-│       ├── cartas-porte/    # Módulo cartas de porte
-│       └── reportes/        # Módulo reportes
-├── components/
-│   ├── layout/              # Sidebar, TopBar
-│   ├── ui/                  # KPICard, badges
-│   └── charts/              # Gráficos recharts
-├── lib/supabase/            # Clientes server/client
-└── types/                   # Tipos TypeScript del schema
-
-supabase/migrations/
-└── 001_schema_inicial.sql   # Schema completo PostgreSQL
-```
-
----
-
-## Tablas principales en Supabase
-
+### Tablas Seguimiento Agronómico
 | Tabla | Descripción |
 |-------|-------------|
-| `perfiles` | Usuarios del sistema con roles |
-| `movimientos_cereal` | Tabla central — todos los movimientos |
-| `contratos` | Contratos de venta |
-| `cartas_porte` | Trazabilidad CPE |
-| `liquidaciones` | Liquidaciones comerciales |
-| `campanias` | Campañas agrícolas (2023/24, etc.) |
-| `cultivos` | Soja, Maíz, Trigo, etc. |
-| `clientes` | Compradores y exportadores |
-| `acopios` | Plantas de almacenamiento |
-| `puertos` | Destinos de exportación |
+| `sa_ciclos` | Ciclo productivo por lote y campaña |
+| `sa_siembras` | Siembra: híbridos, densidad, fertilizantes en siembra, costos |
+| `sa_aplicaciones` | Aplicaciones fitosanitarias |
+| `sa_aplicacion_productos` | Productos por aplicación (dosis, costo) |
+| `sa_fertilizaciones` | Fertilizaciones independientes |
+| `sa_cosechas` | Cosecha: rinde, superficie, costo |
+| `sa_costos_fijos` | Arrendamiento, asesoramiento, seguro |
+| `sa_acondicionamiento` | Laboreo de suelo |
+| `sa_resiembras` | Resiembras |
+| `tarifario_insumos` | 185 registros: producto, fecha vigencia, precio USD |
+| `tarifario_servicios` | 92 registros: tipo servicio, cultivo, fecha, costo USD/ha |
 
-**Vistas:**
-- `vw_stock_actual` — Stock físico, disponible y comprometido
-- `vw_posicion_contratos` — Cumplimiento por contrato
-- `vw_resultado_comercial` — P&L por cultivo y campaña 
+### Vistas
+| Vista | Descripción |
+|-------|-------------|
+| `vw_sa_resumen_ciclo` | Resumen por ciclo con costos calculados y `lote_id` |
+| `vw_sa_costos_campana` | Costos agregados por campaña |
+
+### Tablas Cereal
+- `movimientos_cereal` (con `bonificacion_calidad`)
+- `contratos` (con `bonificacion_calidad`)
+- `cartas_porte`, `entregas`, `stock_cereal`
+
+---
+
+## Estructura de Archivos Clave
+
+```
+src/app/
+  seguimiento/
+    page.tsx                          # Dashboard seguimiento
+    lotes/
+      page.tsx                        # Lista lotes/cultivos (Por Lote / Por Cultivo)
+      nuevo/page.tsx                  # Crear/editar ciclo
+      [ciclo_id]/
+        page.tsx                      # Ficha del ciclo
+        acondicionamiento/page.tsx    # Formulario acondicionamiento
+        siembra/page.tsx              # Formulario siembra
+        fertilizaciones/page.tsx      # Formulario fertilizaciones
+        cosecha/page.tsx              # PENDIENTE
+        costos-fijos/page.tsx         # PENDIENTE
+        aplicaciones/
+          nueva/page.tsx              # Nueva aplicación
+          [aplicacion_id]/editar/page.tsx
+  dashboard/
+    ventas/
+      page.tsx                        # Server component
+      VentasClient.tsx                # Client component con bonif.
+    contratos/
+      nuevo/page.tsx
+      editar/editarContratoForm.tsx
+```
+
+---
+
+## Campos Especiales
+
+### Siembra
+- `fertilizante_1/2`, `fertilizante_1/2_kg_ha`, `fertilizante_1/2_costo_kg` — fertilizante en siembra
+- `costo_semilla_total` = USD/kg × densidad × sup_ha
+- Sistemas: SD, SD c/DF, SC, SC c/DF, Laboreo mínimo, Otro
+
+### Costos calculados en vista
+- `costo_semillas_usd` = semilla + fertilizantes en siembra
+- `costo_insumos_usd` = productos de aplicaciones
+- `costo_servicios_usd` = siembra + pulverización + cosecha + acondicionamiento + fertilizaciones
+
+---
+
+## Pendientes
+
+1. **Formulario Cosecha** → `[ciclo_id]/cosecha/page.tsx`
+2. **Formulario Costos Fijos** → `[ciclo_id]/costos-fijos/page.tsx`
+3. **Integración Tarifario** — autocompletar precios en todos los formularios al tipear el producto
+4. **Descuento automático de stock** — al cargar aplicaciones descontar de agroquímicos
+5. **Dashboard Seguimiento** — agregar KPIs del Power BI
+6. **Módulo Costos** — página `/seguimiento/costos/` (placeholder)
+7. **Módulo Reportes** — página `/seguimiento/reportes/` (placeholder)
+
+---
+
+## Campañas disponibles
+23-24, 24-25, 25-26, 26-27
+
+## Permisos Supabase ejecutados
+Todos los GRANT necesarios para `authenticated` en tablas SA y secuencias.
+
+---
+
+*Última actualización: Junio 2026*
