@@ -34,6 +34,11 @@ type Aplicacion = {
   productos: string[]
 }
 
+type Acondicionamiento = {
+  ciclo_id: number
+  superficie_ha: number
+}
+
 const TIPO_LABELS: Record<string, string> = {
   barbecho: 'Barbecho',
   pre_siembra: 'Pre-siembra',
@@ -51,6 +56,7 @@ export default function LotesCultivosPage() {
   const [lotes, setLotes] = useState<Lote[]>([])
   const [ciclos, setCiclos] = useState<Ciclo[]>([])
   const [aplicaciones, setAplicaciones] = useState<Aplicacion[]>([])
+  const [acondicionamientos, setAcondicionamientos] = useState<Acondicionamiento[]>([])
   const [campanas, setCampanas] = useState<string[]>([])
   const [campanaSeleccionada, setCampanaSeleccionada] = useState('')
   const [filtroCampo, setFiltroCampo] = useState('')
@@ -62,16 +68,18 @@ export default function LotesCultivosPage() {
   useEffect(() => {
     async function cargar() {
       setLoading(true)
-      const [{ data: ls }, { data: cs }, { data: caps }, { data: apls }, { data: prods }] = await Promise.all([
+      const [{ data: ls }, { data: cs }, { data: caps }, { data: apls }, { data: prods }, { data: acons }] = await Promise.all([
         supabase.from('lotes').select('*').eq('activo', true).order('establecimiento').order('nombre'),
         supabase.from('vw_sa_resumen_ciclo').select('*'),
         supabase.from('campanas').select('nombre').order('nombre', { ascending: false }),
         supabase.from('sa_aplicaciones').select('id, ciclo_id, tipo, fecha, superficie_ha'),
         supabase.from('sa_aplicacion_productos').select('aplicacion_id, producto'),
+        supabase.from('sa_acondicionamiento').select('ciclo_id, superficie_ha'),
       ])
 
       setLotes(ls ?? [])
       setCiclos(cs ?? [])
+      setAcondicionamientos(acons ?? [])
 
       const prodsMap: Record<number, string[]> = {}
       ;(prods ?? []).forEach((p: any) => {
@@ -99,6 +107,7 @@ export default function LotesCultivosPage() {
   const getCiclos = (loteNombre: string) => ciclosCampana.filter(c => c.lote === loteNombre)
   const getAplicaciones = (cicloId: number) => aplicaciones.filter(a => a.ciclo_id === cicloId)
   const getHaPulv = (cicloId: number) => aplicaciones.filter(a => a.ciclo_id === cicloId).reduce((acc, a) => acc + Number(a.superficie_ha ?? 0), 0)
+  const getHaAcon = (cicloId: number) => acondicionamientos.filter(a => a.ciclo_id === cicloId).reduce((acc, a) => acc + Number(a.superficie_ha ?? 0), 0)
 
   const toggleExpandido = (id: number) => {
     setExpandidos(prev => {
@@ -236,6 +245,7 @@ export default function LotesCultivosPage() {
                       <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha sembradas</th>
                       <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha cosechadas</th>
                       <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha pulverizadas</th>
+                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha acondicionadas</th>
                       <th className="text-left px-4 py-3 font-semibold text-campo-700">Siembra</th>
                       <th className="text-left px-4 py-3 font-semibold text-campo-700">Cosecha</th>
                       <th className="text-right px-4 py-3 font-semibold text-campo-700">Rinde kg/ha</th>
@@ -263,6 +273,7 @@ export default function LotesCultivosPage() {
                             <td className="px-4 py-3 text-right text-campo-600">{f.ciclo ? fmt(f.ciclo.sup_sembrada) : '—'}</td>
                             <td className="px-4 py-3 text-right text-campo-600">{f.ciclo?.sup_cosechada ? fmt(f.ciclo.sup_cosechada) : '—'}</td>
                             <td className="px-4 py-3 text-right text-campo-600">{f.ciclo ? fmt(haPulv) : '—'}</td>
+                            <td className="px-4 py-3 text-right text-campo-600">{f.ciclo ? (getHaAcon(f.ciclo.ciclo_id) > 0 ? fmt(getHaAcon(f.ciclo.ciclo_id)) : '—') : '—'}</td>
                             <td className="px-4 py-3 text-campo-600">{fmtFecha(f.ciclo?.fecha_siembra ?? null)}</td>
                             <td className="px-4 py-3 text-campo-600">{fmtFecha(f.ciclo?.fecha_cosecha ?? null)}</td>
                             <td className="px-4 py-3 text-right font-medium text-campo-900">{fmt(f.ciclo?.rinde_kg_ha)}</td>
@@ -291,7 +302,7 @@ export default function LotesCultivosPage() {
                           {/* Fila expandida */}
                           {expandido && f.ciclo && (
                             <tr key={`exp-${f.ciclo.ciclo_id}`} className="bg-campo-50/30 border-b border-campo-50">
-                              <td colSpan={11} className="px-4 py-2">
+                              <td colSpan={12} className="px-4 py-2">
                                 <table className="w-full text-xs">
                                   <thead>
                                     <tr className="text-campo-400">
