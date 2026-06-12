@@ -54,6 +54,12 @@ type Siembra = {
   costo_servicio_usd_ha: number | null
   costo_servicio_total: number | null
   costo_semilla_total: number | null
+  fertilizante_1: string | null
+  fertilizante_1_kg_ha: number | null
+  fertilizante_1_costo_kg: number | null
+  fertilizante_2: string | null
+  fertilizante_2_kg_ha: number | null
+  fertilizante_2_costo_kg: number | null
 }
 
 type Fertilizacion = {
@@ -359,6 +365,30 @@ export default function FichaCicloPage() {
               <span className="text-campo-500">Costo semilla</span>
               <div className="font-medium text-campo-900 mt-0.5">{fmtUsd(siembra.costo_semilla_total)}</div>
             </div>
+            {siembra.fertilizante_1 && (
+              <div>
+                <span className="text-campo-500">Fertilizante 1</span>
+                <div className="font-medium text-campo-900 mt-0.5">
+                  {siembra.fertilizante_1}
+                  {siembra.fertilizante_1_kg_ha ? ` — ${fmt(siembra.fertilizante_1_kg_ha, 0)} kg/ha` : ''}
+                  {siembra.fertilizante_1_costo_kg && siembra.fertilizante_1_kg_ha && siembra.sup_hibrido_1
+                    ? ` · ${fmtUsd(siembra.fertilizante_1_kg_ha * siembra.sup_hibrido_1 * siembra.fertilizante_1_costo_kg)}`
+                    : ''}
+                </div>
+              </div>
+            )}
+            {siembra.fertilizante_2 && (
+              <div>
+                <span className="text-campo-500">Fertilizante 2</span>
+                <div className="font-medium text-campo-900 mt-0.5">
+                  {siembra.fertilizante_2}
+                  {siembra.fertilizante_2_kg_ha ? ` — ${fmt(siembra.fertilizante_2_kg_ha, 0)} kg/ha` : ''}
+                  {siembra.fertilizante_2_costo_kg && siembra.fertilizante_2_kg_ha && siembra.sup_hibrido_1
+                    ? ` · ${fmtUsd(siembra.fertilizante_2_kg_ha * siembra.sup_hibrido_1 * siembra.fertilizante_2_costo_kg)}`
+                    : ''}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Section>
