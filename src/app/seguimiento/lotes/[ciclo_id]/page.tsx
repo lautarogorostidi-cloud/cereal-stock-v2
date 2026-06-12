@@ -477,7 +477,7 @@ export default function FichaCicloPage() {
       </Section>
 
       <Section title="Fertilizaciones" action={
-        <button className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</button>
+        <Link href={`/seguimiento/lotes/${ciclo_id}/fertilizaciones`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</Link>
       }>
         {fertilizaciones.length === 0 ? <Empty msg="Sin fertilizaciones registradas" /> : (
           <div className="overflow-x-auto">
