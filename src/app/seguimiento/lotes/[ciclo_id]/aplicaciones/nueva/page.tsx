@@ -78,7 +78,7 @@ export default function NuevaAplicacionPage() {
     setLoading(true)
     const [{ data: cicloData }, { data: insumos }, { data: servicios }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', Number(ciclo_id)).single(),
-      supabase.from('tarifario_insumos').select('tipo_insumo, insumo, unidad, precio_usd, fecha_vigencia').in('tipo_insumo', TIPOS_INSUMO).order('insumo').order('fecha_vigencia', { ascending: false }),
+      supabase.from('tarifario_insumos').select('tipo_insumo, insumo, unidad, precio_usd, fecha_vigencia').in('tipo_insumo', TIPOS_INSUMO).order('insumo'),
       supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
     ])
     setCiclo(cicloData ?? null)
@@ -120,8 +120,15 @@ export default function NuevaAplicacionPage() {
     if (!fecha || !nombreProducto) return null
     const registros = tarifarioInsumos
       .filter(t => t.insumo === nombreProducto && t.fecha_vigencia <= fecha)
-      .sort((a, b) => b.fecha_vigencia.localeCompare(a.fecha_vigencia))
-    if (registros.length === 0) return null
+    if (registros.length === 0) {
+      // Si no hay precio anterior a la fecha, tomar el más antiguo disponible
+      const todos = tarifarioInsumos.filter(t => t.insumo === nombreProducto)
+      if (todos.length === 0) return null
+      todos.sort((a, b) => a.fecha_vigencia.localeCompare(b.fecha_vigencia))
+      return { precio: todos[0].precio_usd, unidad: todos[0].unidad ?? 'L' }
+    }
+    // Tomar el más reciente anterior o igual a la fecha
+    registros.sort((a, b) => b.fecha_vigencia.localeCompare(a.fecha_vigencia))
     return { precio: registros[0].precio_usd, unidad: registros[0].unidad ?? 'L' }
   }
 
