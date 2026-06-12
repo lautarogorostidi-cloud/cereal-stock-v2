@@ -14,6 +14,7 @@ type Ciclo = {
   cultivo: string
   sup_sembrada: number
   propiedad: string
+  lote_id: string
   fecha_siembra: string | null
   fecha_cosecha: string | null
   rinde_kg_ha: number | null
@@ -87,6 +88,14 @@ type CostoFijo = {
   tipo: string
   costo_usd_ha: number | null
   costo_total_usd: number
+}
+
+type Acondicionamiento = {
+  id: number
+  fecha: string | null
+  tipo_laboreo: string | null
+  superficie_ha: number | null
+  costo_usd_ha: number | null
 }
 
 const fmt = (n: number | null | undefined, dec = 1) =>
@@ -171,6 +180,7 @@ export default function FichaCicloPage() {
   const [fertilizaciones, setFertilizaciones] = useState<Fertilizacion[]>([])
   const [cosecha, setCosecha] = useState<Cosecha | null>(null)
   const [costosFijos, setCostosFijos] = useState<CostoFijo[]>([])
+  const [acondicionamiento, setAcondicionamiento] = useState<Acondicionamiento[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [deletingCiclo, setDeletingCiclo] = useState(false)
@@ -191,6 +201,7 @@ export default function FichaCicloPage() {
       { data: fertData },
       { data: cosechaData },
       { data: fijosData },
+      { data: aconData },
     ] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('*').eq('ciclo_id', id).single(),
       supabase.from('sa_aplicaciones').select('*').eq('ciclo_id', id).order('fecha').order('tipo'),
@@ -198,6 +209,7 @@ export default function FichaCicloPage() {
       supabase.from('sa_fertilizaciones').select('*').eq('ciclo_id', id).order('numero'),
       supabase.from('sa_cosechas').select('*').eq('ciclo_id', id).maybeSingle(),
       supabase.from('sa_costos_fijos').select('*').eq('ciclo_id', id).order('tipo'),
+      supabase.from('sa_acondicionamiento').select('*').eq('ciclo_id', id).order('fecha'),
     ])
 
     const aplIds = (apls ?? []).map((a: any) => a.id as number)
@@ -214,6 +226,7 @@ export default function FichaCicloPage() {
     setFertilizaciones(fertData ?? [])
     setCosecha(cosechaData ?? null)
     setCostosFijos(fijosData ?? [])
+    setAcondicionamiento(aconData ?? [])
     setLoading(false)
   }
 
@@ -230,7 +243,6 @@ export default function FichaCicloPage() {
     if (!confirm('¿Seguro que querés borrar este ciclo? Se borrarán también todas sus aplicaciones, siembra, cosecha y costos.')) return
     setDeletingCiclo(true)
     const id = Number(ciclo_id)
-    // Borrar productos de aplicaciones
     const { data: apls } = await supabase.from('sa_aplicaciones').select('id').eq('ciclo_id', id)
     if (apls && apls.length > 0) {
       await supabase.from('sa_aplicacion_productos').delete().in('aplicacion_id', apls.map((a: any) => a.id))
@@ -240,6 +252,7 @@ export default function FichaCicloPage() {
     await supabase.from('sa_fertilizaciones').delete().eq('ciclo_id', id)
     await supabase.from('sa_cosechas').delete().eq('ciclo_id', id)
     await supabase.from('sa_costos_fijos').delete().eq('ciclo_id', id)
+    await supabase.from('sa_acondicionamiento').delete().eq('ciclo_id', id)
     await supabase.from('sa_ciclos').delete().eq('id', id)
     router.push('/seguimiento/lotes')
   }
@@ -275,7 +288,7 @@ export default function FichaCicloPage() {
         </div>
         <div className="flex items-center gap-3">
           <Link
-            href={`/seguimiento/lotes/nuevo?lote=${(ciclo as any).lote_id ?? ''}&ciclo=${ciclo_id}`}
+            href={`/seguimiento/lotes/nuevo?lote=${ciclo.lote_id ?? ''}&ciclo=${ciclo_id}`}
             className="text-xs text-lime-700 hover:text-lime-600 font-medium px-3 py-1.5 rounded-lg border border-lime-200 hover:bg-lime-50 transition-colors"
           >
             Editar ciclo
@@ -326,16 +339,34 @@ export default function FichaCicloPage() {
       <Section title="Acondicionamiento de suelo" action={
         <Link href={`/seguimiento/lotes/${ciclo_id}/acondicionamiento`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</Link>
       }>
-        <Empty msg="Sin registros de acondicionamiento" />
+        {acondicionamiento.length === 0 ? <Empty msg="Sin registros de acondicionamiento" /> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-campo-100 bg-campo-50">
+                  <th className="text-left px-4 py-2 font-semibold text-campo-700">Fecha</th>
+                  <th className="text-left px-4 py-2 font-semibold text-campo-700">Tipo laboreo</th>
+                  <th className="text-right px-4 py-2 font-semibold text-campo-700">Sup. (ha)</th>
+                  <th className="text-right px-4 py-2 font-semibold text-campo-700">Costo USD/ha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {acondicionamiento.map(a => (
+                  <tr key={a.id} className="border-b border-campo-50 hover:bg-campo-50/50">
+                    <td className="px-4 py-2 text-campo-700">{fmtFecha(a.fecha)}</td>
+                    <td className="px-4 py-2 text-campo-700">{a.tipo_laboreo ?? '—'}</td>
+                    <td className="px-4 py-2 text-right text-campo-700">{fmt(a.superficie_ha)}</td>
+                    <td className="px-4 py-2 text-right text-campo-700">{fmtUsd(a.costo_usd_ha)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Section>
 
       <Section title="Siembra" action={
-        <Link
-          href={`/seguimiento/lotes/${ciclo_id}/siembra`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-        >
+        <Link href={`/seguimiento/lotes/${ciclo_id}/siembra`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
           {siembra ? 'Editar' : '+ Agregar'}
         </Link>
       }>
@@ -400,12 +431,7 @@ export default function FichaCicloPage() {
       </Section>
 
       <Section title="Aplicaciones" action={
-        <Link
-          href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/nueva`}
-          className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <Link href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/nueva`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
           + Agregar
         </Link>
       }>
@@ -453,19 +479,10 @@ export default function FichaCicloPage() {
                             <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(totalInsumos)}</td>
                             <td className="px-4 py-2 text-center">
                               <div className="flex items-center justify-center gap-2">
-                                <Link
-                                  href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/${a.id}/editar`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-                                >
+                                <Link href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/${a.id}/editar`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
                                   Editar
                                 </Link>
-                                <button
-                                  onClick={() => handleBorrarAplicacion(a.id)}
-                                  disabled={deletingId === a.id}
-                                  className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
-                                >
+                                <button onClick={() => handleBorrarAplicacion(a.id)} disabled={deletingId === a.id} className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50">
                                   {deletingId === a.id ? '...' : 'Borrar'}
                                 </button>
                               </div>
@@ -516,9 +533,9 @@ export default function FichaCicloPage() {
       </Section>
 
       <Section title="Cosecha" action={
-        <button className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+        <Link href={`/seguimiento/lotes/${ciclo_id}/cosecha`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
           {cosecha ? 'Editar' : '+ Agregar'}
-        </button>
+        </Link>
       }>
         {!cosecha ? <Empty msg="Sin datos de cosecha" /> : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -532,7 +549,7 @@ export default function FichaCicloPage() {
       </Section>
 
       <Section title="Costos Fijos" action={
-        <button className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</button>
+        <Link href={`/seguimiento/lotes/${ciclo_id}/costos-fijos`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</Link>
       }>
         {costosFijos.length === 0 ? <Empty msg="Sin costos fijos registrados" /> : (
           <div className="overflow-x-auto">
