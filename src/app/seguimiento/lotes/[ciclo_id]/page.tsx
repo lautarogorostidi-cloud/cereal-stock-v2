@@ -230,6 +230,18 @@ export default function FichaCicloPage() {
     setLoading(false)
   }
 
+  async function handleBorrarAcondicionamiento(id: number) {
+    if (!confirm('¿Borrar este registro de acondicionamiento?')) return
+    await supabase.from('sa_acondicionamiento').delete().eq('id', id)
+    cargar()
+  }
+
+  async function handleBorrarSiembra() {
+    if (!confirm('¿Borrar los datos de siembra de este ciclo?')) return
+    await supabase.from('sa_siembras').delete().eq('ciclo_id', Number(ciclo_id))
+    cargar()
+  }
+
   async function handleBorrarAplicacion(aplId: number) {
     if (!confirm('¿Seguro que querés borrar esta aplicación y todos sus productos?')) return
     setDeletingId(aplId)
@@ -348,6 +360,7 @@ export default function FichaCicloPage() {
                   <th className="text-left px-4 py-2 font-semibold text-campo-700">Tipo laboreo</th>
                   <th className="text-right px-4 py-2 font-semibold text-campo-700">Sup. (ha)</th>
                   <th className="text-right px-4 py-2 font-semibold text-campo-700">Costo USD/ha</th>
+                  <th className="text-center px-4 py-2 font-semibold text-campo-700">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -357,6 +370,16 @@ export default function FichaCicloPage() {
                     <td className="px-4 py-2 text-campo-700">{a.tipo_laboreo ?? '—'}</td>
                     <td className="px-4 py-2 text-right text-campo-700">{fmt(a.superficie_ha)}</td>
                     <td className="px-4 py-2 text-right text-campo-700">{fmtUsd(a.costo_usd_ha)}</td>
+                    <td className="px-4 py-2 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <Link href={`/seguimiento/lotes/${ciclo_id}/acondicionamiento`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                          Editar
+                        </Link>
+                        <button onClick={() => handleBorrarAcondicionamiento(a.id)} className="text-xs text-red-400 hover:text-red-600 font-medium">
+                          Borrar
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -366,9 +389,16 @@ export default function FichaCicloPage() {
       </Section>
 
       <Section title="Siembra" action={
-        <Link href={`/seguimiento/lotes/${ciclo_id}/siembra`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
-          {siembra ? 'Editar' : '+ Agregar'}
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href={`/seguimiento/lotes/${ciclo_id}/siembra`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+            {siembra ? 'Editar' : '+ Agregar'}
+          </Link>
+          {siembra && (
+            <button onClick={handleBorrarSiembra} className="text-xs text-red-400 hover:text-red-600 font-medium">
+              Borrar
+            </button>
+          )}
+        </div>
       }>
         {!siembra ? <Empty msg="Sin datos de siembra" /> : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
