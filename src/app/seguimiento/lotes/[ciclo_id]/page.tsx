@@ -14,6 +14,7 @@ type Ciclo = {
   cultivo: string
   sup_sembrada: number
   propiedad: string
+  lote_id: string
   fecha_siembra: string | null
   fecha_cosecha: string | null
   rinde_kg_ha: number | null
@@ -242,7 +243,6 @@ export default function FichaCicloPage() {
     if (!confirm('¿Seguro que querés borrar este ciclo? Se borrarán también todas sus aplicaciones, siembra, cosecha y costos.')) return
     setDeletingCiclo(true)
     const id = Number(ciclo_id)
-    // Borrar productos de aplicaciones
     const { data: apls } = await supabase.from('sa_aplicaciones').select('id').eq('ciclo_id', id)
     if (apls && apls.length > 0) {
       await supabase.from('sa_aplicacion_productos').delete().in('aplicacion_id', apls.map((a: any) => a.id))
@@ -252,6 +252,7 @@ export default function FichaCicloPage() {
     await supabase.from('sa_fertilizaciones').delete().eq('ciclo_id', id)
     await supabase.from('sa_cosechas').delete().eq('ciclo_id', id)
     await supabase.from('sa_costos_fijos').delete().eq('ciclo_id', id)
+    await supabase.from('sa_acondicionamiento').delete().eq('ciclo_id', id)
     await supabase.from('sa_ciclos').delete().eq('id', id)
     router.push('/seguimiento/lotes')
   }
@@ -287,7 +288,7 @@ export default function FichaCicloPage() {
         </div>
         <div className="flex items-center gap-3">
           <Link
-            href={`/seguimiento/lotes/nuevo?lote=${(ciclo as any).lote_id ?? ''}&ciclo=${ciclo_id}`}
+            href={`/seguimiento/lotes/nuevo?lote=${ciclo.lote_id ?? ''}&ciclo=${ciclo_id}`}
             className="text-xs text-lime-700 hover:text-lime-600 font-medium px-3 py-1.5 rounded-lg border border-lime-200 hover:bg-lime-50 transition-colors"
           >
             Editar ciclo
@@ -365,12 +366,7 @@ export default function FichaCicloPage() {
       </Section>
 
       <Section title="Siembra" action={
-        <Link
-          href={`/seguimiento/lotes/${ciclo_id}/siembra`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-        >
+        <Link href={`/seguimiento/lotes/${ciclo_id}/siembra`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
           {siembra ? 'Editar' : '+ Agregar'}
         </Link>
       }>
@@ -435,12 +431,7 @@ export default function FichaCicloPage() {
       </Section>
 
       <Section title="Aplicaciones" action={
-        <Link
-          href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/nueva`}
-          className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <Link href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/nueva`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
           + Agregar
         </Link>
       }>
@@ -488,19 +479,10 @@ export default function FichaCicloPage() {
                             <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(totalInsumos)}</td>
                             <td className="px-4 py-2 text-center">
                               <div className="flex items-center justify-center gap-2">
-                                <Link
-                                  href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/${a.id}/editar`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-                                >
+                                <Link href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/${a.id}/editar`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
                                   Editar
                                 </Link>
-                                <button
-                                  onClick={() => handleBorrarAplicacion(a.id)}
-                                  disabled={deletingId === a.id}
-                                  className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50"
-                                >
+                                <button onClick={() => handleBorrarAplicacion(a.id)} disabled={deletingId === a.id} className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50">
                                   {deletingId === a.id ? '...' : 'Borrar'}
                                 </button>
                               </div>
