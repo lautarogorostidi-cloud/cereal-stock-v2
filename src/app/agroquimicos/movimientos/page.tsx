@@ -38,6 +38,7 @@ export default function MovimientosPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState('')
+  const [busqueda, setBusqueda] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -60,7 +61,7 @@ export default function MovimientosPage() {
     setLoading(true)
     const { data } = await supabase
       .from('agroquimicos_movimientos')
-      .select('*, agroquimicos_productos(nombre, unidad, tipo), proveedores(nombre)')
+      .select('*, agroquimicos_productos(nombre, unidad, tipo), proveedores:proveedor_id(nombre)')
       .order('fecha', { ascending: false })
       .order('created_at', { ascending: false })
     setMovimientos(data ?? [])
@@ -88,7 +89,31 @@ export default function MovimientosPage() {
     cargarMaestros()
   }, [])
 
-  const productoSeleccionado = productos.find(p => String(p.id) === form.producto_id)
+  const [nuevoProductoMode, setNuevoProductoMode] = useState(false)
+  const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', tipo: '', unidad: 'L', marca: '' })
+  const [savingProducto, setSavingProducto] = useState(false)
+
+  const TIPOS_PRODUCTO = ['Herbicida', 'Fungicida', 'Insecticida', 'Coadyuvante', 'Fertilizante', 'Otro']
+  const UNIDADES_PRODUCTO = ['L', 'kg', 'cc', 'g', 'u']
+
+  async function handleGuardarNuevoProducto() {
+    if (!nuevoProducto.nombre || !nuevoProducto.tipo) return
+    setSavingProducto(true)
+    const { data, error } = await supabase.from('agroquimicos_productos').insert({
+      nombre: nuevoProducto.nombre,
+      tipo: nuevoProducto.tipo,
+      unidad: nuevoProducto.unidad,
+      marca: nuevoProducto.marca || null,
+      activo: true,
+    }).select('id, nombre, unidad, marca, tipo').single()
+    if (!error && data) {
+      await cargarMaestros()
+      setForm(f => ({ ...f, producto_id: String(data.id) }))
+      setNuevoProductoMode(false)
+      setNuevoProducto({ nombre: '', tipo: '', unidad: 'L', marca: '' })
+    }
+    setSavingProducto(false)
+  }
   const costoTotal = Number(form.cantidad || 0) * Number(form.precio_unitario || 0)
   const fmtUsd = (n: number) => n > 0 ? `USD ${n.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : ''
 
@@ -135,7 +160,23 @@ export default function MovimientosPage() {
     setSaving(false)
   }
 
-  const movFiltrados = filtroTipo ? movimientos.filter(m => m.tipo === filtroTipo) : movimientos
+  const movFiltrados = movimientos
+    .filter(m => filtroTipo ? m.tipo === filtroTipo : true)
+    .filter(m => {
+      if (!busqueda) return true
+      const q = busqueda.toLowerCase()
+      return (
+        m.agroquimicos_productos?.nombre?.toLowerCase().includes(q) ||
+        m.agroquimicos_productos?.tipo?.toLowerCase().includes(q) ||
+        m.tipo?.toLowerCase().includes(q) ||
+        m.cultivo?.toLowerCase().includes(q) ||
+        m.campaña?.toLowerCase().includes(q) ||
+        m.lote?.toLowerCase().includes(q) ||
+        m.proveedores?.nombre?.toLowerCase().includes(q) ||
+        m.numero_remito?.toLowerCase().includes(q) ||
+        m.numero_factura?.toLowerCase().includes(q)
+      )
+    })
   const fmt = (n: number) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 })
   const badgeColor = (tipo: string) => {
     if (tipo === 'compra')     return 'bg-blue-100 text-blue-700'
@@ -172,15 +213,52 @@ export default function MovimientosPage() {
             {/* Producto */}
             <div className="lg:col-span-2">
               <label className="block text-xs font-medium text-campo-700 mb-1">Producto *</label>
-              <select value={form.producto_id} onChange={e => setForm(f => ({ ...f, producto_id: e.target.value }))}
-                className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                <option value="">Seleccioná un producto</option>
-                {Object.entries(productosPorTipo).map(([tipo, prods]) => (
-                  <optgroup key={tipo} label={tipo.charAt(0).toUpperCase() + tipo.slice(1)}>
-                    {prods.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.marca ? ` — ${p.marca}` : ''}</option>)}
-                  </optgroup>
-                ))}
-              </select>
+              {!nuevoProductoMode ? (
+                <>
+                  <select value={form.producto_id} onChange={e => {
+                    if (e.target.value === '__nuevo__') { setNuevoProductoMode(true); return }
+                    setForm(f => ({ ...f, producto_id: e.target.value }))
+                  }}
+                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                    <option value="">Seleccioná un producto</option>
+                    {Object.entries(productosPorTipo).map(([tipo, prods]) => (
+                      <optgroup key={tipo} label={tipo.charAt(0).toUpperCase() + tipo.slice(1)}>
+                        {prods.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.marca ? ` — ${p.marca}` : ''}</option>)}
+                      </optgroup>
+                    ))}
+                    <option value="__nuevo__">➕ Agregar nuevo producto...</option>
+                  </select>
+                </>
+              ) : (
+                <div className="space-y-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50">
+                  <div className="text-xs font-medium text-emerald-700 mb-2">Nuevo producto</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="text" value={nuevoProducto.nombre} onChange={e => setNuevoProducto(p => ({ ...p, nombre: e.target.value }))}
+                      placeholder="Nombre *" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                    <select value={nuevoProducto.tipo} onChange={e => setNuevoProducto(p => ({ ...p, tipo: e.target.value }))}
+                      className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="">Tipo *</option>
+                      {TIPOS_PRODUCTO.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <input type="text" value={nuevoProducto.marca} onChange={e => setNuevoProducto(p => ({ ...p, marca: e.target.value }))}
+                      placeholder="Marca" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                    <select value={nuevoProducto.unidad} onChange={e => setNuevoProducto(p => ({ ...p, unidad: e.target.value }))}
+                      className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      {UNIDADES_PRODUCTO.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button type="button" onClick={handleGuardarNuevoProducto} disabled={savingProducto || !nuevoProducto.nombre || !nuevoProducto.tipo}
+                      className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
+                      {savingProducto ? 'Guardando...' : 'Guardar producto'}
+                    </button>
+                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', tipo: '', unidad: 'L', marca: '' }) }}
+                      className="text-xs text-campo-500 hover:text-campo-700 px-3 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Tipo */}
@@ -309,6 +387,17 @@ export default function MovimientosPage() {
           </div>
         </div>
       )}
+
+      {/* Barra de búsqueda */}
+      <div>
+        <input
+          type="text"
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="Buscar por producto, tipo, cultivo, campaña, proveedor, remito..."
+          className="w-full rounded-lg border border-campo-200 px-4 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+        />
+      </div>
 
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
