@@ -92,6 +92,7 @@ export default function MovimientosPage() {
   const [nuevoProductoMode, setNuevoProductoMode] = useState(false)
   const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', tipo: '', unidad: 'L', marca: '' })
   const [savingProducto, setSavingProducto] = useState(false)
+  const [errorProducto, setErrorProducto] = useState<string | null>(null)
 
   const TIPOS_PRODUCTO = ['Herbicida', 'Fungicida', 'Insecticida', 'Coadyuvante', 'Fertilizante', 'Otro']
   const UNIDADES_PRODUCTO = ['L', 'kg', 'cc', 'g', 'u']
@@ -99,6 +100,7 @@ export default function MovimientosPage() {
   async function handleGuardarNuevoProducto() {
     if (!nuevoProducto.nombre || !nuevoProducto.tipo) return
     setSavingProducto(true)
+    setErrorProducto(null)
     const { data, error } = await supabase.from('agroquimicos_productos').insert({
       nombre: nuevoProducto.nombre,
       tipo: nuevoProducto.tipo,
@@ -108,15 +110,17 @@ export default function MovimientosPage() {
     }).select('id, nombre, unidad, marca, tipo').single()
     if (!error && data) {
       const nuevoId = String(data.id)
-      // Primero recargar maestros
       const { data: prods } = await supabase.from('agroquimicos_productos').select('id, nombre, unidad, marca, tipo').eq('activo', true).order('tipo').order('nombre')
       setProductos(prods ?? [])
-      // Luego cerrar modo nuevo y seleccionar el producto
       setNuevoProductoMode(false)
       setNuevoProducto({ nombre: '', tipo: '', unidad: 'L', marca: '' })
       setForm(f => ({ ...f, producto_id: nuevoId }))
     } else if (error) {
-      console.error('Error guardando producto:', error)
+      if (error.code === '23505') {
+        setErrorProducto('Ya existe un producto con ese nombre. Cancelá y buscalo en la lista.')
+      } else {
+        setErrorProducto(`Error: ${error.message}`)
+      }
     }
     setSavingProducto(false)
   }
@@ -133,6 +137,10 @@ export default function MovimientosPage() {
 
   async function handleGuardar() {
     setError(null)
+    if (nuevoProductoMode) {
+      setError('Primero guardá el nuevo producto o cancelá.')
+      return
+    }
     if (!form.producto_id || !form.cantidad || !form.fecha) {
       setError('Completá producto, fecha y cantidad')
       return
@@ -259,11 +267,12 @@ export default function MovimientosPage() {
                       className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
                       {savingProducto ? 'Guardando...' : 'Guardar producto'}
                     </button>
-                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', tipo: '', unidad: 'L', marca: '' }) }}
+                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', tipo: '', unidad: 'L', marca: '' }); setErrorProducto(null) }}
                       className="text-xs text-campo-500 hover:text-campo-700 px-3 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
                       Cancelar
                     </button>
                   </div>
+                  {errorProducto && <div className="text-xs text-red-600 mt-1">{errorProducto}</div>}
                 </div>
               )}
             </div>
