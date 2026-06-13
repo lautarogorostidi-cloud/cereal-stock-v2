@@ -27,6 +27,12 @@ type Fertilizacion = {
   observaciones: string | null
 }
 
+type TarifarioItem = {
+  insumo: string
+  precio_usd: number
+  fecha_vigencia: string
+}
+
 const FORMAS = ['Voleo', 'Localizado', 'Fertirrigación', 'Foliar']
 
 export default function NuevaFertilizacionPage() {
@@ -35,6 +41,8 @@ export default function NuevaFertilizacionPage() {
 
   const [ciclo, setCiclo] = useState<CicloInfo | null>(null)
   const [fertilizaciones, setFertilizaciones] = useState<Fertilizacion[]>([])
+  const [tarifario, setTarifario] = useState<TarifarioItem[]>([])
+  const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,19 +68,83 @@ export default function NuevaFertilizacionPage() {
   async function cargar() {
     setLoading(true)
     const id = Number(ciclo_id)
-    const [{ data: cicloData }, { data: fertData }] = await Promise.all([
+    const [{ data: cicloData }, { data: fertData }, { data: tarifData }, { data: servData }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', id).single(),
       supabase.from('sa_fertilizaciones').select('*').eq('ciclo_id', id).order('numero'),
+      supabase.from('tarifario_insumos').select('insumo, precio_usd, fecha_vigencia').eq('tipo_insumo', 'Fertilizante'),
+      supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
     ])
     setCiclo(cicloData ?? null)
     setFertilizaciones(fertData ?? [])
+    setTarifario(tarifData ?? [])
+    setTarifarioServicios(servData ?? [])
     const supDefault = cicloData?.sup_sembrada ?? cicloData?.hectareas ?? 0
     setForm(f => ({ ...f, superficie_ha: supDefault.toString() }))
     setLoading(false)
   }
 
+  function getPrecioVigente(nombre: string, fecha: string): number | null {
+    if (!nombre || !fecha) return null
+    const registros = tarifario.filter(t => t.insumo === nombre && t.fecha_vigencia <= fecha)
+    if (registros.length === 0) {
+      const todos = tarifario.filter(t => t.insumo === nombre)
+      if (todos.length === 0) return null
+      todos.sort((a, b) => a.fecha_vigencia.localeCompare(b.fecha_vigencia))
+      return todos[0].precio_usd
+    }
+    registros.sort((a, b) => b.fecha_vigencia.localeCompare(a.fecha_vigencia))
+    return registros[0].precio_usd
+  }
+
+  function getCostoServicioVigente(fecha: string): number | null {
+    if (!fecha || !ciclo) return null
+    const registros = tarifarioServicios.filter(s =>
+      s.tipo_servicio?.toLowerCase().includes('fertiliz') &&
+      (!s.cultivo || s.cultivo === ciclo.cultivo) &&
+      s.vigencia_desde <= fecha
+    ).sort((a: any, b: any) => b.vigencia_desde.localeCompare(a.vigencia_desde))
+    return registros.length > 0 ? registros[0].costo_usd_ha : null
+  }
+
+  function getFertilizantesDisponibles(): string[] {
+    return Array.from(new Set(tarifario.map(t => t.insumo))).sort()
+  }
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
-    setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    setForm(f => {
+      const updated = { ...f, [name]: value }
+
+      // Auto-completar al cambiar fecha
+      if (name === 'fecha' && value) {
+        const costoServicio = getCostoServicioVigente(value)
+        if (costoServicio) updated.costo_servicio_usd_ha = costoServicio.toString()
+        // Actualizar precio del fertilizante si ya está cargado
+        if (f.tipo_fertilizante) {
+          const precio = getPrecioVigente(f.tipo_fertilizante, value)
+          if (precio) updated.costo_usd_ha = precio.toString()
+        }
+      }
+
+      // Auto-completar precio al escribir fertilizante
+      if (name === 'tipo_fertilizante' && value && f.fecha) {
+        const precio = getPrecioVigente(value, f.fecha)
+        if (precio) updated.costo_usd_ha = precio.toString()
+      }
+
+      return updated
+    })
+  }
+
+  function handleFertilizanteSelect(val: string) {
+    setForm(f => {
+      const updated = { ...f, tipo_fertilizante: val }
+      if (val && f.fecha) {
+        const precio = getPrecioVigente(val, f.fecha)
+        if (precio) updated.costo_usd_ha = precio.toString()
+      }
+      return updated
+    })
   }
 
   function editarFert(f: Fertilizacion) {
@@ -144,12 +216,13 @@ export default function NuevaFertilizacionPage() {
   const fmt = (n: number | null) => n != null ? n.toLocaleString('es-AR', { minimumFractionDigits: 1 }) : '—'
   const fmtUsd = (n: number | null) => n != null && n > 0 ? `USD ${n.toLocaleString('es-AR', { minimumFractionDigits: 0 })}` : '—'
   const fmtFecha = (s: string | null) => s ? new Date(s + 'T00:00:00').toLocaleDateString('es-AR') : '—'
-
   const costoInsumoTotal = Number(form.cantidad_ha || 0) * Number(form.superficie_ha || 0) * Number(form.costo_usd_ha || 0)
   const costoServicioTotal = Number(form.superficie_ha || 0) * Number(form.costo_servicio_usd_ha || 0)
 
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!ciclo) return <div className="text-center text-campo-400 py-20">Ciclo no encontrado</div>
+
+  const fertilizantesDisponibles = getFertilizantesDisponibles()
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 p-6">
@@ -159,7 +232,6 @@ export default function NuevaFertilizacionPage() {
         <p className="text-campo-500 text-sm mt-0.5">{ciclo.lote} · {ciclo.campo} · {ciclo.campana} · {ciclo.cultivo}</p>
       </div>
 
-      {/* Lista existente */}
       {fertilizaciones.length > 0 && (
         <div className="card overflow-hidden p-0">
           <div className="px-5 py-3 border-b border-campo-100 bg-campo-50">
@@ -199,13 +271,10 @@ export default function NuevaFertilizacionPage() {
         </div>
       )}
 
-      {/* Formulario */}
       <div className="card p-6 space-y-5">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-campo-800">{editandoId ? 'Editar fertilización' : '+ Nueva fertilización'}</h2>
-          {editandoId && (
-            <button onClick={nuevaFert} className="text-xs text-campo-400 hover:text-campo-700">✕ Cancelar edición</button>
-          )}
+          {editandoId && <button onClick={nuevaFert} className="text-xs text-campo-400 hover:text-campo-700">✕ Cancelar edición</button>}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -215,10 +284,16 @@ export default function NuevaFertilizacionPage() {
               className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-campo-700 mb-1">Fertilizante *</label>
-            <input type="text" name="tipo_fertilizante" value={form.tipo_fertilizante} onChange={handleChange}
+            <label className="block text-sm font-medium text-campo-700 mb-1">
+              Fertilizante *
+              {form.costo_usd_ha && form.tipo_fertilizante && <span className="ml-2 text-xs text-lime-600 font-normal">✓ precio del tarifario</span>}
+            </label>
+            <BuscadorInsumo
+              value={form.tipo_fertilizante}
+              opciones={fertilizantesDisponibles}
               placeholder="Ej: Urea, FDA, MAP..."
-              className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+              onChange={handleFertilizanteSelect}
+            />
           </div>
         </div>
 
@@ -254,7 +329,10 @@ export default function NuevaFertilizacionPage() {
             {costoInsumoTotal > 0 && <p className="text-xs text-campo-400 mt-1">Total: {fmtUsd(costoInsumoTotal)}</p>}
           </div>
           <div>
-            <label className="block text-sm font-medium text-campo-700 mb-1">Costo servicio (USD/ha)</label>
+            <label className="block text-sm font-medium text-campo-700 mb-1">
+              Costo servicio (USD/ha)
+              {form.costo_servicio_usd_ha && form.fecha && <span className="ml-2 text-xs text-lime-600 font-normal">✓ tarifario</span>}
+            </label>
             <input type="number" name="costo_servicio_usd_ha" value={form.costo_servicio_usd_ha} onChange={handleChange}
               step="0.01" placeholder="0"
               className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
@@ -288,6 +366,44 @@ export default function NuevaFertilizacionPage() {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function BuscadorInsumo({ value, opciones, placeholder, onChange }: {
+  value: string
+  opciones: string[]
+  placeholder: string
+  onChange: (val: string) => void
+}) {
+  const [busqueda, setBusqueda] = useState('')
+  const [abierto, setAbierto] = useState(false)
+
+  const filtrados = opciones.filter(o =>
+    o.toLowerCase().includes((value || busqueda).toLowerCase())
+  ).slice(0, 20)
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={value || busqueda}
+        onChange={e => { setBusqueda(e.target.value); onChange(e.target.value); setAbierto(true) }}
+        onFocus={() => setAbierto(true)}
+        onBlur={() => setTimeout(() => setAbierto(false), 200)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
+      />
+      {abierto && filtrados.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-campo-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {filtrados.map(o => (
+            <button key={o} onMouseDown={() => { onChange(o); setBusqueda(''); setAbierto(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800">
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
