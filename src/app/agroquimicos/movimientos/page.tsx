@@ -94,7 +94,7 @@ export default function MovimientosPage() {
   const [savingProducto, setSavingProducto] = useState(false)
   const [errorProducto, setErrorProducto] = useState<string | null>(null)
 
-  const TIPOS_PRODUCTO = ['Herbicida', 'Fungicida', 'Insecticida', 'Coadyuvante', 'Fertilizante', 'Otro']
+  const TIPOS_PRODUCTO = ['herbicida', 'fungicida', 'insecticida', 'acaricida', 'curasemilla', 'coadyuvante', 'otro']
   const UNIDADES_PRODUCTO = ['L', 'kg', 'cc', 'g', 'u']
 
   async function handleGuardarNuevoProducto() {
