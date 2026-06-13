@@ -31,6 +31,7 @@ export default function NuevaAcondicionamientoPage() {
 
   const [ciclo, setCiclo] = useState<CicloInfo | null>(null)
   const [registros, setRegistros] = useState<Acondicionamiento[]>([])
+  const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,19 +54,40 @@ export default function NuevaAcondicionamientoPage() {
   async function cargar() {
     setLoading(true)
     const id = Number(ciclo_id)
-    const [{ data: cicloData }, { data: acsData }] = await Promise.all([
+    const [{ data: cicloData }, { data: acsData }, { data: servData }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', id).single(),
       supabase.from('sa_acondicionamiento').select('*').eq('ciclo_id', id).order('fecha'),
+      supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
     ])
     setCiclo(cicloData ?? null)
     setRegistros(acsData ?? [])
+    setTarifarioServicios(servData ?? [])
     const supDefault = cicloData?.sup_sembrada ?? cicloData?.hectareas ?? 0
     setForm(f => ({ ...f, superficie_ha: supDefault.toString() }))
     setLoading(false)
   }
 
+  function getCostoServicioVigente(fecha: string): number | null {
+    if (!fecha || !ciclo) return null
+    const registros = tarifarioServicios.filter(s =>
+      s.tipo_servicio === 'Acondicionado' ||
+      s.tipo_servicio === 'Rastra y Rolo' ||
+      s.tipo_servicio === 'Rolo Triturador'
+    ).filter(s => s.vigencia_desde <= fecha)
+      .sort((a: any, b: any) => b.vigencia_desde.localeCompare(a.vigencia_desde))
+    return registros.length > 0 ? registros[0].costo_usd_ha : null
+  }
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
-    setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    setForm(f => {
+      const updated = { ...f, [name]: value }
+      if (name === 'fecha' && value) {
+        const costo = getCostoServicioVigente(value)
+        if (costo) updated.costo_usd_ha = costo.toString()
+      }
+      return updated
+    })
   }
 
   function editarReg(r: Acondicionamiento) {
@@ -203,7 +225,10 @@ export default function NuevaAcondicionamientoPage() {
               className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-campo-700 mb-1">Costo servicio (USD/ha)</label>
+            <label className="block text-sm font-medium text-campo-700 mb-1">
+              Costo servicio (USD/ha)
+              {form.costo_usd_ha && form.fecha && <span className="ml-2 text-xs text-lime-600 font-normal">✓ tarifario</span>}
+            </label>
             <input type="number" name="costo_usd_ha" value={form.costo_usd_ha} onChange={handleChange}
               step="0.01" placeholder="0"
               className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
