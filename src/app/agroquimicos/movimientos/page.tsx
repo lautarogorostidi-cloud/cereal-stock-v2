@@ -115,6 +115,7 @@ export default function MovimientosPage() {
     setSavingProducto(false)
   }
   const costoTotal = Number(form.cantidad || 0) * Number(form.precio_unitario || 0)
+  const productoSeleccionado = productos.find(p => String(p.id) === form.producto_id)
   const fmtUsd = (n: number) => n > 0 ? `USD ${n.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : ''
 
   // Agrupar productos por tipo
