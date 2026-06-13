@@ -200,7 +200,7 @@ export default function NuevaSiembraPage() {
       const updated = { ...h, [field]: value }
       // Auto-completar precio al seleccionar híbrido
       if (field === 'nombre' && value && form.fecha) {
-        const precio = getPrecioVigente(value, form.fecha, TIPOS_SEMILLA_TARIFARIO)
+        const precio = getPrecioVigente(value, form.fecha, [ciclo?.cultivo ?? ''])
         if (precio) updated.cu_usd = precio.toString()
       }
       return updated
@@ -270,7 +270,7 @@ export default function NuevaSiembraPage() {
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!ciclo) return <div className="text-center text-campo-400 py-20">Ciclo no encontrado</div>
 
-  const semillasDisponibles = getProductosTarifario(TIPOS_SEMILLA_TARIFARIO)
+  const semillasDisponibles = getProductosTarifario([ciclo.cultivo])
   const fertilizantesDisponibles = getProductosTarifario(['Fertilizante'])
 
   return (
