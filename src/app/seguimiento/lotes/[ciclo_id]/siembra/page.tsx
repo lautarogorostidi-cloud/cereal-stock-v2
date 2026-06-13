@@ -19,8 +19,17 @@ type Hibrido = {
   cu_usd: string
 }
 
+type TarifarioItem = {
+  tipo_insumo: string
+  insumo: string
+  unidad: string | null
+  precio_usd: number
+  fecha_vigencia: string
+}
+
 const SISTEMAS = ['SD', 'SD c/DF', 'SC', 'SC c/DF', 'Laboreo mínimo', 'Otro']
 const TIPOS_SEMILLA = ['Inoculada', 'Curada', 'Inoculada - Curada', 'Sin tratamiento']
+const TIPOS_SEMILLA_TARIFARIO = ['Soja 1', 'Soja 2', 'Maíz Temprano', 'Maíz Tardío', 'Maíz 2', 'Girasol', 'Trigo', 'Centeno', 'Avena', 'Vicia', 'Vicia + Avena', 'Alfalfa', 'Pastura']
 
 export default function NuevaSiembraPage() {
   const { ciclo_id } = useParams<{ ciclo_id: string }>()
@@ -32,6 +41,8 @@ export default function NuevaSiembraPage() {
   const [error, setError] = useState<string | null>(null)
   const [esEdicion, setEsEdicion] = useState(false)
   const [siembraId, setSiembraId] = useState<number | null>(null)
+  const [tarifario, setTarifario] = useState<TarifarioItem[]>([])
+  const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
 
   const [form, setForm] = useState({
     fecha: '',
@@ -64,12 +75,16 @@ export default function NuevaSiembraPage() {
     setLoading(true)
     const id = Number(ciclo_id)
 
-    const [{ data: cicloData }, { data: siembraData }] = await Promise.all([
+    const [{ data: cicloData }, { data: siembraData }, { data: tarifarioData }, { data: serviciosData }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', id).single(),
       supabase.from('sa_siembras').select('*').eq('ciclo_id', id).maybeSingle(),
+      supabase.from('tarifario_insumos').select('tipo_insumo, insumo, unidad, precio_usd, fecha_vigencia'),
+      supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
     ])
 
     setCiclo(cicloData ?? null)
+    setTarifario(tarifarioData ?? [])
+    setTarifarioServicios(serviciosData ?? [])
 
     if (siembraData) {
       setEsEdicion(true)
@@ -108,27 +123,97 @@ export default function NuevaSiembraPage() {
     setLoading(false)
   }
 
+  // Buscar precio vigente en tarifario
+  function getPrecioVigente(nombre: string, fecha: string, tiposInsumo: string[]): number | null {
+    if (!nombre || !fecha) return null
+    const registros = tarifario.filter(t =>
+      t.insumo === nombre &&
+      tiposInsumo.includes(t.tipo_insumo) &&
+      t.fecha_vigencia <= fecha
+    )
+    if (registros.length === 0) {
+      const todos = tarifario.filter(t => t.insumo === nombre && tiposInsumo.includes(t.tipo_insumo))
+      if (todos.length === 0) return null
+      todos.sort((a, b) => a.fecha_vigencia.localeCompare(b.fecha_vigencia))
+      return todos[0].precio_usd
+    }
+    registros.sort((a, b) => b.fecha_vigencia.localeCompare(a.fecha_vigencia))
+    return registros[0].precio_usd
+  }
+
+  // Buscar costo servicio siembra vigente
+  function getCostoServicioSiembra(fecha: string): number | null {
+    if (!fecha || !ciclo) return null
+    const registros = tarifarioServicios.filter(s =>
+      s.tipo_servicio?.toLowerCase().includes('siembra') &&
+      (!s.cultivo || s.cultivo === ciclo.cultivo) &&
+      s.vigencia_desde <= fecha
+    ).sort((a: any, b: any) => b.vigencia_desde.localeCompare(a.vigencia_desde))
+    return registros.length > 0 ? registros[0].costo_usd_ha : null
+  }
+
+  // Productos únicos del tarifario por tipo
+  function getProductosTarifario(tiposInsumo: string[]): string[] {
+    return Array.from(new Set(
+      tarifario.filter(t => tiposInsumo.includes(t.tipo_insumo)).map(t => t.insumo)
+    )).sort()
+  }
+
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
-    setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    setForm(f => {
+      const updated = { ...f, [name]: value }
+
+      // Auto-completar costo servicio siembra al cambiar fecha
+      if (name === 'fecha' && value) {
+        const costoServicio = getCostoServicioSiembra(value)
+        if (costoServicio) updated.costo_servicio_usd_ha = costoServicio.toString()
+
+        // Actualizar precios de fertilizantes si ya están cargados
+        if (f.fertilizante_1) {
+          const precio = getPrecioVigente(f.fertilizante_1, value, ['Fertilizante'])
+          if (precio) updated.fertilizante_1_costo_kg = precio.toString()
+        }
+        if (f.fertilizante_2) {
+          const precio = getPrecioVigente(f.fertilizante_2, value, ['Fertilizante'])
+          if (precio) updated.fertilizante_2_costo_kg = precio.toString()
+        }
+      }
+
+      // Auto-completar costo fertilizante al escribir nombre
+      if (name === 'fertilizante_1' && value && f.fecha) {
+        const precio = getPrecioVigente(value, f.fecha, ['Fertilizante'])
+        if (precio) updated.fertilizante_1_costo_kg = precio.toString()
+      }
+      if (name === 'fertilizante_2' && value && f.fecha) {
+        const precio = getPrecioVigente(value, f.fecha, ['Fertilizante'])
+        if (precio) updated.fertilizante_2_costo_kg = precio.toString()
+      }
+
+      return updated
+    })
   }
 
   function handleHibridoChange(i: number, field: keyof Hibrido, value: string) {
-    setHibridos(hs => hs.map((h, idx) => idx === i ? { ...h, [field]: value } : h))
+    setHibridos(hs => hs.map((h, idx) => {
+      if (idx !== i) return h
+      const updated = { ...h, [field]: value }
+      // Auto-completar precio al seleccionar híbrido
+      if (field === 'nombre' && value && form.fecha) {
+        const precio = getPrecioVigente(value, form.fecha, TIPOS_SEMILLA_TARIFARIO)
+        if (precio) updated.cu_usd = precio.toString()
+      }
+      return updated
+    }))
   }
 
   // Cálculos
-  // Costo semilla = precio/kg × densidad × sup_ha (por cada híbrido)
   const densidad = Number(form.densidad || 0)
   const costoSemillaTotal = hibridos.reduce((acc, h) => {
-    const sup = Number(h.sup_ha || 0)
-    const cu = Number(h.cu_usd || 0)
-    return acc + (cu * densidad * sup)
+    return acc + Number(h.cu_usd || 0) * densidad * Number(h.sup_ha || 0)
   }, 0)
-
   const supTotal = hibridos.reduce((acc, h) => acc + Number(h.sup_ha || 0), 0)
   const costoServicioTotal = supTotal * Number(form.costo_servicio_usd_ha || 0)
-
-  // Costo fertilizantes = kg/ha × sup × costo/kg
   const costoFert1 = Number(form.fertilizante_1_kg_ha || 0) * supTotal * Number(form.fertilizante_1_costo_kg || 0)
   const costoFert2 = Number(form.fertilizante_2_kg_ha || 0) * supTotal * Number(form.fertilizante_2_costo_kg || 0)
 
@@ -138,7 +223,6 @@ export default function NuevaSiembraPage() {
     setError(null)
     if (!form.fecha) { setError('La fecha es obligatoria.'); return }
     if (!hibridos[0].nombre) { setError('Ingresá al menos un híbrido o variedad.'); return }
-
     setSaving(true)
 
     const payload: any = {
@@ -186,9 +270,11 @@ export default function NuevaSiembraPage() {
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!ciclo) return <div className="text-center text-campo-400 py-20">Ciclo no encontrado</div>
 
+  const semillasDisponibles = getProductosTarifario(TIPOS_SEMILLA_TARIFARIO)
+  const fertilizantesDisponibles = getProductosTarifario(['Fertilizante'])
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 p-6">
-
       <div>
         <button onClick={() => window.close()} className="text-sm text-campo-400 hover:text-campo-700 mb-1">← Volver</button>
         <h1 className="text-2xl font-bold text-campo-900">{esEdicion ? 'Editar siembra' : 'Cargar siembra'}</h1>
@@ -268,9 +354,12 @@ export default function NuevaSiembraPage() {
               <div key={i} className="grid grid-cols-12 gap-2 items-end">
                 <div className="col-span-5">
                   {i === 0 && <div className="text-xs text-campo-500 mb-1">Híbrido / Variedad</div>}
-                  <input type="text" value={h.nombre} onChange={e => handleHibridoChange(i, 'nombre', e.target.value)}
+                  <BuscadorInsumo
+                    value={h.nombre}
+                    opciones={semillasDisponibles}
                     placeholder="Ej: DM 46 i 20"
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                    onChange={val => handleHibridoChange(i, 'nombre', val)}
+                  />
                 </div>
                 <div className="col-span-3">
                   {i === 0 && <div className="text-xs text-campo-500 mb-1">Sup. (ha)</div>}
@@ -279,7 +368,9 @@ export default function NuevaSiembraPage() {
                     className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
                 </div>
                 <div className="col-span-3">
-                  {i === 0 && <div className="text-xs text-campo-500 mb-1">USD/kg</div>}
+                  {i === 0 && <div className="text-xs text-campo-500 mb-1">
+                    USD/kg {h.cu_usd && h.nombre ? <span className="text-lime-600">✓ tarifario</span> : ''}
+                  </div>}
                   <input type="number" value={h.cu_usd} onChange={e => handleHibridoChange(i, 'cu_usd', e.target.value)}
                     step="0.01" placeholder="0"
                     className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
@@ -304,7 +395,10 @@ export default function NuevaSiembraPage() {
         {/* Servicio siembra */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-campo-700 mb-1">Costo servicio siembra (USD/ha)</label>
+            <label className="block text-sm font-medium text-campo-700 mb-1">
+              Costo servicio siembra (USD/ha)
+              {form.costo_servicio_usd_ha && form.fecha && <span className="ml-2 text-xs text-lime-600 font-normal">✓ tarifario</span>}
+            </label>
             <input type="number" name="costo_servicio_usd_ha" value={form.costo_servicio_usd_ha} onChange={handleFormChange}
               step="0.01" placeholder="0"
               className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
@@ -324,13 +418,15 @@ export default function NuevaSiembraPage() {
         <div>
           <div className="text-sm font-medium text-campo-700 mb-3">Fertilizantes en siembra</div>
           <div className="space-y-3">
-            {/* Fertilizante 1 */}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-campo-500 mb-1">Fertilizante 1</label>
-                <input type="text" name="fertilizante_1" value={form.fertilizante_1} onChange={handleFormChange}
+                <BuscadorInsumo
+                  value={form.fertilizante_1}
+                  opciones={fertilizantesDisponibles}
                   placeholder="Ej: FDA"
-                  className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                  onChange={val => handleFormChange({ target: { name: 'fertilizante_1', value: val } } as any)}
+                />
               </div>
               <div>
                 <label className="block text-xs text-campo-500 mb-1">kg/ha</label>
@@ -339,22 +435,25 @@ export default function NuevaSiembraPage() {
                   className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
               </div>
               <div>
-                <label className="block text-xs text-campo-500 mb-1">USD/kg</label>
+                <label className="block text-xs text-campo-500 mb-1">
+                  USD/kg {form.fertilizante_1_costo_kg && form.fertilizante_1 ? <span className="text-lime-600">✓</span> : ''}
+                </label>
                 <input type="number" name="fertilizante_1_costo_kg" value={form.fertilizante_1_costo_kg} onChange={handleFormChange}
                   step="0.01" placeholder="0"
                   className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
               </div>
             </div>
-            {costoFert1 > 0 && (
-              <p className="text-xs text-campo-400">Total fertilizante 1: {fmtUsd(costoFert1)}</p>
-            )}
-            {/* Fertilizante 2 */}
+            {costoFert1 > 0 && <p className="text-xs text-campo-400">Total fertilizante 1: {fmtUsd(costoFert1)}</p>}
+
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-campo-500 mb-1">Fertilizante 2</label>
-                <input type="text" name="fertilizante_2" value={form.fertilizante_2} onChange={handleFormChange}
+                <BuscadorInsumo
+                  value={form.fertilizante_2}
+                  opciones={fertilizantesDisponibles}
                   placeholder="Ej: Urea"
-                  className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                  onChange={val => handleFormChange({ target: { name: 'fertilizante_2', value: val } } as any)}
+                />
               </div>
               <div>
                 <label className="block text-xs text-campo-500 mb-1">kg/ha</label>
@@ -363,15 +462,15 @@ export default function NuevaSiembraPage() {
                   className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
               </div>
               <div>
-                <label className="block text-xs text-campo-500 mb-1">USD/kg</label>
+                <label className="block text-xs text-campo-500 mb-1">
+                  USD/kg {form.fertilizante_2_costo_kg && form.fertilizante_2 ? <span className="text-lime-600">✓</span> : ''}
+                </label>
                 <input type="number" name="fertilizante_2_costo_kg" value={form.fertilizante_2_costo_kg} onChange={handleFormChange}
                   step="0.01" placeholder="0"
                   className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
               </div>
             </div>
-            {costoFert2 > 0 && (
-              <p className="text-xs text-campo-400">Total fertilizante 2: {fmtUsd(costoFert2)}</p>
-            )}
+            {costoFert2 > 0 && <p className="text-xs text-campo-400">Total fertilizante 2: {fmtUsd(costoFert2)}</p>}
           </div>
         </div>
 
@@ -383,9 +482,7 @@ export default function NuevaSiembraPage() {
             className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 resize-none" />
         </div>
 
-        {error && (
-          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>
-        )}
+        {error && <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         <div className="flex gap-3 pt-2">
           <button onClick={handleSubmit} disabled={saving}
@@ -397,8 +494,46 @@ export default function NuevaSiembraPage() {
             Cancelar
           </button>
         </div>
-
       </div>
+    </div>
+  )
+}
+
+// Componente buscador con autocomplete
+function BuscadorInsumo({ value, opciones, placeholder, onChange }: {
+  value: string
+  opciones: string[]
+  placeholder: string
+  onChange: (val: string) => void
+}) {
+  const [busqueda, setBusqueda] = useState('')
+  const [abierto, setAbierto] = useState(false)
+
+  const filtrados = opciones.filter(o =>
+    o.toLowerCase().includes((value || busqueda).toLowerCase())
+  ).slice(0, 20)
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={value || busqueda}
+        onChange={e => { setBusqueda(e.target.value); onChange(e.target.value); setAbierto(true) }}
+        onFocus={() => setAbierto(true)}
+        onBlur={() => setTimeout(() => setAbierto(false), 200)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
+      />
+      {abierto && filtrados.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-campo-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {filtrados.map(o => (
+            <button key={o} onMouseDown={() => { onChange(o); setBusqueda(''); setAbierto(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800">
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
