@@ -95,6 +95,30 @@ export default function MovimientosPage() {
   const [savingProducto, setSavingProducto] = useState(false)
   const [errorProducto, setErrorProducto] = useState<string | null>(null)
 
+  const [nuevoProveedorMode, setNuevoProveedorMode] = useState(false)
+  const [nuevoProveedor, setNuevoProveedor] = useState({ nombre: '', cuit: '', telefono: '', email: '' })
+  const [savingProveedor, setSavingProveedor] = useState(false)
+
+  async function handleGuardarNuevoProveedor() {
+    if (!nuevoProveedor.nombre) return
+    setSavingProveedor(true)
+    const { data, error } = await supabase.from('proveedores').insert({
+      nombre: nuevoProveedor.nombre,
+      cuit: nuevoProveedor.cuit || null,
+      telefono: nuevoProveedor.telefono || null,
+      email: nuevoProveedor.email || null,
+      activo: true,
+    }).select('id, nombre').single()
+    if (!error && data) {
+      const { data: provs } = await supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre')
+      setProveedores(provs ?? [])
+      setForm(f => ({ ...f, proveedor_id: String(data.id) }))
+      setNuevoProveedorMode(false)
+      setNuevoProveedor({ nombre: '', cuit: '', telefono: '', email: '' })
+    }
+    setSavingProveedor(false)
+  }
+
   const TIPOS_PRODUCTO = ['herbicida', 'fungicida', 'insecticida', 'acaricida', 'curasemilla', 'coadyuvante', 'otro']
   const UNIDADES_PRODUCTO = ['L', 'kg', 'cc', 'g', 'u']
 
@@ -165,18 +189,47 @@ export default function MovimientosPage() {
       payload.cultivo = form.cultivo || null
       payload.campaña = form.campaña || null
     }
-    const { error } = await supabase.from('agroquimicos_movimientos').insert(payload)
+    const { error } = editandoId
+      ? await supabase.from('agroquimicos_movimientos').update(payload).eq('id', editandoId)
+      : await supabase.from('agroquimicos_movimientos').insert(payload)
     if (error) {
       setError(error.message)
     } else {
       setShowForm(false)
+      setEditandoId(null)
       setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', precio_unitario: '', proveedor_id: '', lote: '', cultivo: '', campaña: campanas[0]?.nombre ?? '', numero_remito: '', numero_factura: '', observaciones: '' })
       cargar()
     }
     setSaving(false)
   }
 
-  const movFiltrados = movimientos
+  const [editandoId, setEditandoId] = useState<number | null>(null)
+
+  function editarMovimiento(m: Movimiento) {
+    setEditandoId(m.id)
+    setForm({
+      producto_id: String(m.agroquimicos_productos ? (movimientos.find(x => x.id === m.id) as any)?.producto_id ?? '' : ''),
+      tipo: m.tipo,
+      fecha: m.fecha,
+      cantidad: m.cantidad.toString(),
+      precio_unitario: m.precio_unitario?.toString() ?? '',
+      proveedor_id: '',
+      lote: m.lote ?? '',
+      cultivo: m.cultivo ?? '',
+      campaña: m.campaña ?? '',
+      numero_remito: m.numero_remito ?? '',
+      numero_factura: m.numero_factura ?? '',
+      observaciones: m.observaciones ?? '',
+    })
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function handleBorrar(id: number) {
+    if (!confirm('¿Borrar este movimiento?')) return
+    await supabase.from('agroquimicos_movimientos').delete().eq('id', id)
+    cargar()
+  }
     .filter(m => filtroTipo ? m.tipo === filtroTipo : m.tipo !== 'ajuste')
     .filter(m => filtroCampana ? m.campaña === filtroCampana : true)
     .filter(m => {
@@ -224,7 +277,7 @@ export default function MovimientosPage() {
       {/* Formulario */}
       {showForm && (
         <div className="card p-6 space-y-4">
-          <h2 className="font-semibold text-campo-900">Nuevo movimiento</h2>
+          <h2 className="font-semibold text-campo-900">{editandoId ? 'Editar movimiento' : 'Nuevo movimiento'}</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Producto */}
@@ -322,11 +375,41 @@ export default function MovimientosPage() {
 
                 <div>
                   <label className="block text-xs font-medium text-campo-700 mb-1">Proveedor</label>
-                  <select value={form.proveedor_id} onChange={e => setForm(f => ({ ...f, proveedor_id: e.target.value }))}
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                    <option value="">Sin proveedor</option>
-                    {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                  </select>
+                  {!nuevoProveedorMode ? (
+                    <select value={form.proveedor_id} onChange={e => {
+                      if (e.target.value === '__nuevo_prov__') { setNuevoProveedorMode(true); return }
+                      setForm(f => ({ ...f, proveedor_id: e.target.value }))
+                    }}
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="">Sin proveedor</option>
+                      {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                      <option value="__nuevo_prov__">➕ Agregar nuevo proveedor...</option>
+                    </select>
+                  ) : (
+                    <div className="space-y-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50">
+                      <div className="text-xs font-medium text-emerald-700 mb-2">Nuevo proveedor</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" value={nuevoProveedor.nombre} onChange={e => setNuevoProveedor(p => ({ ...p, nombre: e.target.value }))}
+                          placeholder="Nombre *" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                        <input type="text" value={nuevoProveedor.cuit} onChange={e => setNuevoProveedor(p => ({ ...p, cuit: e.target.value }))}
+                          placeholder="CUIT" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                        <input type="text" value={nuevoProveedor.telefono} onChange={e => setNuevoProveedor(p => ({ ...p, telefono: e.target.value }))}
+                          placeholder="Teléfono" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                        <input type="text" value={nuevoProveedor.email} onChange={e => setNuevoProveedor(p => ({ ...p, email: e.target.value }))}
+                          placeholder="Email" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button type="button" onClick={handleGuardarNuevoProveedor} disabled={savingProveedor || !nuevoProveedor.nombre}
+                          className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
+                          {savingProveedor ? 'Guardando...' : 'Guardar proveedor'}
+                        </button>
+                        <button type="button" onClick={() => { setNuevoProveedorMode(false); setNuevoProveedor({ nombre: '', cuit: '', telefono: '', email: '' }) }}
+                          className="text-xs text-campo-500 hover:text-campo-700 px-3 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -396,9 +479,9 @@ export default function MovimientosPage() {
           <div className="flex gap-3 pt-2">
             <button onClick={handleGuardar} disabled={saving}
               className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-60 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors">
-              {saving ? 'Guardando...' : 'Guardar'}
+              {saving ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Guardar'}
             </button>
-            <button onClick={() => { setShowForm(false); setError(null) }}
+            <button onClick={() => { setShowForm(false); setError(null); setEditandoId(null) }}
               className="text-sm text-campo-500 hover:text-campo-700 px-4 py-2 rounded-lg hover:bg-campo-100 transition-colors">
               Cancelar
             </button>
@@ -457,6 +540,7 @@ export default function MovimientosPage() {
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Observaciones</th>
+                <th className="text-center px-4 py-3 font-semibold text-campo-700">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -485,6 +569,12 @@ export default function MovimientosPage() {
                   <td className="px-4 py-3 text-campo-600">{m.cultivo ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-600">{m.campaña ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-500 text-xs">{m.observaciones ?? '—'}</td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex gap-2 justify-center">
+                      <button onClick={() => editarMovimiento(m)} className="text-xs text-lime-700 hover:text-lime-600 font-medium">Editar</button>
+                      <button onClick={() => handleBorrar(m.id)} className="text-xs text-red-400 hover:text-red-600 font-medium">Borrar</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
