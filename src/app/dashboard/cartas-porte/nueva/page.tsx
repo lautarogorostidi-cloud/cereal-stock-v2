@@ -125,7 +125,6 @@ export default function NuevaCartaPortePage() {
         extracted.campania?.includes(c.nombre.replace('/', '-'))
       )
 
-      // Separar fecha y hora de partida
       let fecha_partida = ''
       let hora_partida = ''
       if (extracted.fecha_partida) {
@@ -194,6 +193,7 @@ export default function NuevaCartaPortePage() {
         fecha_partida: fecha_partida || f.fecha_partida,
         hora_partida: hora_partida || f.hora_partida,
         km_recorrer: extracted.km_recorrer || f.km_recorrer,
+        tarifa_flete: extracted.tarifa_flete || f.tarifa_flete,
         nro_turno: extracted.nro_turno || f.nro_turno,
         fecha_arribo: extracted.fecha_arribo || f.fecha_arribo,
         fecha_descarga: extracted.fecha_descarga || f.fecha_descarga,
@@ -266,6 +266,7 @@ export default function NuevaCartaPortePage() {
     if (form.zaranda) payload.zaranda = parseFloat(form.zaranda)
     if (form.origen_acopio_id) payload.origen_acopio_id = form.origen_acopio_id
     if (form.destino_acopio_id) payload.destino_acopio_id = form.destino_acopio_id
+    if (form.tarifa_flete) payload.tarifa_flete = parseFloat(form.tarifa_flete)
     if (pesoNetoDestino !== null) payload.toneladas_netas = pesoNetoDestino
     if (form.peso_bruto_destino) payload.toneladas_destino = parseFloat(form.peso_bruto_destino) / 1000
 

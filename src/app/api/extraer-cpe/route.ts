@@ -98,6 +98,7 @@ SECCIÓN E - TRANSPORTE:
 - patente_acoplado: segunda patente en "Dominios:"
 - fecha_partida: "Partida:" convertí DD/MM/YYYY HH:MM:SS a formato "YYYY-MM-DDTHH:MM" (ej: "15/05/2026 10:00:00" → "2026-05-15T10:00")
 - km_recorrer: "Kms. a recorrer:"
+- tarifa_flete: "Tarifa:" en sección E (valor numérico, ej: 35.7)
 
 SECCIÓN G - DESCARGA:
 - fecha_arribo: "Fecha Arribo:" solo fecha YYYY-MM-DD
@@ -162,6 +163,7 @@ Devolvé ÚNICAMENTE el JSON sin markdown:
   "patente_acoplado": "",
   "fecha_partida": "",
   "km_recorrer": "",
+  "tarifa_flete": "",
   "fecha_arribo": "",
   "fecha_descarga": "",
   "nro_turno": "",
