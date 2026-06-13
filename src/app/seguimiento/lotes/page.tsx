@@ -21,6 +21,7 @@ type Ciclo = {
   sup_sembrada: number
   sup_cosechada: number | null
   rinde_kg_ha: number | null
+  rinde_kg_total: number | null
   fecha_siembra: string | null
   fecha_cosecha: string | null
 }
@@ -154,7 +155,7 @@ export default function LotesCultivosPage() {
       acc[c.cultivo].haSembrada += Number(c.sup_sembrada ?? 0)
       acc[c.cultivo].haCosechada += Number(c.sup_cosechada ?? 0)
       acc[c.cultivo].haPulv += getHaPulv(c.ciclo_id)
-      acc[c.cultivo].kg += Number(c.rinde_kg_ha && c.sup_cosechada ? c.rinde_kg_ha * c.sup_cosechada : 0)
+      acc[c.cultivo].kg += Number(c.rinde_kg_total ?? 0)
       return acc
     }, {})
 
