@@ -59,11 +59,11 @@ export default function MovimientosPage() {
 
   async function cargar() {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('agroquimicos_movimientos')
       .select('*, agroquimicos_productos(nombre, unidad, tipo), proveedores:proveedor_id(nombre)')
       .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false })
+    if (error) console.error('Error cargando movimientos:', error)
     setMovimientos(data ?? [])
     setLoading(false)
   }
