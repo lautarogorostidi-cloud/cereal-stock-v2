@@ -23,7 +23,17 @@ type Acondicionamiento = {
   observaciones: string | null
 }
 
-const TIPOS_LABOREO = ['Cincel', 'Rastra de disco', 'Subsolador', 'Arado de reja', 'Rotovator', 'Otro']
+const TIPOS_LABOREO = ['Cincel', 'Rastra de disco', 'Subsolador', 'Arado de reja', 'Rotovator', 'Rolo Triturador', 'Otro']
+
+// Mapa de tipo de laboreo a tipo de servicio en el tarifario
+const LABOREO_A_SERVICIO: Record<string, string> = {
+  'Cincel': 'Acondicionado',
+  'Rastra de disco': 'Rastra y Rolo',
+  'Subsolador': 'Acondicionado',
+  'Arado de reja': 'Acondicionado',
+  'Rotovator': 'Acondicionado',
+  'Rolo Triturador': 'Rolo Triturador',
+}
 
 export default function NuevaAcondicionamientoPage() {
   const { ciclo_id } = useParams<{ ciclo_id: string }>()
@@ -67,13 +77,12 @@ export default function NuevaAcondicionamientoPage() {
     setLoading(false)
   }
 
-  function getCostoServicioVigente(fecha: string): number | null {
-    if (!fecha || !ciclo) return null
-    const registros = tarifarioServicios.filter(s =>
-      s.tipo_servicio === 'Acondicionado' ||
-      s.tipo_servicio === 'Rastra y Rolo' ||
-      s.tipo_servicio === 'Rolo Triturador'
-    ).filter(s => s.vigencia_desde <= fecha)
+  function getCostoServicioVigente(fecha: string, tipoLaboreo: string): number | null {
+    if (!fecha || !tipoLaboreo) return null
+    const tipoServicio = LABOREO_A_SERVICIO[tipoLaboreo]
+    if (!tipoServicio) return null
+    const registros = tarifarioServicios
+      .filter(s => s.tipo_servicio === tipoServicio && s.vigencia_desde <= fecha)
       .sort((a: any, b: any) => b.vigencia_desde.localeCompare(a.vigencia_desde))
     return registros.length > 0 ? registros[0].costo_usd_ha : null
   }
@@ -82,8 +91,10 @@ export default function NuevaAcondicionamientoPage() {
     const { name, value } = e.target
     setForm(f => {
       const updated = { ...f, [name]: value }
-      if (name === 'fecha' && value) {
-        const costo = getCostoServicioVigente(value)
+      const fecha = name === 'fecha' ? value : f.fecha
+      const tipoLaboreo = name === 'tipo_laboreo' ? value : f.tipo_laboreo
+      if ((name === 'fecha' || name === 'tipo_laboreo') && fecha && tipoLaboreo) {
+        const costo = getCostoServicioVigente(fecha, tipoLaboreo)
         if (costo) updated.costo_usd_ha = costo.toString()
       }
       return updated
