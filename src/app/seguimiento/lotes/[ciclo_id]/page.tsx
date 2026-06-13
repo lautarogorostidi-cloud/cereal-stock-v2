@@ -190,6 +190,13 @@ export default function FichaCicloPage() {
     cargar()
   }, [ciclo_id])
 
+  // Recargar cuando la ventana recupera el foco (después de cerrar un formulario hijo)
+  useEffect(() => {
+    function handleFocus() { cargar() }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [])
+
   async function cargar() {
     setLoading(true)
     const id = Number(ciclo_id)
