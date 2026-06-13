@@ -141,11 +141,20 @@ export default function NuevaSiembraPage() {
     return registros[0].precio_usd
   }
 
-  // Buscar costo servicio siembra vigente
-  function getCostoServicioSiembra(fecha: string): number | null {
+  // Buscar costo servicio siembra vigente según sistema
+  function getCostoServicioSiembra(fecha: string, sistema: string): number | null {
     if (!fecha || !ciclo) return null
+    const sistemaMap: Record<string, string[]> = {
+      'SD': ['SD'],
+      'SD c/DF': ['SD c/DF'],
+      'SC': ['Siembra'],
+      'SC c/DF': ['Siembra'],
+      'Laboreo mínimo': ['RS-SD'],
+      'Otro': ['Siembra'],
+    }
+    const tiposServicio = sistemaMap[sistema] ?? ['Siembra']
     const registros = tarifarioServicios.filter(s =>
-      s.tipo_servicio?.toLowerCase().includes('siembra') &&
+      tiposServicio.includes(s.tipo_servicio) &&
       (!s.cultivo || s.cultivo === ciclo.cultivo) &&
       s.vigencia_desde <= fecha
     ).sort((a: any, b: any) => b.vigencia_desde.localeCompare(a.vigencia_desde))
@@ -164,19 +173,25 @@ export default function NuevaSiembraPage() {
     setForm(f => {
       const updated = { ...f, [name]: value }
 
-      // Auto-completar costo servicio siembra al cambiar fecha
-      if (name === 'fecha' && value) {
-        const costoServicio = getCostoServicioSiembra(value)
-        if (costoServicio) updated.costo_servicio_usd_ha = costoServicio.toString()
-
-        // Actualizar precios de fertilizantes si ya están cargados
-        if (f.fertilizante_1) {
-          const precio = getPrecioVigente(f.fertilizante_1, value, ['Fertilizante'])
-          if (precio) updated.fertilizante_1_costo_kg = precio.toString()
+      // Auto-completar costo servicio siembra al cambiar fecha o sistema
+      if ((name === 'fecha' || name === 'sistema') && (value || f.fecha)) {
+        const fecha = name === 'fecha' ? value : f.fecha
+        const sistema = name === 'sistema' ? value : f.sistema
+        if (fecha && sistema) {
+          const costoServicio = getCostoServicioSiembra(fecha, sistema)
+          if (costoServicio) updated.costo_servicio_usd_ha = costoServicio.toString()
         }
-        if (f.fertilizante_2) {
-          const precio = getPrecioVigente(f.fertilizante_2, value, ['Fertilizante'])
-          if (precio) updated.fertilizante_2_costo_kg = precio.toString()
+
+        // Actualizar precios de fertilizantes si ya están cargados (solo cuando cambia fecha)
+        if (name === 'fecha') {
+          if (f.fertilizante_1) {
+            const precio = getPrecioVigente(f.fertilizante_1, value, ['Fertilizante'])
+            if (precio) updated.fertilizante_1_costo_kg = precio.toString()
+          }
+          if (f.fertilizante_2) {
+            const precio = getPrecioVigente(f.fertilizante_2, value, ['Fertilizante'])
+            if (precio) updated.fertilizante_2_costo_kg = precio.toString()
+          }
         }
       }
 
