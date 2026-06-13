@@ -38,6 +38,7 @@ export default function MovimientosPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState('')
+  const [filtroCampana, setFiltroCampana] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -176,7 +177,8 @@ export default function MovimientosPage() {
   }
 
   const movFiltrados = movimientos
-    .filter(m => filtroTipo ? m.tipo === filtroTipo : true)
+    .filter(m => filtroTipo ? m.tipo === filtroTipo : m.tipo !== 'ajuste')
+    .filter(m => filtroCampana ? m.campaña === filtroCampana : true)
     .filter(m => {
       if (!busqueda) return true
       const q = busqueda.toLowerCase()
@@ -404,18 +406,28 @@ export default function MovimientosPage() {
         </div>
       )}
 
-      {/* Barra de búsqueda */}
-      <div>
-        <input
-          type="text"
-          value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar por producto, tipo, cultivo, campaña, proveedor, remito..."
-          className="w-full rounded-lg border border-campo-200 px-4 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-        />
+      {/* Filtros de campaña y búsqueda */}
+      <div className="flex gap-3 items-center flex-wrap">
+        <select
+          value={filtroCampana}
+          onChange={e => setFiltroCampana(e.target.value)}
+          className="rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+        >
+          <option value="">Todas las campañas</option>
+          {campanas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+        </select>
+        <div className="flex-1">
+          <input
+            type="text"
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            placeholder="Buscar por producto, tipo, cultivo, campaña, proveedor, remito..."
+            className="w-full rounded-lg border border-campo-200 px-4 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          />
+        </div>
       </div>
 
-      {/* Filtros */}
+      {/* Filtros por tipo */}
       <div className="flex gap-2 flex-wrap">
         <button onClick={() => setFiltroTipo('')}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${!filtroTipo ? 'bg-emerald-700 text-white' : 'bg-campo-100 text-campo-600 hover:bg-campo-200'}`}>
