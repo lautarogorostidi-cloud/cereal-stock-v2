@@ -107,10 +107,16 @@ export default function MovimientosPage() {
       activo: true,
     }).select('id, nombre, unidad, marca, tipo').single()
     if (!error && data) {
-      await cargarMaestros()
-      setForm(f => ({ ...f, producto_id: String(data.id) }))
+      const nuevoId = String(data.id)
+      // Primero recargar maestros
+      const { data: prods } = await supabase.from('agroquimicos_productos').select('id, nombre, unidad, marca, tipo').eq('activo', true).order('tipo').order('nombre')
+      setProductos(prods ?? [])
+      // Luego cerrar modo nuevo y seleccionar el producto
       setNuevoProductoMode(false)
       setNuevoProducto({ nombre: '', tipo: '', unidad: 'L', marca: '' })
+      setForm(f => ({ ...f, producto_id: nuevoId }))
+    } else if (error) {
+      console.error('Error guardando producto:', error)
     }
     setSavingProducto(false)
   }
