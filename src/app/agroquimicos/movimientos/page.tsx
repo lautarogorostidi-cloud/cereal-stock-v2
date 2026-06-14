@@ -230,6 +230,8 @@ export default function MovimientosPage() {
     await supabase.from('agroquimicos_movimientos').delete().eq('id', id)
     cargar()
   }
+
+  const movFiltrados = movimientos
     .filter(m => filtroTipo ? m.tipo === filtroTipo : m.tipo !== 'ajuste')
     .filter(m => filtroCampana ? m.campaña === filtroCampana : true)
     .filter(m => {
