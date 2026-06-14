@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 type Aplicacion = {
+  aplicacion_id: number
   producto: string
   dosis_ha: number
   costo_unitario: number | null
@@ -61,6 +62,7 @@ export default function AplicacionesAgroquimicosPage() {
     let query = supabase
       .from('sa_aplicacion_productos')
       .select(`
+        aplicacion_id,
         producto,
         dosis_ha,
         costo_unitario,
@@ -99,6 +101,7 @@ export default function AplicacionesAgroquimicosPage() {
         const costo = Number(ap.costo_unitario ?? 0)
 
         return {
+          aplicacion_id: ap.aplicacion_id,
           producto: ap.producto,
           dosis_ha: dosis,
           costo_unitario: ap.costo_unitario,
@@ -132,7 +135,7 @@ export default function AplicacionesAgroquimicosPage() {
   })
 
   // KPIs
-  const totalAplicaciones = filtradas.length
+  const cantidadAplicaciones = new Set(filtradas.map(a => a.aplicacion_id)).size
   const productosUnicos = new Set(filtradas.map(a => a.producto)).size
   const costoTotal = filtradas.reduce((acc, a) => acc + (a.costo_total_usd ?? 0), 0)
 
@@ -158,9 +161,9 @@ export default function AplicacionesAgroquimicosPage() {
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-4">
         <div className="card p-5">
-          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Registros</div>
-          <div className="text-2xl font-bold text-campo-900">{totalAplicaciones}</div>
-          <div className="text-xs text-campo-400 mt-0.5">aplicaciones en {campanaSeleccionada}</div>
+          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Q Aplicaciones</div>
+          <div className="text-2xl font-bold text-campo-900">{cantidadAplicaciones}</div>
+          <div className="text-xs text-campo-400 mt-0.5">en {campanaSeleccionada}</div>
         </div>
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Productos distintos</div>
