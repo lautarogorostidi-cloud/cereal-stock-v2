@@ -7,11 +7,12 @@ import { useRouter } from 'next/navigation'
 import type { Perfil } from '@/types'
 
 const nav = [
-  { href: '/agroquimicos',            label: 'Dashboard',    icon: '📊' },
-  { href: '/agroquimicos/stock',      label: 'Stock',        icon: '🧪' },
-  { href: '/agroquimicos/movimientos',label: 'Movimientos',  icon: '📋' },
-  { href: '/agroquimicos/productos',  label: 'Productos',    icon: '🗂️' },
-  { href: '/agroquimicos/reportes',   label: 'Reportes',     icon: '📈' },
+  { href: '/agroquimicos',               label: 'Dashboard',    icon: '📊' },
+  { href: '/agroquimicos/stock',         label: 'Stock',        icon: '🧪' },
+  { href: '/agroquimicos/movimientos',   label: 'Movimientos',  icon: '📋' },
+  { href: '/agroquimicos/aplicaciones',  label: 'Aplicaciones', icon: '🌱' },
+  { href: '/agroquimicos/productos',     label: 'Productos',    icon: '🗂️' },
+  { href: '/agroquimicos/reportes',      label: 'Reportes',     icon: '📈' },
 ]
 
 interface SidebarProps { perfil: Perfil | null }
