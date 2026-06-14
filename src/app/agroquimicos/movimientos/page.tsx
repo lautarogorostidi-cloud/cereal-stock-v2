@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 
 type Movimiento = {
   id: number
+  producto_id: number
+  proveedor_id: number | null
   fecha: string
   tipo: string
   cantidad: number
@@ -209,12 +211,12 @@ export default function MovimientosPage() {
   function editarMovimiento(m: Movimiento) {
     setEditandoId(m.id)
     setForm({
-      producto_id: String(m.agroquimicos_productos ? (movimientos.find(x => x.id === m.id) as any)?.producto_id ?? '' : ''),
+      producto_id: String((m as any).producto_id ?? ''),
       tipo: m.tipo,
       fecha: m.fecha,
       cantidad: m.cantidad.toString(),
       precio_unitario: m.precio_unitario?.toString() ?? '',
-      proveedor_id: '',
+      proveedor_id: String((m as any).proveedor_id ?? ''),
       lote: m.lote ?? '',
       cultivo: m.cultivo ?? '',
       campaña: m.campaña ?? '',
