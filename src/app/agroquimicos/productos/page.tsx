@@ -50,7 +50,6 @@ export default async function ProductosPage() {
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Producto</th>
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Marca</th>
                   <th className="text-center px-5 py-3 font-semibold text-campo-700">Unidad</th>
-                  <th className="text-center px-5 py-3 font-semibold text-campo-700">Stock mínimo</th>
                   <th className="text-center px-5 py-3 font-semibold text-campo-700">Estado</th>
                 </tr>
               </thead>
@@ -63,9 +62,6 @@ export default async function ProductosPage() {
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-campo-100 text-campo-700">
                         {p.unidad}
                       </span>
-                    </td>
-                    <td className="px-5 py-3 text-center text-campo-600">
-                      {Number(p.stock_minimo).toLocaleString('es-AR', { minimumFractionDigits: 0 })} {p.unidad}
                     </td>
                     <td className="px-5 py-3 text-center">
                       {p.activo ? (
@@ -93,4 +89,4 @@ export default async function ProductosPage() {
       )}
     </div>
   )
-} 
+}
