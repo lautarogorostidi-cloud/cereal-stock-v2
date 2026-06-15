@@ -302,7 +302,7 @@ export default function AgroquimicosDashboard() {
             <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.color }} />
             <span className="text-campo-600">{p.name}:</span>
             <span className="font-medium text-campo-900">
-              {p.dataKey === 'aplicaciones' ? p.value : fmtUsd(p.value)}
+              {String(p.dataKey).startsWith('apl_') ? p.value : fmtUsd(p.value)}
             </span>
           </div>
         ))}
