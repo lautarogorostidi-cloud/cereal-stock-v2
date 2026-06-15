@@ -10,19 +10,21 @@
 
 ### 🌾 Seguimiento Agronómico (`/seguimiento`)
 - **Dashboard** — KPIs por campaña
-- **Lotes / Cultivos** — tabla por lote o por cultivo, selector de campaña y campo, columna Ha acondicionadas
-- **Ficha de ciclo** — acondicionamiento, siembra, aplicaciones, fertilizaciones, cosecha, costos fijos (todos con editar/borrar). Recarga automática al cerrar formularios hijos.
+- **Lotes / Cultivos** — tabla por lote o por cultivo, selector de campaña y campo, Ha acondicionadas
+- **Ficha de ciclo** — acondicionamiento, siembra, aplicaciones, fertilizaciones, cosecha, costos fijos (todos con editar/borrar, recarga automática al cerrar formularios hijos)
 
 ### 🌽 Stock Cereal (`/dashboard`)
-- **Dashboard** — stock, comprometido (calculado desde movimientos reales)
-- **Ventas** — liquidación por entrega con bonificación
-- **Contratos** — toneladas entregadas calculadas desde movimientos reales
-- **Stock, Entregas, Cartas de Porte** — extracción automática desde PDF con tarifa de flete
+- **Dashboard** — stock y comprometido calculado desde movimientos reales
+- **Ventas** — con bonificación
+- **Contratos** — toneladas entregadas desde movimientos reales (`vw_posicion_contratos`)
+- **Cartas de Porte** — extracción automática PDF con tarifa de flete
 
-### 🧪 Agroquímicos (`/dashboard/agroquimicos`)
-- **Stock** — filtro por campaña y buscador, stock actual calculado desde movimientos
-- **Movimientos** — compras, aplicaciones, devoluciones con editar/borrar, filtro por campaña, buscador, agregar producto/proveedor nuevo inline
-- **Productos** — catálogo de agroquímicos
+### 🧪 Agroquímicos (`/agroquimicos`)
+- **Dashboard** — KPIs + gráfico mensual de costos (insumos + servicio pulverización) con filtros por año y tipo de producto
+- **Stock** — stock actual con alerta inteligente al 10% del uso histórico, buscador
+- **Movimientos** — compras/aplicaciones/devoluciones con editar/borrar, filtro campaña, buscador, agregar producto/proveedor nuevo inline, campaña en todos los tipos
+- **Aplicaciones** — detalle de todo lo aplicado desde Seguimiento Agronómico, filtro campaña, resumen por producto
+- **Productos** — catálogo
 
 ---
 
@@ -45,77 +47,77 @@
 ### Tipos de servicio en tarifario_servicios
 `Acondicionado`, `Cosecha`, `Fertilización`, `Hilerada`, `Pulverización`, `Rastra y Rolo`, `Rolo Triturador`, `RS-SD`, `SD`, `SD c/DF`, `Siembra`, `Siembra Altina`
 
-### Tipos de insumo en agroquimicos_productos (constraint)
-`herbicida`, `fungicida`, `insecticida`, `acaricida`, `curasemilla`, `coadyuvante`, `otro` (todos en minúscula)
+### Mapeo tipo laboreo → tipo servicio tarifario
+| Tipo laboreo | Tipo servicio |
+|---|---|
+| Cincel, Subsolador, Arado, Rotovator | Acondicionado |
+| Rastra de disco | Rastra y Rolo |
+| Rolo Triturador | Rolo Triturador |
 
-### Vistas SA
+### Tablas Agroquímicos
+| Tabla | Descripción |
+|-------|-------------|
+| `agroquimicos_productos` | Catálogo (tipo constraint: herbicida, fungicida, insecticida, acaricida, curasemilla, coadyuvante, otro — en minúscula) |
+| `agroquimicos_movimientos` | Movimientos: tipo, fecha, cantidad, campaña, proveedor_id, precio_unitario, numero_remito, numero_factura |
+
+### Vistas
 | Vista | Descripción |
 |-------|-------------|
-| `vw_sa_resumen_ciclo` | Resumen por ciclo con costos calculados y `lote_id` |
+| `vw_sa_resumen_ciclo` | Resumen por ciclo con costos calculados |
 | `vw_sa_costos_campana` | Costos agregados por campaña |
-
-### Vistas Cereal
-| Vista | Descripción |
-|-------|-------------|
-| `vw_posicion_contratos` | Calcula toneladas entregadas desde movimientos reales |
-| `vw_comprometido` | Calcula toneladas pendientes desde movimientos reales |
-| `vw_stock_actual` | Stock cereal actual |
-| `vw_stock_agroquimicos` | Stock agroquímicos total histórico |
+| `vw_posicion_contratos` | Toneladas entregadas calculadas desde movimientos reales |
+| `vw_comprometido` | Toneladas pendientes desde movimientos reales |
+| `vw_stock_agroquimicos` | Stock total histórico por producto |
 
 ### Tablas Cereal
 - `movimientos_cereal` (con `bonificacion_calidad`)
 - `contratos` (con `bonificacion_calidad`)
 - `cartas_porte` (con `tarifa_flete`)
 
-### Tablas Agroquímicos
-- `agroquimicos_productos` (id, nombre, marca, tipo, unidad, proveedor_id, stock_minimo, activo)
-- `agroquimicos_movimientos` (id, producto_id, tipo, fecha, cantidad, lote, cultivo, campaña, proveedor_id, precio_unitario, numero_remito, numero_factura, observaciones)
-
 ---
 
 ## Estructura de Archivos Clave
 
 ```
-src/app/
-  seguimiento/
-    page.tsx                          # Dashboard seguimiento
-    lotes/
-      page.tsx                        # Lista lotes/cultivos
-      nuevo/page.tsx                  # Crear/editar ciclo
-      [ciclo_id]/
-        page.tsx                      # Ficha del ciclo ✅
-        acondicionamiento/page.tsx    # ✅ + tarifario (según tipo laboreo)
-        siembra/page.tsx              # ✅ + tarifario (semilla por cultivo, fertilizantes, servicio por sistema+cultivo)
-        fertilizaciones/page.tsx      # ✅ + tarifario
-        cosecha/page.tsx              # ✅ + tarifario
-        costos-fijos/page.tsx         # ✅
-        aplicaciones/
-          nueva/page.tsx              # ✅ + tarifario (selector por tipo, precio vigente)
-  dashboard/
-    page.tsx                          # Dashboard cereal
-    ventas/page.tsx + VentasClient.tsx
-    contratos/nuevo/page.tsx
-    contratos/editar/editarContratoForm.tsx
-    cartas-de-porte/nueva/page.tsx    # Extracción PDF con tarifa_flete
+src/
+  app/
+    seguimiento/
+      page.tsx                          # Dashboard seguimiento
+      lotes/
+        page.tsx                        # Lista lotes/cultivos
+        nuevo/page.tsx                  # Crear/editar ciclo
+        [ciclo_id]/
+          page.tsx                      # Ficha del ciclo ✅
+          acondicionamiento/page.tsx    # ✅ + tarifario (según tipo laboreo)
+          siembra/page.tsx              # ✅ + tarifario (semilla por cultivo, fertilizantes, servicio por sistema+cultivo)
+          fertilizaciones/page.tsx      # ✅ + tarifario
+          cosecha/page.tsx              # ✅ + tarifario
+          costos-fijos/page.tsx         # ✅
+          aplicaciones/
+            nueva/page.tsx              # ✅ + tarifario (selector por tipo, precio vigente)
+    dashboard/
+      page.tsx                          # Dashboard cereal
+      ventas/page.tsx + VentasClient.tsx
+      contratos/nuevo/page.tsx
+      contratos/editar/editarContratoForm.tsx
+      cartas-de-porte/nueva/page.tsx
     agroquimicos/
-      stock/page.tsx                  # Client component con filtro campaña y buscador
-      movimientos/page.tsx            # Editar/borrar, nuevo producto/proveedor inline
-  api/
-    extraer-cpe/route.ts              # Extrae tarifa_flete del PDF
+      page.tsx                          # Dashboard con gráfico mensual + filtros año/tipo
+      stock/page.tsx                    # Stock con alerta 10% histórico + buscador
+      movimientos/page.tsx              # Movimientos completo con editar/borrar
+      aplicaciones/page.tsx             # Aplicaciones desde seguimiento agronómico
+      productos/page.tsx
+    api/
+      extraer-cpe/route.ts              # Extrae tarifa_flete del PDF
+  components/
+    layout/
+      SidebarAgroquimicos.tsx           # Con link Aplicaciones
 ```
 
 ---
 
 ## Tarifario — Integración ✅ COMPLETA
 
-### Mapeo tipo laboreo → tipo servicio
-| Tipo laboreo | Tipo servicio tarifario |
-|---|---|
-| Cincel, Subsolador, Arado, Rotovator | Acondicionado |
-| Rastra de disco | Rastra y Rolo |
-| Rolo Triturador | Rolo Triturador |
-
-### Por formulario
 | Formulario | Insumo | Servicio |
 |---|---|---|
 | Nueva aplicación | Herbicida/Fungicida/Insecticida/Coadyuvante | Pulverización |
@@ -129,7 +131,6 @@ src/app/
 ## Permisos Supabase ejecutados
 
 ```sql
--- Seguimiento
 GRANT INSERT, UPDATE, DELETE ON sa_acondicionamiento TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE sa_acondicionamiento_id_seq TO authenticated;
 GRANT INSERT, UPDATE, DELETE ON sa_cosechas TO authenticated;
@@ -138,12 +139,14 @@ GRANT INSERT, UPDATE, DELETE ON sa_costos_fijos TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE sa_costos_fijos_id_seq TO authenticated;
 GRANT INSERT, UPDATE, DELETE ON sa_fertilizaciones TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE sa_fertilizaciones_id_seq TO authenticated;
--- Agroquímicos
-GRANT INSERT ON agroquimicos_productos TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE agroquimicos_productos_id_seq TO authenticated;
 GRANT INSERT, UPDATE, DELETE ON agroquimicos_movimientos TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE agroquimicos_movimientos_id_seq TO authenticated;
+GRANT INSERT ON agroquimicos_productos TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE agroquimicos_productos_id_seq TO authenticated;
+GRANT INSERT ON proveedores TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE proveedores_id_seq TO authenticated;
 CREATE POLICY "authenticated can select agroquimicos_movimientos" ON agroquimicos_movimientos FOR SELECT TO authenticated USING (true);
+CREATE POLICY "authenticated can select agroquimicos_productos" ON agroquimicos_productos FOR SELECT TO authenticated USING (true);
 ```
 
 ---
@@ -152,20 +155,20 @@ CREATE POLICY "authenticated can select agroquimicos_movimientos" ON agroquimico
 
 - Todos los formularios seguimiento agronómico con tarifario integrado
 - Ficha ciclo con recarga automática
-- Lotes/Cultivos con Ha acondicionadas y rinde desde `rinde_kg_total`
 - `vw_posicion_contratos` y `vw_comprometido` calculan desde movimientos reales
 - Extracción tarifa flete en CPE
-- Módulo agroquímicos con stock, movimientos (editar/borrar), filtro campaña, buscador
+- Módulo agroquímicos: stock, movimientos, aplicaciones desde seguimiento, dashboard con gráfico
 - Campañas: 23-24, 24-25, 25-26, 26-27
 
 ## 🔲 Pendiente
 
-1. **Vinculación Seguimiento ↔ Agroquímicos** — al cargar aplicación en seguimiento, descontar automáticamente del stock de agroquímicos
-2. **Editar aplicación** — integrar tarifario en formulario de edición
-3. **FIFO de insumos** — agregar `cantidad` al tarifario y calcular precio por lote
-4. **Módulo Costos** — `/seguimiento/costos/` con análisis por campaña
-5. **Módulo Reportes** — `/seguimiento/reportes/`
-6. **Dashboard Seguimiento** — KPIs del Power BI
+1. **Dashboard agroquímicos** — corregir filtro de años (muestra campañas en lugar de años), identificar productos "Otros" (nombres no coinciden entre seguimiento y catálogo), meses sin costo de servicio
+2. **Vinculación Seguimiento ↔ Agroquímicos** — al cargar aplicación en seguimiento, descontar automáticamente del stock
+3. **Editar aplicación** — integrar tarifario en formulario de edición
+4. **FIFO de insumos** — agregar `cantidad` al tarifario y calcular precio por lote
+5. **Módulo Costos** — `/seguimiento/costos/` con análisis por campaña
+6. **Módulo Reportes** — `/seguimiento/reportes/`
+7. **Dashboard Seguimiento** — KPIs del Power BI
 
 ---
 
