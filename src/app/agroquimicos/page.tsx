@@ -120,7 +120,7 @@ export default function AgroquimicosDashboard() {
       supabase.from('agroquimicos_productos').select('nombre, tipo').eq('activo', true),
     ])
 
-    // Alertas de stock
+    // Alertas de stock — top 20 productos más usados, alerta si stock < 10% del histórico
     const usadoMap: Record<string, number> = {}
     ;(usadoData ?? []).forEach((ap: any) => {
       const nombre = ap.producto?.trim().toLowerCase()
@@ -128,11 +128,20 @@ export default function AgroquimicosDashboard() {
       const dosis = Number(ap.dosis_ha ?? 0)
       if (nombre) usadoMap[nombre] = (usadoMap[nombre] ?? 0) + dosis * sup
     })
+    // Obtener top 20 productos por uso histórico
+    const top20 = new Set(
+      Object.entries(usadoMap)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 20)
+        .map(([nombre]) => nombre)
+    )
     const lista = (stockData ?? []).filter((r: any) => r.activo)
     setAlertas(lista.filter((r: any) => {
+      const nombreNorm = r.producto?.trim().toLowerCase()
+      if (!top20.has(nombreNorm)) return false
       const stockActual = Number(r.stock_actual ?? 0)
-      const totalUsado = usadoMap[r.producto?.trim().toLowerCase()] ?? 0
-      return (totalUsado > 0 && stockActual < totalUsado * 0.1) || (r.stock_minimo > 0 && stockActual <= Number(r.stock_minimo))
+      const totalUsado = usadoMap[nombreNorm] ?? 0
+      return totalUsado > 0 && stockActual < totalUsado * 0.1
     }).length)
     setTotalProductos(lista.length)
 
