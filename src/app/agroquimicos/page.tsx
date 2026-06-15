@@ -13,6 +13,7 @@ type RegistroInsumo = {
   tipo: string
   costo_insumos: number
   aplicacion_id: number
+  campana: string
 }
 
 type RegistroServicio = {
@@ -20,6 +21,7 @@ type RegistroServicio = {
   mes: string
   costo_servicio: number
   aplicacion_id: number
+  campana: string
 }
 
 // Año fiscal: 01/09/(n-1) al 30/08/(n) → campaña 'YY-YY'
@@ -113,10 +115,10 @@ export default function AgroquimicosDashboard() {
       supabase.from('sa_aplicacion_productos').select('producto, dosis_ha, sa_aplicaciones(superficie_ha)'),
       supabase
         .from('sa_aplicacion_productos')
-        .select('aplicacion_id, producto, dosis_ha, costo_unitario, sa_aplicaciones!inner(fecha, superficie_ha)'),
+        .select('aplicacion_id, producto, dosis_ha, costo_unitario, sa_aplicaciones!inner(fecha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre)))'),
       supabase
         .from('sa_aplicaciones')
-        .select('id, fecha, costo_servicio_usd_ha, superficie_ha')
+        .select('id, fecha, costo_servicio_usd_ha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre))')
         .not('costo_servicio_usd_ha', 'is', null),
       supabase.from('agroquimicos_productos').select('nombre, tipo').eq('activo', true),
       supabase.from('campanas').select('nombre').order('nombre'),
@@ -165,7 +167,8 @@ export default function AgroquimicosDashboard() {
       const nombreNorm = ap.producto?.trim().toLowerCase()
       const tipo = tipoMap[nombreNorm] ?? 'otro'
       const costoInsumo = Number(ap.costo_unitario ?? 0) * Number(ap.dosis_ha ?? 0) * Number(ap.sa_aplicaciones?.superficie_ha ?? 0)
-      regsInsumos.push({ key, mes, tipo, costo_insumos: costoInsumo, aplicacion_id: ap.aplicacion_id })
+      const campana = ap.sa_aplicaciones?.sa_ciclos?.campanas?.nombre ?? keyToCampana(key)
+      regsInsumos.push({ key, mes, tipo, costo_insumos: costoInsumo, aplicacion_id: ap.aplicacion_id, campana })
     })
     setRegistrosInsumos(regsInsumos)
 
@@ -177,8 +180,9 @@ export default function AgroquimicosDashboard() {
       const key = getKey(fecha)
       const mes = getMesLabel(fecha)
       const costoServicio = Number(a.costo_servicio_usd_ha ?? 0) * Number(a.superficie_ha ?? 0)
+      const campana = a.sa_ciclos?.campanas?.nombre ?? keyToCampana(key)
       if (costoServicio > 0) {
-        regsServicios.push({ key, mes, costo_servicio: costoServicio, aplicacion_id: a.id })
+        regsServicios.push({ key, mes, costo_servicio: costoServicio, aplicacion_id: a.id, campana })
       }
     })
     setRegistrosServicios(regsServicios)
@@ -227,33 +231,30 @@ export default function AgroquimicosDashboard() {
 
     // Insumos filtrados por campaña y tipo
     registrosInsumos.forEach(r => {
-      const campana = keyToCampana(r.key)
-      if (!porCampana[campana]) return
+      if (!porCampana[r.campana]) return
       const tipoOk = tiposSeleccionados.length === 0 || tiposSeleccionados.includes(r.tipo)
       if (!tipoOk) return
       const idx = mesIndexFiscal(r.key)
-      porCampana[campana].insumos[idx] += r.costo_insumos
-      porCampana[campana].aplicaciones[idx].add(r.aplicacion_id)
+      porCampana[r.campana].insumos[idx] += r.costo_insumos
+      porCampana[r.campana].aplicaciones[idx].add(r.aplicacion_id)
     })
 
     // Servicios filtrados por campaña — solo para aplicaciones con insumos en filtro
     const aplIdsConInsumos = new Set(
       registrosInsumos
         .filter(r => {
-          const campana = keyToCampana(r.key)
-          const campanaOk = campanas.includes(campana)
+          const campanaOk = campanas.includes(r.campana)
           const tipoOk = tiposSeleccionados.length === 0 || tiposSeleccionados.includes(r.tipo)
           return campanaOk && tipoOk
         })
         .map(r => r.aplicacion_id)
     )
     registrosServicios.forEach(r => {
-      const campana = keyToCampana(r.key)
-      if (!porCampana[campana]) return
+      if (!porCampana[r.campana]) return
       if (!aplIdsConInsumos.has(r.aplicacion_id)) return
       const idx = mesIndexFiscal(r.key)
-      porCampana[campana].servicio[idx] += r.costo_servicio
-      porCampana[campana].aplicaciones[idx].add(r.aplicacion_id)
+      porCampana[r.campana].servicio[idx] += r.costo_servicio
+      porCampana[r.campana].aplicaciones[idx].add(r.aplicacion_id)
     })
 
     // Construir array de 12 filas (sep..ago), cada fila tiene un valor por campaña
