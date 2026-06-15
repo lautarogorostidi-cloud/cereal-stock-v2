@@ -160,11 +160,12 @@ export default function AplicacionesAgroquimicosPage() {
   const totalGeneral = totalInsumos + totalServicio
 
   // Resumen por producto
-  const resumenProducto = filtradas.reduce((acc: Record<string, { total: number; insumos: number; servicio: number; unidad: string }>, a) => {
-    if (!acc[a.producto]) acc[a.producto] = { total: 0, insumos: 0, servicio: 0, unidad: a.unidad ?? 'L' }
+  const resumenProducto = filtradas.reduce((acc: Record<string, { total: number; insumos: number; servicio: number; hectareas: number; unidad: string }>, a) => {
+    if (!acc[a.producto]) acc[a.producto] = { total: 0, insumos: 0, servicio: 0, hectareas: 0, unidad: a.unidad ?? 'L' }
     acc[a.producto].total += a.total_litros_kg
     acc[a.producto].insumos += a.costo_insumos_usd
     acc[a.producto].servicio += a.costo_servicio_usd
+    acc[a.producto].hectareas += a.superficie_ha
     return acc
   }, {})
 
@@ -231,6 +232,7 @@ export default function AplicacionesAgroquimicosPage() {
             <thead>
               <tr className="border-b border-campo-100">
                 <th className="text-left px-5 py-2 font-semibold text-campo-700">Producto</th>
+                <th className="text-right px-5 py-2 font-semibold text-campo-700">Hectáreas</th>
                 <th className="text-right px-5 py-2 font-semibold text-campo-700">Total aplicado</th>
                 <th className="text-right px-5 py-2 font-semibold text-campo-700">Costo insumos</th>
                 <th className="text-right px-5 py-2 font-semibold text-campo-700">Costo servicio</th>
@@ -243,6 +245,7 @@ export default function AplicacionesAgroquimicosPage() {
                 .map(([prod, data]) => (
                   <tr key={prod} className="border-b border-campo-50 hover:bg-campo-50/50">
                     <td className="px-5 py-2 font-medium text-campo-900">{prod}</td>
+                    <td className="px-5 py-2 text-right text-campo-700">{fmt(data.hectareas)} <span className="text-xs text-campo-400">ha</span></td>
                     <td className="px-5 py-2 text-right text-campo-700">{fmt(data.total)} <span className="text-xs text-campo-400">{data.unidad}</span></td>
                     <td className="px-5 py-2 text-right text-campo-700">{fmtUsd(data.insumos)}</td>
                     <td className="px-5 py-2 text-right text-campo-700">{fmtUsd(data.servicio)}</td>
