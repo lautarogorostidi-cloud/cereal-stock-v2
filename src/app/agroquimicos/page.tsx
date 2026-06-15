@@ -107,6 +107,7 @@ export default function AgroquimicosDashboard() {
       { data: insumos },
       { data: servicios },
       { data: tiposData },
+      { data: campanasData },
     ] = await Promise.all([
       supabase.from('vw_stock_agroquimicos').select('producto, stock_actual, stock_minimo, activo'),
       supabase.from('sa_aplicacion_productos').select('producto, dosis_ha, sa_aplicaciones(superficie_ha)'),
@@ -118,6 +119,7 @@ export default function AgroquimicosDashboard() {
         .select('id, fecha, costo_servicio_usd_ha, superficie_ha')
         .not('costo_servicio_usd_ha', 'is', null),
       supabase.from('agroquimicos_productos').select('nombre, tipo').eq('activo', true),
+      supabase.from('campanas').select('nombre').order('nombre'),
     ])
 
     // Alertas de stock — top 20 productos más usados, alerta si stock < 10% del histórico
@@ -181,13 +183,11 @@ export default function AgroquimicosDashboard() {
     })
     setRegistrosServicios(regsServicios)
 
-    // Campañas disponibles (de ambos conjuntos)
-    const todasKeys = Array.from(new Set([
-      ...regsInsumos.map(r => r.key),
-      ...regsServicios.map(r => r.key),
-    ]))
-    const campanas = Array.from(new Set(todasKeys.map(keyToCampana)))
-      .sort((a, b) => campanaSort(a) - campanaSort(b))
+    // Campañas disponibles — desde tabla campanas (siempre todas, aunque no tengan datos)
+    const campanas = (campanasData ?? [])
+      .map((c: any) => c.nombre)
+      .filter((n: string) => n)
+      .sort((a: string, b: string) => campanaSort(a) - campanaSort(b))
     setCampanasDisponibles(campanas)
     setCampanasSeleccionadas(campanas)
 
