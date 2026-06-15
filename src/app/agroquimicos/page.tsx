@@ -248,27 +248,25 @@ export default function AgroquimicosDashboard() {
     })
 
     // Construir array de 12 filas (sep..ago), cada fila tiene un valor por campaña
-    const datos = MESES_LABELS.map((label, idx) => {
-      const fila: Record<string, number> = { mes_idx: idx }
-      fila.mes = idx as any
+    const datos: Array<Record<string, string | number>> = MESES_LABELS.map((label, idx) => {
+      const fila: Record<string, string | number> = { mesLabel: label, mes_idx: idx }
       campanas.forEach(c => {
         fila[`insumos_${c}`] = Math.round(porCampana[c].insumos[idx])
         fila[`servicio_${c}`] = Math.round(porCampana[c].servicio[idx])
         fila[`apl_${c}`] = porCampana[c].aplicaciones[idx].size
       })
-      fila.mesLabel = idx as any
-      return { ...fila, mesLabel: label }
+      return fila
     })
 
     return { datosFiltrados: datos, campanasEnGrafico: campanas }
   }, [registrosInsumos, registrosServicios, campanasSeleccionadas, campanasDisponibles, tiposSeleccionados])
 
   const totalInsumos = campanasEnGrafico.reduce((acc, c) =>
-    acc + datosFiltrados.reduce((s, d) => s + (d[`insumos_${c}`] as number ?? 0), 0), 0)
+    acc + datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`insumos_${c}`] ?? 0), 0), 0)
   const totalServicio = campanasEnGrafico.reduce((acc, c) =>
-    acc + datosFiltrados.reduce((s, d) => s + (d[`servicio_${c}`] as number ?? 0), 0), 0)
+    acc + datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`servicio_${c}`] ?? 0), 0), 0)
   const totalAplicaciones = campanasEnGrafico.reduce((acc, c) =>
-    acc + datosFiltrados.reduce((s, d) => s + (d[`apl_${c}`] as number ?? 0), 0), 0)
+    acc + datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`apl_${c}`] ?? 0), 0), 0)
 
 
 
@@ -431,8 +429,8 @@ export default function AgroquimicosDashboard() {
                 <tr key={i} className="border-t border-campo-50">
                   <td className="py-1.5 text-campo-700 font-medium">{d.mesLabel}</td>
                   {campanasEnGrafico.map(c => {
-                    const ins = d[`insumos_${c}`] as number ?? 0
-                    const srv = d[`servicio_${c}`] as number ?? 0
+                    const ins = (d as Record<string, number>)[`insumos_${c}`] ?? 0
+                    const srv = (d as Record<string, number>)[`servicio_${c}`] ?? 0
                     return [
                       <td key={`i_${c}`} className="py-1.5 text-right text-campo-600">{ins > 0 ? fmtUsd(ins) : '—'}</td>,
                       <td key={`s_${c}`} className="py-1.5 text-right text-campo-600">{srv > 0 ? fmtUsd(srv) : '—'}</td>,
@@ -444,8 +442,8 @@ export default function AgroquimicosDashboard() {
               <tr className="border-t-2 border-campo-200 font-semibold">
                 <td className="py-1.5 text-campo-900">Total</td>
                 {campanasEnGrafico.map(c => {
-                  const ins = datosFiltrados.reduce((s, d) => s + (d[`insumos_${c}`] as number ?? 0), 0)
-                  const srv = datosFiltrados.reduce((s, d) => s + (d[`servicio_${c}`] as number ?? 0), 0)
+                  const ins = datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`insumos_${c}`] ?? 0), 0)
+                  const srv = datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`servicio_${c}`] ?? 0), 0)
                   return [
                     <td key={`ti_${c}`} className="py-1.5 text-right text-campo-900">{fmtUsd(ins)}</td>,
                     <td key={`ts_${c}`} className="py-1.5 text-right text-campo-900">{fmtUsd(srv)}</td>,
