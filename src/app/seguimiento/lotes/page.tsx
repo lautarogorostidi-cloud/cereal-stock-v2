@@ -9,6 +9,9 @@ type Lote = {
   nombre: string
   establecimiento: string
   hectareas: number
+  hectareas_agricolas: number | null
+  hectareas_ganaderas: number | null
+  tipo: string | null
   activo: boolean
 }
 
@@ -52,6 +55,19 @@ const TIPO_LABELS: Record<string, string> = {
   fungicida: 'Fungicida',
 }
 
+function BadgeTipo({ tipo }: { tipo: string | null }) {
+  if (tipo === 'agricola') return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-100 text-lime-800">🌾 Agrícola</span>
+  )
+  if (tipo === 'ganadero') return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">🐄 Ganadero</span>
+  )
+  if (tipo === 'mixto') return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">🌾🐄 Mixto</span>
+  )
+  return <span className="text-campo-400 text-xs">—</span>
+}
+
 export default function LotesCultivosPage() {
   const supabase = createClient()
   const [lotes, setLotes] = useState<Lote[]>([])
@@ -61,6 +77,7 @@ export default function LotesCultivosPage() {
   const [campanas, setCampanas] = useState<string[]>([])
   const [campanaSeleccionada, setCampanaSeleccionada] = useState('')
   const [filtroCampo, setFiltroCampo] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [vistaSeleccionada, setVistaSeleccionada] = useState<'lote' | 'cultivo'>('lote')
   const [expandidos, setExpandidos] = useState<Set<number>>(new Set())
@@ -89,10 +106,7 @@ export default function LotesCultivosPage() {
           prodsMap[p.aplicacion_id].push(p.producto)
       })
 
-      setAplicaciones((apls ?? []).map((a: any) => ({
-        ...a,
-        productos: prodsMap[a.id] ?? [],
-      })))
+      setAplicaciones((apls ?? []).map((a: any) => ({ ...a, productos: prodsMap[a.id] ?? [] })))
 
       const nombres = (caps ?? []).map((c: any) => c.nombre)
       setCampanas(nombres)
@@ -126,6 +140,7 @@ export default function LotesCultivosPage() {
 
   const lotesFiltrados = lotes.filter(l => {
     if (filtroCampo && l.establecimiento !== filtroCampo) return false
+    if (filtroTipo && l.tipo !== filtroTipo) return false
     if (busqueda) {
       const q = busqueda.toLowerCase()
       return l.nombre.toLowerCase().includes(q) || getCiclos(l.nombre).some(c => c.cultivo.toLowerCase().includes(q))
@@ -161,9 +176,6 @@ export default function LotesCultivosPage() {
 
   const totalLotesConCiclo = new Set(filas.filter(f => f.ciclo).map(f => f.lote.nombre)).size
 
-  // Columnas de la tabla de lotes (11 columnas)
-  const COL_WIDTHS = ['w-28', 'w-16', 'w-24', 'w-24', 'w-28', 'w-28', 'w-24', 'w-24', 'w-24', 'w-24', 'w-24']
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -174,16 +186,12 @@ export default function LotesCultivosPage() {
           </p>
         </div>
         <div className="flex rounded-lg border border-campo-200 overflow-hidden text-sm">
-          <button
-            onClick={() => setVistaSeleccionada('lote')}
-            className={`px-4 py-2 font-medium transition-colors ${vistaSeleccionada === 'lote' ? 'bg-lime-600 text-white' : 'text-campo-600 hover:bg-campo-50'}`}
-          >
+          <button onClick={() => setVistaSeleccionada('lote')}
+            className={`px-4 py-2 font-medium transition-colors ${vistaSeleccionada === 'lote' ? 'bg-lime-600 text-white' : 'text-campo-600 hover:bg-campo-50'}`}>
             Por Lote
           </button>
-          <button
-            onClick={() => setVistaSeleccionada('cultivo')}
-            className={`px-4 py-2 font-medium transition-colors ${vistaSeleccionada === 'cultivo' ? 'bg-lime-600 text-white' : 'text-campo-600 hover:bg-campo-50'}`}
-          >
+          <button onClick={() => setVistaSeleccionada('cultivo')}
+            className={`px-4 py-2 font-medium transition-colors ${vistaSeleccionada === 'cultivo' ? 'bg-lime-600 text-white' : 'text-campo-600 hover:bg-campo-50'}`}>
             Por Cultivo
           </button>
         </div>
@@ -191,13 +199,9 @@ export default function LotesCultivosPage() {
 
       {/* Filtros */}
       <div className="flex gap-3 flex-wrap items-center">
-        <input
-          type="text"
-          value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
+        <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
           placeholder="Buscar lote o cultivo..."
-          className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 w-56"
-        />
+          className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 w-56" />
         <div>
           <label className="text-xs font-medium text-campo-600 mr-2">Campaña</label>
           <select value={campanaSeleccionada} onChange={e => setCampanaSeleccionada(e.target.value)}
@@ -213,8 +217,18 @@ export default function LotesCultivosPage() {
             {campos.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        {busqueda && (
-          <button onClick={() => setBusqueda('')}
+        <div>
+          <label className="text-xs font-medium text-campo-600 mr-2">Tipo</label>
+          <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
+            className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
+            <option value="">Todos</option>
+            <option value="agricola">🌾 Agrícola</option>
+            <option value="ganadero">🐄 Ganadero</option>
+            <option value="mixto">🌾🐄 Mixto</option>
+          </select>
+        </div>
+        {(busqueda || filtroTipo) && (
+          <button onClick={() => { setBusqueda(''); setFiltroTipo('') }}
             className="text-xs text-campo-400 hover:text-campo-700 px-2 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
             ✕ Limpiar
           </button>
@@ -223,7 +237,7 @@ export default function LotesCultivosPage() {
 
       {loading && <div className="text-center text-campo-400 py-10">Cargando...</div>}
 
-      {/* ─── VISTA POR LOTE ─────────────────────────────────────────────── */}
+      {/* ─── VISTA POR LOTE ─── */}
       {!loading && vistaSeleccionada === 'lote' && (
         <>
           {Object.keys(filasPorCampo).length === 0 && (
@@ -241,7 +255,10 @@ export default function LotesCultivosPage() {
                   <thead>
                     <tr className="border-b border-campo-100">
                       <th className="text-left px-4 py-3 font-semibold text-campo-700">Lote</th>
-                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha lote</th>
+                      <th className="text-center px-4 py-3 font-semibold text-campo-700">Tipo</th>
+                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha total</th>
+                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha agríc.</th>
+                      <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha ganad.</th>
                       <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
                       <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha sembradas</th>
                       <th className="text-right px-4 py-3 font-semibold text-campo-700">Ha cosechadas</th>
@@ -263,7 +280,10 @@ export default function LotesCultivosPage() {
                         <>
                           <tr key={`${f.lote.id}-${f.ciclo?.ciclo_id ?? 'sin'}`} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                             <td className="px-4 py-3 font-medium text-campo-900">{f.lote.nombre}</td>
+                            <td className="px-4 py-3 text-center"><BadgeTipo tipo={f.lote.tipo} /></td>
                             <td className="px-4 py-3 text-right text-campo-600">{fmt(f.lote.hectareas)}</td>
+                            <td className="px-4 py-3 text-right text-campo-600">{fmt(f.lote.hectareas_agricolas)}</td>
+                            <td className="px-4 py-3 text-right text-campo-600">{fmt(f.lote.hectareas_ganaderas)}</td>
                             <td className="px-4 py-3">
                               {f.ciclo ? (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-lime-100 text-lime-800">{f.ciclo.cultivo}</span>
@@ -300,10 +320,9 @@ export default function LotesCultivosPage() {
                               )}
                             </td>
                           </tr>
-                          {/* Fila expandida */}
                           {expandido && f.ciclo && (
                             <tr key={`exp-${f.ciclo.ciclo_id}`} className="bg-campo-50/30 border-b border-campo-50">
-                              <td colSpan={12} className="px-4 py-2">
+                              <td colSpan={15} className="px-4 py-2">
                                 <table className="w-full text-xs">
                                   <thead>
                                     <tr className="text-campo-400">
@@ -338,7 +357,7 @@ export default function LotesCultivosPage() {
         </>
       )}
 
-      {/* ─── VISTA POR CULTIVO ──────────────────────────────────────────── */}
+      {/* ─── VISTA POR CULTIVO ─── */}
       {!loading && vistaSeleccionada === 'cultivo' && (
         <div className="card overflow-hidden p-0">
           <div className="px-5 py-3 border-b border-campo-100 bg-campo-50">
