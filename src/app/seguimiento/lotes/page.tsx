@@ -320,17 +320,18 @@ export default function LotesCultivosPage() {
                               ) : '—'}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              {f.ciclo ? (
-                                <Link href={`/seguimiento/lotes/${f.ciclo.ciclo_id}`}
-                                  className="text-xs text-lime-700 hover:text-lime-600 font-medium">
-                                  Ver ficha →
-                                </Link>
-                              ) : (
+                              <div className="flex items-center justify-center gap-2">
+                                {f.ciclo && (
+                                  <Link href={`/seguimiento/lotes/${f.ciclo.ciclo_id}`}
+                                    className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                                    Ver ficha →
+                                  </Link>
+                                )}
                                 <Link href={`/seguimiento/lotes/nuevo?lote=${f.lote.id}`}
                                   className="text-xs text-campo-400 hover:text-lime-700 font-medium">
                                   + Agregar
                                 </Link>
-                              )}
+                              </div>
                             </td>
                           </tr>
                           {expandido && f.ciclo && (
