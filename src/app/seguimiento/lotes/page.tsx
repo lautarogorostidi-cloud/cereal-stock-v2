@@ -21,6 +21,7 @@ type Ciclo = {
   campo: string
   cultivo: string
   campana: string
+  actividad: string | null
   sup_sembrada: number
   sup_cosechada: number | null
   rinde_kg_ha: number | null
@@ -140,7 +141,19 @@ export default function LotesCultivosPage() {
 
   const lotesFiltrados = lotes.filter(l => {
     if (filtroCampo && l.establecimiento !== filtroCampo) return false
-    if (filtroTipo && l.tipo !== filtroTipo) return false
+    if (filtroTipo) {
+      if (filtroTipo === 'mixto') {
+        if (l.tipo !== 'mixto') return false
+      } else {
+        const ciclosLote = getCiclos(l.nombre)
+        const tieneCicloConActividad = ciclosLote.some(c => c.actividad === filtroTipo)
+        if (l.tipo === 'mixto') {
+          if (!tieneCicloConActividad) return false
+        } else {
+          if (l.tipo !== filtroTipo) return false
+        }
+      }
+    }
     if (busqueda) {
       const q = busqueda.toLowerCase()
       return l.nombre.toLowerCase().includes(q) || getCiclos(l.nombre).some(c => c.cultivo.toLowerCase().includes(q))
