@@ -190,7 +190,6 @@ export default function FichaCicloPage() {
     cargar()
   }, [ciclo_id])
 
-  // Recargar cuando la ventana recupera el foco (después de cerrar un formulario hijo)
   useEffect(() => {
     function handleFocus() { cargar() }
     window.addEventListener('focus', handleFocus)
@@ -281,7 +280,8 @@ export default function FichaCicloPage() {
 
   const costoInsumos = Number(ciclo.costo_semillas_usd ?? 0) + Number(ciclo.costo_insumos_usd ?? 0) + Number(ciclo.costo_fertilizantes_usd ?? 0)
   const costoServicios = Number(ciclo.costo_servicios_usd ?? 0)
-  const totalFijos = costosFijos.reduce((acc, f) => acc + Number(f.costo_total_usd), 0)
+  // totalFijos incluye sistema viejo (sa_costos_fijos) + sistema nuevo (costos_fijos_campo) via vw_sa_resumen_ciclo
+  const totalFijos = Number(ciclo.costo_fijos_usd ?? 0)
   const costoTotal = costoInsumos + costoServicios + totalFijos
 
   const arrendamiento = costosFijos.find(f => f.tipo === 'arrendamiento')
@@ -409,36 +409,18 @@ export default function FichaCicloPage() {
       }>
         {!siembra ? <Empty msg="Sin datos de siembra" /> : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <span className="text-campo-500">Cultivo</span>
-              <div className="font-medium text-campo-900 mt-0.5">{ciclo.cultivo}</div>
-            </div>
-            <div>
-              <span className="text-campo-500">Fecha</span>
-              <div className="font-medium text-campo-900 mt-0.5">{fmtFecha(siembra.fecha)}</div>
-            </div>
-            <div>
-              <span className="text-campo-500">Sistema</span>
-              <div className="font-medium text-campo-900 mt-0.5">{siembra.sistema ?? '—'}</div>
-            </div>
-            <div>
-              <span className="text-campo-500">Híbrido / Variedad</span>
-              <div className="font-medium text-campo-900 mt-0.5">{siembra.hibrido_1 ?? '—'}</div>
-            </div>
+            <div><span className="text-campo-500">Cultivo</span><div className="font-medium text-campo-900 mt-0.5">{ciclo.cultivo}</div></div>
+            <div><span className="text-campo-500">Fecha</span><div className="font-medium text-campo-900 mt-0.5">{fmtFecha(siembra.fecha)}</div></div>
+            <div><span className="text-campo-500">Sistema</span><div className="font-medium text-campo-900 mt-0.5">{siembra.sistema ?? '—'}</div></div>
+            <div><span className="text-campo-500">Híbrido / Variedad</span><div className="font-medium text-campo-900 mt-0.5">{siembra.hibrido_1 ?? '—'}</div></div>
             <div>
               <span className="text-campo-500">Densidad</span>
               <div className="font-medium text-campo-900 mt-0.5">
                 {siembra.densidad != null ? `${fmt(siembra.densidad, 0)} ${unidadDensidad}` : '—'}
               </div>
             </div>
-            <div>
-              <span className="text-campo-500">Serv. siembra</span>
-              <div className="font-medium text-campo-900 mt-0.5">{fmtUsd(siembra.costo_servicio_total)}</div>
-            </div>
-            <div>
-              <span className="text-campo-500">Costo semilla</span>
-              <div className="font-medium text-campo-900 mt-0.5">{fmtUsd(siembra.costo_semilla_total)}</div>
-            </div>
+            <div><span className="text-campo-500">Serv. siembra</span><div className="font-medium text-campo-900 mt-0.5">{fmtUsd(siembra.costo_servicio_total)}</div></div>
+            <div><span className="text-campo-500">Costo semilla</span><div className="font-medium text-campo-900 mt-0.5">{fmtUsd(siembra.costo_semilla_total)}</div></div>
             {siembra.fertilizante_1 && (
               <div>
                 <span className="text-campo-500">Fertilizante 1</span>
@@ -588,7 +570,7 @@ export default function FichaCicloPage() {
       <Section title="Costos Fijos" action={
         <Link href={`/seguimiento/lotes/${ciclo_id}/costos-fijos`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</Link>
       }>
-        {costosFijos.length === 0 ? <Empty msg="Sin costos fijos registrados" /> : (
+        {costosFijos.length === 0 && totalFijos === 0 ? <Empty msg="Sin costos fijos registrados" /> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -606,10 +588,12 @@ export default function FichaCicloPage() {
                     <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(f.costo_total_usd)}</td>
                   </tr>
                 ))}
-                <tr className="bg-campo-50">
-                  <td colSpan={2} className="px-4 py-2 font-semibold text-campo-700">Total</td>
-                  <td className="px-4 py-2 text-right font-bold text-campo-900">{fmtUsd(totalFijos)}</td>
-                </tr>
+                {totalFijos > 0 && (
+                  <tr className="bg-campo-50">
+                    <td colSpan={2} className="px-4 py-2 font-semibold text-campo-700">Total fijos (incl. distribución)</td>
+                    <td className="px-4 py-2 text-right font-bold text-campo-900">{fmtUsd(totalFijos)}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
