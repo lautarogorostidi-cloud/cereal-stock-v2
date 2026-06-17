@@ -22,12 +22,12 @@ type Producto = {
   costo_unitario: string
 }
 
-type InsumoTarifario = {
-  tipo_insumo: string
-  insumo: string
-  unidad: string | null
-  precio_usd: number
-  fecha_vigencia: string
+type ProductoCatalogo = {
+  id: number
+  nombre: string
+  tipo: string
+  unidad: string
+  ultimo_precio: number | null
 }
 
 const TIPOS_APLICACION = [
@@ -42,7 +42,17 @@ const TIPOS_APLICACION = [
   { value: 'fungicida', label: 'Fungicida' },
 ]
 
-const TIPOS_INSUMO = ['Herbicida', 'Fungicida', 'Insecticida', 'Coadyuvante']
+const TIPOS_INSUMO = ['herbicida', 'fungicida', 'insecticida', 'coadyuvante', 'curasemilla', 'acaricida', 'otro']
+
+const TIPO_LABELS: Record<string, string> = {
+  herbicida: 'Herbicida',
+  fungicida: 'Fungicida',
+  insecticida: 'Insecticida',
+  coadyuvante: 'Coadyuvante',
+  curasemilla: 'Curasemilla',
+  acaricida: 'Acaricida',
+  otro: 'Otro',
+}
 
 const PRODUCTO_VACIO: Producto = { tipo_insumo: '', producto: '', unidad: 'L', dosis_ha: '', costo_unitario: '' }
 
@@ -56,8 +66,7 @@ export default function NuevaAplicacionPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Tarifario de insumos y servicios
-  const [tarifarioInsumos, setTarifarioInsumos] = useState<InsumoTarifario[]>([])
+  const [catalogo, setCatalogo] = useState<ProductoCatalogo[]>([])
   const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
 
   const [form, setForm] = useState({
@@ -76,63 +85,39 @@ export default function NuevaAplicacionPage() {
 
   async function cargar() {
     setLoading(true)
-    const [{ data: cicloData }, { data: insumos }, { data: servicios }] = await Promise.all([
+    const [{ data: cicloData }, { data: productosData }, { data: movimientosData }, { data: servicios }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', Number(ciclo_id)).single(),
-      supabase.from('tarifario_insumos').select('tipo_insumo, insumo, unidad, precio_usd, fecha_vigencia').in('tipo_insumo', TIPOS_INSUMO).order('insumo'),
+      supabase.from('agroquimicos_productos').select('id, nombre, tipo, unidad').eq('activo', true).order('nombre'),
+      supabase.from('agroquimicos_movimientos').select('producto_id, precio_unitario, fecha').eq('tipo', 'compra').order('fecha', { ascending: false }),
       supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
     ])
+
     setCiclo(cicloData ?? null)
-    setTarifarioInsumos(insumos ?? [])
     setTarifarioServicios(servicios ?? [])
+
+    // Construir mapa de último precio por producto_id
+    const ultimoPrecioMap: Record<number, number> = {}
+    ;(movimientosData ?? []).forEach((m: any) => {
+      if (!ultimoPrecioMap[m.producto_id] && m.precio_unitario > 0) {
+        ultimoPrecioMap[m.producto_id] = m.precio_unitario
+      }
+    })
+
+    // Combinar catálogo con último precio
+    const catalogoConPrecio: ProductoCatalogo[] = (productosData ?? []).map((p: any) => ({
+      id: p.id,
+      nombre: p.nombre,
+      tipo: p.tipo,
+      unidad: p.unidad,
+      ultimo_precio: ultimoPrecioMap[p.id] ?? null,
+    }))
+    setCatalogo(catalogoConPrecio)
+
     const supDefault = cicloData?.sup_sembrada ?? cicloData?.hectareas ?? 0
     setForm(f => ({ ...f, superficie_ha: supDefault.toString() }))
     setLoading(false)
   }
 
-  // Obtener productos únicos por tipo de insumo
-  function getProductosPorTipo(tipo: string): string[] {
-    const productos = tarifarioInsumos
-      .filter(t => {
-        // Mapear tipo a tipo_insumo del tarifario
-        const tipoMap: Record<string, string> = {
-          'Herbicida': 'Herbicida',
-          'Fungicida': 'Fungicida',
-          'Insecticida': 'Insecticida',
-          'Coadyuvante': 'Coadyuvante',
-        }
-        return t.insumo !== undefined
-      })
-    // Filtrar por tipo buscando en la BD
-    return Array.from(new Set(
-      tarifarioInsumos
-        .filter(t => getTipoInsumo(t) === tipo)
-        .map(t => t.insumo)
-    )).sort()
-  }
-
-  function getTipoInsumo(insumo: InsumoTarifario): string {
-    // La BD no devuelve tipo_insumo en esta query — necesitamos buscarlo
-    return ''
-  }
-
-  // Obtener precio vigente para un producto a una fecha dada
-  function getPrecioVigente(nombreProducto: string, fecha: string): { precio: number; unidad: string } | null {
-    if (!fecha || !nombreProducto) return null
-    const registros = tarifarioInsumos
-      .filter(t => t.insumo === nombreProducto && t.fecha_vigencia <= fecha)
-    if (registros.length === 0) {
-      // Si no hay precio anterior a la fecha, tomar el más antiguo disponible
-      const todos = tarifarioInsumos.filter(t => t.insumo === nombreProducto)
-      if (todos.length === 0) return null
-      todos.sort((a, b) => a.fecha_vigencia.localeCompare(b.fecha_vigencia))
-      return { precio: todos[0].precio_usd, unidad: todos[0].unidad ?? 'L' }
-    }
-    // Tomar el más reciente anterior o igual a la fecha
-    registros.sort((a, b) => b.fecha_vigencia.localeCompare(a.fecha_vigencia))
-    return { precio: registros[0].precio_usd, unidad: registros[0].unidad ?? 'L' }
-  }
-
-  // Obtener costo servicio vigente
   function getCostoServicioVigente(fecha: string): number | null {
     if (!fecha || !ciclo) return null
     const registros = tarifarioServicios
@@ -141,7 +126,7 @@ export default function NuevaAplicacionPage() {
         (!s.cultivo || s.cultivo === ciclo.cultivo) &&
         s.vigencia_desde <= fecha
       )
-      .sort((a, b) => b.vigencia_desde.localeCompare(a.vigencia_desde))
+      .sort((a: any, b: any) => b.vigencia_desde.localeCompare(a.vigencia_desde))
     if (registros.length === 0) return null
     return registros[0].costo_usd_ha
   }
@@ -149,20 +134,11 @@ export default function NuevaAplicacionPage() {
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = e.target
     setForm(f => ({ ...f, [name]: value }))
-
-    // Auto-completar costo servicio cuando cambia la fecha
     if (name === 'fecha' && value) {
       const costoServicio = getCostoServicioVigente(value)
       if (costoServicio) {
         setForm(f => ({ ...f, [name]: value, costo_servicio_usd_ha: costoServicio.toString() }))
       }
-      // También actualizar precios de productos ya cargados
-      setProductos(ps => ps.map(p => {
-        if (!p.producto) return p
-        const precioData = getPrecioVigente(p.producto, value)
-        if (precioData) return { ...p, costo_unitario: precioData.precio.toString(), unidad: precioData.unidad }
-        return p
-      }))
     }
   }
 
@@ -170,20 +146,19 @@ export default function NuevaAplicacionPage() {
     setProductos(ps => ps.map((p, i) => {
       if (i !== index) return p
       const updated = { ...p, [field]: value }
-
-      // Si cambió el tipo de insumo, limpiar el producto
       if (field === 'tipo_insumo') {
         return { ...updated, producto: '', costo_unitario: '' }
       }
-
-      // Si cambió el producto, buscar precio en tarifario
-      if (field === 'producto' && value && form.fecha) {
-        const precioData = getPrecioVigente(value, form.fecha)
-        if (precioData) {
-          return { ...updated, costo_unitario: precioData.precio.toString(), unidad: precioData.unidad }
+      if (field === 'producto' && value) {
+        const prod = catalogo.find(c => c.nombre === value)
+        if (prod) {
+          return {
+            ...updated,
+            unidad: prod.unidad ?? 'L',
+            costo_unitario: prod.ultimo_precio?.toString() ?? '',
+          }
         }
       }
-
       return updated
     }))
   }
@@ -249,11 +224,6 @@ export default function NuevaAplicacionPage() {
 
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!ciclo) return <div className="text-center text-campo-400 py-20">Ciclo no encontrado</div>
-
-  // Agrupar insumos por tipo para el selector
-  const insumosPorTipo: Record<string, string[]> = {}
-  TIPOS_INSUMO.forEach(t => { insumosPorTipo[t] = [] })
-  // Como no tenemos tipo_insumo en la query, hacemos una query separada por tipo
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -323,38 +293,31 @@ export default function NuevaAplicacionPage() {
                     className="text-campo-300 hover:text-red-400 disabled:opacity-0 text-lg leading-none">×</button>
                 </div>
 
-                {/* Tipo de insumo + Selector de producto */}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <div className="text-xs text-campo-500 mb-1">Tipo</div>
                     <select value={p.tipo_insumo} onChange={e => handleProductoChange(i, 'tipo_insumo', e.target.value)}
                       className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
                       <option value="">Seleccionar tipo...</option>
-                      {TIPOS_INSUMO.map(t => <option key={t} value={t}>{t}</option>)}
-                      <option value="otro">Otro (ingresar manualmente)</option>
+                      {TIPOS_INSUMO.map(t => <option key={t} value={t}>{TIPO_LABELS[t]}</option>)}
                     </select>
                   </div>
                   <div>
                     <div className="text-xs text-campo-500 mb-1">
                       Producto
-                      {p.costo_unitario && p.producto && <span className="ml-1 text-lime-600">✓ precio del tarifario</span>}
+                      {p.costo_unitario && p.producto && (
+                        <span className="ml-1 text-lime-600">✓ precio de última compra</span>
+                      )}
                     </div>
-                    {p.tipo_insumo && p.tipo_insumo !== 'otro' ? (
-                      <ProductoSelector
-                        tipo={p.tipo_insumo}
-                        value={p.producto}
-                        tarifario={tarifarioInsumos}
-                        onChange={val => handleProductoChange(i, 'producto', val)}
-                      />
-                    ) : (
-                      <input type="text" value={p.producto} onChange={e => handleProductoChange(i, 'producto', e.target.value)}
-                        placeholder="Nombre del producto"
-                        className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
-                    )}
+                    <ProductoSelector
+                      tipo={p.tipo_insumo}
+                      value={p.producto}
+                      catalogo={catalogo}
+                      onChange={val => handleProductoChange(i, 'producto', val)}
+                    />
                   </div>
                 </div>
 
-                {/* Unidad + Dosis + Costo */}
                 <div className="grid grid-cols-3 gap-2">
                   <div>
                     <div className="text-xs text-campo-500 mb-1">Unidad</div>
@@ -380,7 +343,6 @@ export default function NuevaAplicacionPage() {
                   </div>
                 </div>
 
-                {/* Subtotal por producto */}
                 {p.dosis_ha && p.costo_unitario && form.superficie_ha && (
                   <div className="text-xs text-campo-400">
                     Subtotal: <span className="font-semibold text-campo-700">
@@ -393,7 +355,6 @@ export default function NuevaAplicacionPage() {
             ))}
           </div>
 
-          {/* Total estimado */}
           {form.superficie_ha && productos.some(p => p.dosis_ha && p.costo_unitario) && (
             <div className="mt-3 pt-3 border-t border-campo-100 text-xs text-campo-500">
               Total insumos:{' '}
@@ -423,23 +384,19 @@ export default function NuevaAplicacionPage() {
   )
 }
 
-// Componente selector de producto con búsqueda
-function ProductoSelector({ tipo, value, tarifario, onChange }: {
+function ProductoSelector({ tipo, value, catalogo, onChange }: {
   tipo: string
   value: string
-  tarifario: InsumoTarifario[]
+  catalogo: ProductoCatalogo[]
   onChange: (val: string) => void
 }) {
   const [busqueda, setBusqueda] = useState('')
   const [abierto, setAbierto] = useState(false)
 
-  const productosDelTipo = Array.from(new Set(
-    tarifario.filter(t => t.tipo_insumo === tipo).map(t => t.insumo)
-  )).sort()
-
-  const filtrados = productosDelTipo.filter(p =>
-    p.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  const productosFiltrados = catalogo
+    .filter(p => !tipo || p.tipo === tipo)
+    .filter(p => !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
 
   return (
     <div className="relative">
@@ -452,15 +409,18 @@ function ProductoSelector({ tipo, value, tarifario, onChange }: {
         placeholder="Buscar producto..."
         className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
       />
-      {abierto && (filtrados.length > 0 || busqueda) && (
+      {abierto && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-campo-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-          {filtrados.map(p => (
-            <button key={p} onMouseDown={() => { onChange(p); setBusqueda(''); setAbierto(false) }}
-              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800">
-              {p}
+          {productosFiltrados.map(p => (
+            <button key={p.id} onMouseDown={() => { onChange(p.nombre); setBusqueda(''); setAbierto(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800 flex justify-between items-center">
+              <span>{p.nombre}</span>
+              {p.ultimo_precio && (
+                <span className="text-xs text-campo-400 ml-2">USD {p.ultimo_precio}/{p.unidad}</span>
+              )}
             </button>
           ))}
-          {filtrados.length === 0 && busqueda && (
+          {productosFiltrados.length === 0 && (
             <div className="px-3 py-2 text-sm text-campo-400">Sin resultados — ingresalo manualmente</div>
           )}
         </div>
