@@ -217,11 +217,11 @@ export default function CostosPage() {
               </thead>
               <tbody>
                 {costosFiltrados.map(c => {
-                  const montosPorMes: Record<number, { monto: number; pagado: boolean; id: number }[]> = {}
+                  const montosPorMes: Record<number, { monto: number; pagado: boolean; id: number; es_estimado: boolean }[]> = {}
                   c.vencimientos.forEach(v => {
                     const idx = getMesFiscalIdx(v.fecha_vencimiento)
                     if (!montosPorMes[idx]) montosPorMes[idx] = []
-                    montosPorMes[idx].push({ monto: v.monto, pagado: v.pagado, id: v.id })
+                    montosPorMes[idx].push({ monto: v.monto, pagado: v.pagado, id: v.id, es_estimado: v.es_estimado })
                   })
                   return (
                     <tr key={c.id} className="border-b border-campo-50 hover:bg-campo-50/50">
