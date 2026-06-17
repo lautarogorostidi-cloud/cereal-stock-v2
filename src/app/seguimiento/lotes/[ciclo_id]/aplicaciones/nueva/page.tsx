@@ -28,6 +28,15 @@ type ProductoCatalogo = {
   tipo: string
   unidad: string
   ultimo_precio: number | null
+  precio_tarifario: number | null
+}
+
+type PrecioInsumo = {
+  producto: string
+  precio_usd: number
+  fecha_vigencia: string
+  fuente: string
+  producto_id: number | null
 }
 
 const TIPOS_APLICACION = [
@@ -67,6 +76,7 @@ export default function NuevaAplicacionPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [catalogo, setCatalogo] = useState<ProductoCatalogo[]>([])
+  const [precios, setPrecios] = useState<PrecioInsumo[]>([])
   const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
 
   const [form, setForm] = useState({
@@ -85,37 +95,64 @@ export default function NuevaAplicacionPage() {
 
   async function cargar() {
     setLoading(true)
-    const [{ data: cicloData }, { data: productosData }, { data: movimientosData }, { data: servicios }] = await Promise.all([
+    const [{ data: cicloData }, { data: productosData }, { data: preciosData }, { data: servicios }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', Number(ciclo_id)).single(),
       supabase.from('agroquimicos_productos').select('id, nombre, tipo, unidad').eq('activo', true).order('nombre'),
-      supabase.from('agroquimicos_movimientos').select('producto_id, precio_unitario, fecha').eq('tipo', 'compra').order('fecha', { ascending: false }),
+      supabase.from('vw_precios_insumos').select('producto, precio_usd, fecha_vigencia, fuente, producto_id').order('fecha_vigencia', { ascending: false }),
       supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
     ])
 
     setCiclo(cicloData ?? null)
     setTarifarioServicios(servicios ?? [])
 
-    // Construir mapa de último precio por producto_id
-    const ultimoPrecioMap: Record<number, number> = {}
-    ;(movimientosData ?? []).forEach((m: any) => {
-      if (!ultimoPrecioMap[m.producto_id] && m.precio_unitario > 0) {
-        ultimoPrecioMap[m.producto_id] = m.precio_unitario
+    // Guardar todos los precios históricos para buscar por fecha
+    setPrecios(preciosData ?? [])
+
+    // Para el dropdown: precio más reciente de cualquier fuente (compra primero, luego tarifario)
+    const ultimoPrecioMap: Record<string, { precio: number; fuente: string }> = {}
+    ;(preciosData ?? []).forEach((p: any) => {
+      const nombre = p.producto?.trim().toLowerCase()
+      if (!nombre) return
+      const existing = ultimoPrecioMap[nombre]
+      if (!existing) {
+        ultimoPrecioMap[nombre] = { precio: p.precio_usd, fuente: p.fuente }
+      } else if (p.fuente === 'compra' && existing.fuente === 'tarifario') {
+        // Priorizar compra sobre tarifario
+        ultimoPrecioMap[nombre] = { precio: p.precio_usd, fuente: p.fuente }
       }
     })
 
-    // Combinar catálogo con último precio
-    const catalogoConPrecio: ProductoCatalogo[] = (productosData ?? []).map((p: any) => ({
-      id: p.id,
-      nombre: p.nombre,
-      tipo: p.tipo,
-      unidad: p.unidad,
-      ultimo_precio: ultimoPrecioMap[p.id] ?? null,
-    }))
+    const catalogoConPrecio: ProductoCatalogo[] = (productosData ?? []).map((p: any) => {
+      const nombreNorm = p.nombre?.trim().toLowerCase()
+      const precioInfo = ultimoPrecioMap[nombreNorm]
+      return {
+        id: p.id,
+        nombre: p.nombre,
+        tipo: p.tipo,
+        unidad: p.unidad,
+        ultimo_precio: precioInfo?.fuente === 'compra' ? precioInfo.precio : null,
+        precio_tarifario: precioInfo?.fuente === 'tarifario' ? precioInfo.precio : null,
+      }
+    })
     setCatalogo(catalogoConPrecio)
 
     const supDefault = cicloData?.sup_sembrada ?? cicloData?.hectareas ?? 0
     setForm(f => ({ ...f, superficie_ha: supDefault.toString() }))
     setLoading(false)
+  }
+
+  function getPrecioVigenteParaFecha(nombreProducto: string, fecha: string): number | null {
+    if (!nombreProducto) return null
+    const nombreNorm = nombreProducto.trim().toLowerCase()
+    const candidatos = precios
+      .filter(p => p.producto?.trim().toLowerCase() === nombreNorm)
+      .filter(p => !fecha || p.fecha_vigencia <= fecha)
+      .sort((a, b) => {
+        // Ordenar por fecha desc, luego compra > tarifario
+        if (b.fecha_vigencia !== a.fecha_vigencia) return b.fecha_vigencia.localeCompare(a.fecha_vigencia)
+        return a.fuente === 'compra' ? -1 : 1
+      })
+    return candidatos.length > 0 ? candidatos[0].precio_usd : null
   }
 
   function getCostoServicioVigente(fecha: string): number | null {
@@ -139,6 +176,13 @@ export default function NuevaAplicacionPage() {
       if (costoServicio) {
         setForm(f => ({ ...f, [name]: value, costo_servicio_usd_ha: costoServicio.toString() }))
       }
+      // Recalcular precios de productos ya cargados según la nueva fecha
+      setProductos(ps => ps.map(p => {
+        if (!p.producto) return p
+        const precio = getPrecioVigenteParaFecha(p.producto, value)
+        if (precio) return { ...p, costo_unitario: precio.toString() }
+        return p
+      }))
     }
   }
 
@@ -152,10 +196,12 @@ export default function NuevaAplicacionPage() {
       if (field === 'producto' && value) {
         const prod = catalogo.find(c => c.nombre === value)
         if (prod) {
+          // Buscar precio vigente a la fecha de aplicación
+          const precio = getPrecioVigenteParaFecha(value, form.fecha)
           return {
             ...updated,
             unidad: prod.unidad ?? 'L',
-            costo_unitario: prod.ultimo_precio?.toString() ?? '',
+            costo_unitario: precio?.toString() ?? prod.ultimo_precio?.toString() ?? prod.precio_tarifario?.toString() ?? '',
           }
         }
       }
@@ -306,7 +352,7 @@ export default function NuevaAplicacionPage() {
                     <div className="text-xs text-campo-500 mb-1">
                       Producto
                       {p.costo_unitario && p.producto && (
-                        <span className="ml-1 text-lime-600">✓ precio de última compra</span>
+                        <span className="ml-1 text-lime-600">✓ precio cargado</span>
                       )}
                     </div>
                     <ProductoSelector
@@ -415,8 +461,11 @@ function ProductoSelector({ tipo, value, catalogo, onChange }: {
             <button key={p.id} onMouseDown={() => { onChange(p.nombre); setBusqueda(''); setAbierto(false) }}
               className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800 flex justify-between items-center">
               <span>{p.nombre}</span>
-              {p.ultimo_precio && (
-                <span className="text-xs text-campo-400 ml-2">USD {p.ultimo_precio}/{p.unidad}</span>
+              {(p.ultimo_precio ?? p.precio_tarifario) && (
+                <span className="text-xs text-campo-400 ml-2">
+                  USD {(p.ultimo_precio ?? p.precio_tarifario)}/{p.unidad}
+                  {!p.ultimo_precio && p.precio_tarifario && <span className="text-amber-500 ml-1">(tarifario)</span>}
+                </span>
               )}
             </button>
           ))}
