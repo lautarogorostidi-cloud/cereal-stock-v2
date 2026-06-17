@@ -10,6 +10,9 @@ type Lote = {
   nombre: string
   establecimiento: string
   hectareas: number
+  hectareas_agricolas: number | null
+  hectareas_ganaderas: number | null
+  tipo: string | null
 }
 
 type Cultivo = {
@@ -89,11 +92,13 @@ export default function NuevoCicloPage() {
     } else {
       const propiedad = loteData?.establecimiento === 'La Media Luna' ? 'Propio' : 'No Propio'
       const campanaDefault = (campanasData ?? [])[0]?.id?.toString() ?? ''
+      // Precargar hectáreas según actividad default (agrícola)
+      const haDefault = loteData?.hectareas_agricolas ?? loteData?.hectareas ?? ''
       setForm(f => ({
         ...f,
         campana_id: campanaDefault,
         propiedad,
-        sup_sembrada: loteData?.hectareas?.toString() ?? '',
+        sup_sembrada: haDefault?.toString() ?? '',
       }))
     }
 
@@ -101,7 +106,19 @@ export default function NuevoCicloPage() {
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
-    setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    setForm(f => {
+      const updated = { ...f, [name]: value }
+      // Si cambia la actividad y el lote es mixto, actualizar sup_sembrada automáticamente
+      if (name === 'actividad' && lote?.tipo === 'mixto' && !esEdicion) {
+        if (value === 'agricola') {
+          updated.sup_sembrada = (lote.hectareas_agricolas ?? lote.hectareas)?.toString() ?? ''
+        } else if (value === 'ganadero') {
+          updated.sup_sembrada = (lote.hectareas_ganaderas ?? lote.hectareas)?.toString() ?? ''
+        }
+      }
+      return updated
+    })
   }
 
   async function handleSubmit() {
@@ -148,6 +165,15 @@ export default function NuevoCicloPage() {
     }
   }
 
+  // Texto informativo de hectáreas según tipo de lote
+  function getHaInfo() {
+    if (!lote) return ''
+    if (lote.tipo === 'mixto') {
+      return `Ha agrícolas: ${lote.hectareas_agricolas ?? '—'} · Ha ganaderas: ${lote.hectareas_ganaderas ?? '—'} · Ha total: ${lote.hectareas}`
+    }
+    return `Superficie total del lote: ${lote.hectareas} ha`
+  }
+
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!lote) return <div className="text-center text-campo-400 py-20">Lote no encontrado</div>
 
@@ -187,6 +213,9 @@ export default function NuevoCicloPage() {
               </label>
             ))}
           </div>
+          {lote.tipo === 'mixto' && (
+            <p className="text-xs text-blue-600 mt-1.5">🌾🐄 Lote mixto — la superficie se actualiza automáticamente según la actividad</p>
+          )}
         </div>
 
         <div>
@@ -212,7 +241,7 @@ export default function NuevoCicloPage() {
           <input type="number" name="sup_sembrada" value={form.sup_sembrada} onChange={handleChange}
             step="0.01" min="0"
             className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
-          <p className="text-xs text-campo-400 mt-1">Superficie total del lote: {lote.hectareas} ha</p>
+          <p className="text-xs text-campo-400 mt-1">{getHaInfo()}</p>
         </div>
 
         <div>
