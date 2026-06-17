@@ -27,6 +27,21 @@ type Vencimiento = {
 
 type Campana = { id: number; nombre: string }
 
+type Distribucion = {
+  costo_id: number
+  lote: string
+  lote_id: string
+  ha_lote: number
+  ha_campo_total: number
+  costo_ha: number
+  costo_lote: number
+  ciclo_id: number | null
+  cultivo: string | null
+  actividad: string | null
+  sup_sembrada: number | null
+  costo_ciclo: number | null
+}
+
 const TIPO_LABELS: Record<string, string> = {
   arrendamiento: 'Arrendamiento',
   seguro: 'Seguro',
@@ -69,6 +84,8 @@ export default function CostosPage() {
   const [filtroEstablecimiento, setFiltroEstablecimiento] = useState('')
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [distribucion, setDistribucion] = useState<Distribucion[]>([])
+  const [mostrarDistribucion, setMostrarDistribucion] = useState(false)
 
   useEffect(() => { cargar() }, [])
 
@@ -101,6 +118,12 @@ export default function CostosPage() {
       campana_nombre: campMap[c.campana_id] ?? '',
       vencimientos: vencMap[c.id] ?? [],
     })))
+
+    // Cargar distribución
+    const { data: distData } = await supabase
+      .from('vw_distribucion_costos_fijos')
+      .select('*')
+    setDistribucion(distData ?? [])
 
     setLoading(false)
   }
@@ -265,6 +288,62 @@ export default function CostosPage() {
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block"/> Pendiente real</span>
             <span className="text-campo-400">— click para marcar como pagado</span>
           </div>
+        </div>
+      )}
+
+      {/* Distribución por lote */}
+      {costosFiltrados.length > 0 && (
+        <div className="card overflow-hidden p-0">
+          <div className="px-5 py-3 border-b border-campo-100 bg-campo-50 flex items-center justify-between">
+            <h2 className="font-semibold text-campo-700 text-sm">Distribución por lote y ciclo</h2>
+            <button onClick={() => setMostrarDistribucion(!mostrarDistribucion)}
+              className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+              {mostrarDistribucion ? '▲ Ocultar' : '▼ Ver detalle'}
+            </button>
+          </div>
+          {mostrarDistribucion && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-campo-100">
+                    <th className="text-left px-5 py-3 font-semibold text-campo-700">Tipo costo</th>
+                    <th className="text-left px-5 py-3 font-semibold text-campo-700">Lote</th>
+                    <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha lote</th>
+                    <th className="text-right px-5 py-3 font-semibold text-campo-700">Costo/ha</th>
+                    <th className="text-right px-5 py-3 font-semibold text-campo-700">Costo lote</th>
+                    <th className="text-left px-5 py-3 font-semibold text-campo-700">Cultivo</th>
+                    <th className="text-left px-5 py-3 font-semibold text-campo-700">Actividad</th>
+                    <th className="text-right px-5 py-3 font-semibold text-campo-700">Ha sembradas</th>
+                    <th className="text-right px-5 py-3 font-semibold text-campo-700">Costo ciclo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {distribucion
+                    .filter(d => costosFiltrados.some(c => c.id === d.costo_id))
+                    .map((d, i) => {
+                      const costo = costosFiltrados.find(c => c.id === d.costo_id)
+                      return (
+                        <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50">
+                          <td className="px-5 py-2">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TIPO_COLORS[costo?.tipo ?? ''] ?? 'bg-campo-100 text-campo-700'}`}>
+                              {TIPO_LABELS[costo?.tipo ?? ''] ?? costo?.tipo}
+                            </span>
+                          </td>
+                          <td className="px-5 py-2 font-medium text-campo-900">{d.lote}</td>
+                          <td className="px-5 py-2 text-right text-campo-600">{d.ha_lote}</td>
+                          <td className="px-5 py-2 text-right text-campo-600">{fmtUsd(d.costo_ha)}</td>
+                          <td className="px-5 py-2 text-right font-medium text-campo-900">{fmtUsd(d.costo_lote)}</td>
+                          <td className="px-5 py-2 text-campo-600">{d.cultivo ?? '—'}</td>
+                          <td className="px-5 py-2 text-campo-600 capitalize">{d.actividad ?? '—'}</td>
+                          <td className="px-5 py-2 text-right text-campo-600">{d.sup_sembrada ?? '—'}</td>
+                          <td className="px-5 py-2 text-right font-medium text-emerald-700">{d.costo_ciclo ? fmtUsd(d.costo_ciclo) : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
