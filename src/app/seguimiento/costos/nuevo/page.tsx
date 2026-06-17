@@ -27,6 +27,7 @@ const PERIODOS = [
 type Vencimiento = {
   fecha: string
   monto: string
+  es_estimado: boolean
 }
 
 export default function NuevoCostoPage() {
@@ -83,6 +84,7 @@ export default function NuevoCostoPage() {
     const nuevos: Vencimiento[] = Array.from({ length: p.cuotas }, (_, i) => ({
       fecha: '',
       monto: Math.round(montoPorCuota * 100) / 100 + '',
+      es_estimado: true,
     }))
     setVencimientos(nuevos)
   }
@@ -92,7 +94,11 @@ export default function NuevoCostoPage() {
   }
 
   function agregarVencimiento() {
-    setVencimientos(prev => [...prev, { fecha: '', monto: '' }])
+    setVencimientos(prev => [...prev, { fecha: '', monto: '', es_estimado: true }])
+  }
+
+  function handleVencimientoEstimado(idx: number, value: boolean) {
+    setVencimientos(prev => prev.map((v, i) => i === idx ? { ...v, es_estimado: value } : v))
   }
 
   function eliminarVencimiento(idx: number) {
@@ -142,6 +148,7 @@ export default function NuevoCostoPage() {
         fecha_vencimiento: v.fecha,
         monto: Number(v.monto),
         pagado: false,
+        es_estimado: v.es_estimado,
       })))
 
     setSaving(false)
@@ -239,18 +246,26 @@ export default function NuevoCostoPage() {
 
           <div className="space-y-2">
             {vencimientos.map((v, idx) => (
-              <div key={idx} className="flex gap-3 items-center">
+              <div key={idx} className={`flex gap-3 items-center p-2 rounded-lg ${v.es_estimado ? 'bg-amber-50 border border-amber-200' : 'bg-campo-50 border border-campo-200'}`}>
                 <div className="flex-1">
                   <input type="date" value={v.fecha} onChange={e => handleVencimiento(idx, 'fecha', e.target.value)}
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 bg-white" />
                 </div>
                 <div className="flex-1">
                   <input type="number" value={v.monto} onChange={e => handleVencimiento(idx, 'monto', e.target.value)}
                     step="0.01" min="0" placeholder="Monto USD"
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 bg-white" />
                 </div>
+                <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+                  <input type="checkbox" checked={v.es_estimado}
+                    onChange={e => handleVencimientoEstimado(idx, e.target.checked)}
+                    className="accent-amber-500 w-4 h-4" />
+                  <span className={`text-xs font-medium ${v.es_estimado ? 'text-amber-600' : 'text-campo-500'}`}>
+                    {v.es_estimado ? '⚠️ Estimado' : '✓ Real'}
+                  </span>
+                </label>
                 <button onClick={() => eliminarVencimiento(idx)} type="button"
-                  className="text-red-400 hover:text-red-600 text-sm px-2">✕</button>
+                  className="text-red-400 hover:text-red-600 text-sm px-1">✕</button>
               </div>
             ))}
           </div>

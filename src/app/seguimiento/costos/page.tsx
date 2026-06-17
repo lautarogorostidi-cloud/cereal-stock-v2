@@ -22,6 +22,7 @@ type Vencimiento = {
   fecha_vencimiento: string
   monto: number
   pagado: boolean
+  es_estimado: boolean
 }
 
 type Campana = { id: number; nombre: string }
@@ -235,10 +236,17 @@ export default function CostosPage() {
                         if (vencs.length === 0) return <td key={idx} className="px-2 py-2 text-center text-campo-200">—</td>
                         const total = vencs.reduce((s, v) => s + v.monto, 0)
                         const todosPagados = vencs.every(v => v.pagado)
+                        const esEstimado = vencs.some(v => v.es_estimado)
+                        const colorClass = todosPagados
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : esEstimado
+                          ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                          : 'bg-red-100 text-red-700 hover:bg-red-200'
                         return (
                           <td key={idx} className="px-2 py-2 text-center">
                             <button onClick={() => togglePagado(vencs[0].id, vencs[0].pagado)}
-                              className={`px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${todosPagados ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>
+                              className={`px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${colorClass}`}
+                              title={todosPagados ? 'Pagado' : esEstimado ? 'Estimado — click para marcar pagado' : 'Pendiente — click para marcar pagado'}>
                               {Math.round(total).toLocaleString('es-AR')}
                             </button>
                           </td>
@@ -253,7 +261,9 @@ export default function CostosPage() {
           </div>
           <div className="px-5 py-2 border-t border-campo-100 bg-campo-50 flex gap-4 text-xs text-campo-500">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 inline-block"/> Pagado</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block"/> Pendiente — click para marcar como pagado</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-100 inline-block"/> Estimado</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-100 inline-block"/> Pendiente real</span>
+            <span className="text-campo-400">— click para marcar como pagado</span>
           </div>
         </div>
       )}
