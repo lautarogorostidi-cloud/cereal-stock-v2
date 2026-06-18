@@ -46,7 +46,6 @@ export default function NuevoCostoPage() {
     campana_id: '',
     tipo: '',
     periodo: '',
-    monto_total: '',
     observaciones: '',
   })
 
@@ -70,12 +69,7 @@ export default function NuevoCostoPage() {
     const { name, value } = e.target
     setForm(f => ({ ...f, [name]: value }))
 
-    // Al cambiar período o monto, regenerar vencimientos
-    if (name === 'periodo' || name === 'monto_total') {
-      const periodo = name === 'periodo' ? value : form.periodo
-      const monto = name === 'monto_total' ? value : form.monto_total
-      if (periodo && monto) generarVencimientos(periodo, parseFloat(monto))
-    }
+
   }
 
   function generarVencimientos(periodo: string, montoTotal: number) {
@@ -108,7 +102,7 @@ export default function NuevoCostoPage() {
 
   async function handleSubmit() {
     setError(null)
-    if (!form.establecimiento || !form.campana_id || !form.tipo || !form.periodo || !form.monto_total) {
+    if (!form.establecimiento || !form.campana_id || !form.tipo || !form.periodo) {
       setError('Todos los campos marcados con * son obligatorios.')
       return
     }
@@ -123,6 +117,7 @@ export default function NuevoCostoPage() {
 
     setSaving(true)
 
+    const montoTotal = vencimientos.reduce((acc, v) => acc + (parseFloat(v.monto) || 0), 0)
     const { data: costo, error: errCosto } = await supabase
       .from('costos_fijos_campo')
       .insert({
@@ -130,7 +125,7 @@ export default function NuevoCostoPage() {
         campana_id: Number(form.campana_id),
         tipo: form.tipo,
         periodo: form.periodo,
-        monto_total: Number(form.monto_total),
+        monto_total: montoTotal,
         observaciones: form.observaciones || null,
       })
       .select('id')
@@ -216,13 +211,6 @@ export default function NuevoCostoPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-campo-700 mb-1">Monto total (USD) *</label>
-          <input type="number" name="monto_total" value={form.monto_total} onChange={handleChange}
-            step="0.01" min="0" placeholder="0.00"
-            className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
-        </div>
-
-        <div>
           <label className="block text-sm font-medium text-campo-700 mb-1">Observaciones</label>
           <textarea name="observaciones" value={form.observaciones} onChange={handleChange}
             rows={2} placeholder="Notas adicionales..."
@@ -271,9 +259,7 @@ export default function NuevoCostoPage() {
             ))}
           </div>
 
-          {vencimientos.length > 0 && Math.abs(totalVencimientos - parseFloat(form.monto_total || '0')) > 0.01 && (
-            <p className="text-xs text-amber-600 mt-2">⚠️ La suma de vencimientos ({fmtUsd(totalVencimientos)}) no coincide con el monto total ({fmtUsd(parseFloat(form.monto_total || '0'))})</p>
-          )}
+
         </div>
 
         {error && (
