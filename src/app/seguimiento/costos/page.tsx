@@ -45,6 +45,7 @@ type Distribucion = {
 const TIPO_LABELS: Record<string, string> = {
   arrendamiento: 'Arrendamiento',
   seguro: 'Seguro',
+  indemnizacion_seguro: 'Indemnización seguro',
   asesoramiento: 'Asesoramiento',
   impuesto: 'Impuesto',
   costo_oportunidad: 'Costo de oportunidad',
@@ -54,6 +55,7 @@ const TIPO_LABELS: Record<string, string> = {
 const TIPO_COLORS: Record<string, string> = {
   arrendamiento: 'bg-blue-100 text-blue-800',
   seguro: 'bg-purple-100 text-purple-800',
+  indemnizacion_seguro: 'bg-emerald-100 text-emerald-800',
   asesoramiento: 'bg-lime-100 text-lime-800',
   impuesto: 'bg-red-100 text-red-800',
   costo_oportunidad: 'bg-amber-100 text-amber-800',

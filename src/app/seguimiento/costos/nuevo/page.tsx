@@ -10,6 +10,7 @@ type Campana = { id: number; nombre: string }
 const TIPOS = [
   { value: 'arrendamiento', label: 'Arrendamiento' },
   { value: 'seguro', label: 'Seguro' },
+  { value: 'indemnizacion_seguro', label: 'Indemnización seguro' },
   { value: 'asesoramiento', label: 'Asesoramiento' },
   { value: 'impuesto', label: 'Impuesto' },
   { value: 'costo_oportunidad', label: 'Costo de oportunidad' },
