@@ -242,11 +242,12 @@ export default function CostosPage() {
               </thead>
               <tbody>
                 {costosFiltrados.map(c => {
-                  const montosPorMes: Record<number, { monto: number; pagado: boolean; id: number; es_estimado: boolean }[]> = {}
+                  const montosPorMes: Record<number, { monto: number; pagado: boolean; id: number; es_estimado: boolean; anio: number }[]> = {}
                   c.vencimientos.forEach(v => {
                     const idx = getMesFiscalIdx(v.fecha_vencimiento)
                     if (!montosPorMes[idx]) montosPorMes[idx] = []
-                    montosPorMes[idx].push({ monto: v.monto, pagado: v.pagado, id: v.id, es_estimado: v.es_estimado })
+                    const anio = new Date(v.fecha_vencimiento + 'T00:00:00').getFullYear()
+                    montosPorMes[idx].push({ monto: v.monto, pagado: v.pagado, id: v.id, es_estimado: v.es_estimado, anio })
                   })
                   return (
                     <tr key={c.id} className="border-b border-campo-50 hover:bg-campo-50/50">
@@ -273,6 +274,7 @@ export default function CostosPage() {
                               className={`px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${colorClass}`}
                               title={todosPagados ? 'Pagado' : esEstimado ? 'Estimado — click para marcar pagado' : 'Pendiente — click para marcar pagado'}>
                               {Math.round(total).toLocaleString('es-AR')}
+                              {vencs[0].anio && <span className="block text-xs opacity-60">{String(vencs[0].anio).slice(2)}</span>}
                             </button>
                           </td>
                         )
