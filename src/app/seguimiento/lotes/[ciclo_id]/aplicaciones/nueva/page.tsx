@@ -74,6 +74,7 @@ export default function NuevaAplicacionPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stockWarnings, setStockWarnings] = useState<string[]>([])
 
   const [catalogo, setCatalogo] = useState<ProductoCatalogo[]>([])
   const [precios, setPrecios] = useState<PrecioInsumo[]>([])
@@ -104,11 +105,8 @@ export default function NuevaAplicacionPage() {
 
     setCiclo(cicloData ?? null)
     setTarifarioServicios(servicios ?? [])
-
-    // Guardar todos los precios históricos para buscar por fecha
     setPrecios(preciosData ?? [])
 
-    // Para el dropdown: precio más reciente de cualquier fuente (compra primero, luego tarifario)
     const ultimoPrecioMap: Record<string, { precio: number; fuente: string }> = {}
     ;(preciosData ?? []).forEach((p: any) => {
       const nombre = p.producto?.trim().toLowerCase()
@@ -117,7 +115,6 @@ export default function NuevaAplicacionPage() {
       if (!existing) {
         ultimoPrecioMap[nombre] = { precio: p.precio_usd, fuente: p.fuente }
       } else if (p.fuente === 'compra' && existing.fuente === 'tarifario') {
-        // Priorizar compra sobre tarifario
         ultimoPrecioMap[nombre] = { precio: p.precio_usd, fuente: p.fuente }
       }
     })
@@ -148,7 +145,6 @@ export default function NuevaAplicacionPage() {
       .filter(p => p.producto?.trim().toLowerCase() === nombreNorm)
       .filter(p => !fecha || p.fecha_vigencia <= fecha)
       .sort((a, b) => {
-        // Ordenar por fecha desc, luego compra > tarifario
         if (b.fecha_vigencia !== a.fecha_vigencia) return b.fecha_vigencia.localeCompare(a.fecha_vigencia)
         return a.fuente === 'compra' ? -1 : 1
       })
@@ -176,7 +172,6 @@ export default function NuevaAplicacionPage() {
       if (costoServicio) {
         setForm(f => ({ ...f, [name]: value, costo_servicio_usd_ha: costoServicio.toString() }))
       }
-      // Recalcular precios de productos ya cargados según la nueva fecha
       setProductos(ps => ps.map(p => {
         if (!p.producto) return p
         const precio = getPrecioVigenteParaFecha(p.producto, value)
@@ -196,7 +191,6 @@ export default function NuevaAplicacionPage() {
       if (field === 'producto' && value) {
         const prod = catalogo.find(c => c.nombre === value)
         if (prod) {
-          // Buscar precio vigente a la fecha de aplicación
           const precio = getPrecioVigenteParaFecha(value, form.fecha)
           return {
             ...updated,
@@ -207,6 +201,8 @@ export default function NuevaAplicacionPage() {
       }
       return updated
     }))
+    // Limpiar warnings al cambiar productos
+    setStockWarnings([])
   }
 
   function agregarProducto() {
@@ -220,6 +216,8 @@ export default function NuevaAplicacionPage() {
 
   async function handleSubmit() {
     setError(null)
+    setStockWarnings([])
+
     if (!form.tipo || !form.superficie_ha) {
       setError('Tipo de aplicación y superficie son obligatorios.')
       return
@@ -229,8 +227,44 @@ export default function NuevaAplicacionPage() {
       setError('Agregá al menos un producto con nombre, dosis y costo.')
       return
     }
+
     setSaving(true)
 
+    // ── VALIDACIÓN DE STOCK ──────────────────────────────────────────
+    const errores: string[] = []
+
+    for (const p of productosValidos) {
+      const prodCatalogo = catalogo.find(c => c.nombre === p.producto)
+
+      if (!prodCatalogo) {
+        errores.push(`"${p.producto}" no está en el catálogo de agroquímicos. Cargalo primero en Agroquímicos → Productos.`)
+        continue
+      }
+
+      // Verificar stock actual
+      const { data: stockData } = await supabase
+        .from('vw_stock_agroquimicos')
+        .select('stock_actual')
+        .eq('producto_id', prodCatalogo.id)
+        .single()
+
+      const stockActual = Number(stockData?.stock_actual ?? 0)
+      const cantidadNecesaria = Number(p.dosis_ha) * Number(form.superficie_ha)
+
+      if (stockActual < cantidadNecesaria) {
+        errores.push(
+          `Stock insuficiente de "${p.producto}": necesitás ${cantidadNecesaria.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}, disponible: ${stockActual.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}.`
+        )
+      }
+    }
+
+    if (errores.length > 0) {
+      setStockWarnings(errores)
+      setSaving(false)
+      return
+    }
+
+    // ── GUARDAR APLICACIÓN ───────────────────────────────────────────
     const { data: existing } = await supabase
       .from('sa_aplicaciones').select('numero').eq('ciclo_id', Number(ciclo_id)).eq('tipo', form.tipo)
       .order('numero', { ascending: false }).limit(1)
@@ -263,8 +297,37 @@ export default function NuevaAplicacionPage() {
     }))
 
     const { error: prodErr } = await supabase.from('sa_aplicacion_productos').insert(productosInsert)
+    if (prodErr) {
+      setSaving(false)
+      setError(`Error al guardar productos: ${prodErr.message}`)
+      return
+    }
+
+    // ── REGISTRAR EGRESOS EN AGROQUÍMICOS ────────────────────────────
+    const movimientos = productosValidos.map(p => {
+      const prodCatalogo = catalogo.find(c => c.nombre === p.producto)
+      return {
+        producto_id: prodCatalogo!.id,
+        tipo: 'aplicacion',
+        fecha: form.fecha || new Date().toISOString().split('T')[0],
+        cantidad: Number(p.dosis_ha) * Number(form.superficie_ha),
+        lote: ciclo?.lote ?? null,
+        cultivo: ciclo?.cultivo ?? null,
+        campaña: ciclo?.campana ?? null,
+        ciclo_id: Number(ciclo_id),
+        precio_unitario: Number(p.costo_unitario),
+        observaciones: `Aplicación ${TIPOS_APLICACION.find(t => t.value === form.tipo)?.label ?? form.tipo} — ${ciclo?.lote} ${ciclo?.campana}`,
+      }
+    })
+
+    const { error: movErr } = await supabase.from('agroquimicos_movimientos').insert(movimientos)
+    if (movErr) {
+      setSaving(false)
+      setError(`Error al registrar egreso en stock: ${movErr.message}`)
+      return
+    }
+
     setSaving(false)
-    if (prodErr) { setError(`Error al guardar productos: ${prodErr.message}`); return }
     router.push(`/seguimiento/lotes/${ciclo_id}`)
   }
 
@@ -413,12 +476,23 @@ export default function NuevaAplicacionPage() {
           )}
         </div>
 
+        {/* Errores de stock */}
+        {stockWarnings.length > 0 && (
+          <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 space-y-1">
+            <div className="text-sm font-semibold text-red-700 mb-1">No se puede guardar la aplicación:</div>
+            {stockWarnings.map((w, i) => (
+              <div key={i} className="text-sm text-red-600">• {w}</div>
+            ))}
+            <div className="text-xs text-red-400 mt-2">Cargá el stock faltante en Agroquímicos → Movimientos antes de continuar.</div>
+          </div>
+        )}
+
         {error && <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         <div className="flex gap-3 pt-2">
           <button onClick={handleSubmit} disabled={saving}
             className="flex-1 bg-lime-600 hover:bg-lime-700 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors">
-            {saving ? 'Guardando...' : 'Guardar aplicación'}
+            {saving ? 'Verificando stock...' : 'Guardar aplicación'}
           </button>
           <Link href={`/seguimiento/lotes/${ciclo_id}`}
             className="px-4 py-2.5 text-sm font-medium text-campo-600 hover:text-campo-900 hover:bg-campo-100 rounded-lg transition-colors">
@@ -470,7 +544,7 @@ function ProductoSelector({ tipo, value, catalogo, onChange }: {
             </button>
           ))}
           {productosFiltrados.length === 0 && (
-            <div className="px-3 py-2 text-sm text-campo-400">Sin resultados — ingresalo manualmente</div>
+            <div className="px-3 py-2 text-sm text-campo-400">Sin resultados</div>
           )}
         </div>
       )}
