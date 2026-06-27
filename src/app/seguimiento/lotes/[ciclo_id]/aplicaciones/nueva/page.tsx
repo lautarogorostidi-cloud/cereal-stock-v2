@@ -230,39 +230,8 @@ export default function NuevaAplicacionPage() {
 
     setSaving(true)
 
-    // ── VALIDACIÓN DE STOCK ──────────────────────────────────────────
-    const errores: string[] = []
-
-    for (const p of productosValidos) {
-      const prodCatalogo = catalogo.find(c => c.nombre === p.producto)
-
-      if (!prodCatalogo) {
-        errores.push(`"${p.producto}" no está en el catálogo de agroquímicos. Cargalo primero en Agroquímicos → Productos.`)
-        continue
-      }
-
-      // Verificar stock actual
-      const { data: stockData } = await supabase
-        .from('vw_stock_agroquimicos')
-        .select('stock_actual')
-        .eq('producto_id', prodCatalogo.id)
-        .single()
-
-      const stockActual = Number(stockData?.stock_actual ?? 0)
-      const cantidadNecesaria = Number(p.dosis_ha) * Number(form.superficie_ha)
-
-      if (stockActual < cantidadNecesaria) {
-        errores.push(
-          `Stock insuficiente de "${p.producto}": necesitás ${cantidadNecesaria.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}, disponible: ${stockActual.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}.`
-        )
-      }
-    }
-
-    if (errores.length > 0) {
-      setStockWarnings(errores)
-      setSaving(false)
-      return
-    }
+    // ── VINCULACIÓN DE STOCK DESACTIVADA TEMPORALMENTE ───────────────
+    // (carga de pulverizaciones históricas — no valida stock ni registra egresos)
 
     // ── GUARDAR APLICACIÓN ───────────────────────────────────────────
     const { data: existing } = await supabase
@@ -303,29 +272,8 @@ export default function NuevaAplicacionPage() {
       return
     }
 
-    // ── REGISTRAR EGRESOS EN AGROQUÍMICOS ────────────────────────────
-    const movimientos = productosValidos.map(p => {
-      const prodCatalogo = catalogo.find(c => c.nombre === p.producto)
-      return {
-        producto_id: prodCatalogo!.id,
-        tipo: 'aplicacion',
-        fecha: form.fecha || new Date().toISOString().split('T')[0],
-        cantidad: Number(p.dosis_ha) * Number(form.superficie_ha),
-        lote: ciclo?.lote ?? null,
-        cultivo: ciclo?.cultivo ?? null,
-        campaña: ciclo?.campana ?? null,
-        ciclo_id: Number(ciclo_id),
-        precio_unitario: Number(p.costo_unitario),
-        observaciones: `Aplicación ${TIPOS_APLICACION.find(t => t.value === form.tipo)?.label ?? form.tipo} — ${ciclo?.lote} ${ciclo?.campana}`,
-      }
-    })
-
-    const { error: movErr } = await supabase.from('agroquimicos_movimientos').insert(movimientos)
-    if (movErr) {
-      setSaving(false)
-      setError(`Error al registrar egreso en stock: ${movErr.message}`)
-      return
-    }
+    // ── REGISTRO DE EGRESOS DESACTIVADO TEMPORALMENTE ────────────────
+    // (no descuenta del stock — para carga de pulverizaciones históricas)
 
     setSaving(false)
     router.push(`/seguimiento/lotes/${ciclo_id}`)
@@ -492,7 +440,7 @@ export default function NuevaAplicacionPage() {
         <div className="flex gap-3 pt-2">
           <button onClick={handleSubmit} disabled={saving}
             className="flex-1 bg-lime-600 hover:bg-lime-700 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors">
-            {saving ? 'Verificando stock...' : 'Guardar aplicación'}
+            {saving ? 'Guardando...' : 'Guardar aplicación'}
           </button>
           <Link href={`/seguimiento/lotes/${ciclo_id}`}
             className="px-4 py-2.5 text-sm font-medium text-campo-600 hover:text-campo-900 hover:bg-campo-100 rounded-lg transition-colors">
