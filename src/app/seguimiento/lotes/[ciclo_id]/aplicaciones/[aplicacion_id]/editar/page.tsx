@@ -7,10 +7,28 @@ import Link from 'next/link'
 
 type Producto = {
   id?: number
+  tipo_insumo: string
   producto: string
   unidad: string
   dosis_ha: string
   costo_unitario: string
+}
+
+type ProductoCatalogo = {
+  id: number
+  nombre: string
+  tipo: string
+  unidad: string
+  ultimo_precio: number | null
+  precio_tarifario: number | null
+}
+
+type PrecioInsumo = {
+  producto: string
+  precio_usd: number
+  fecha_vigencia: string
+  fuente: string
+  producto_id: number | null
 }
 
 const TIPOS_APLICACION = [
@@ -25,17 +43,33 @@ const TIPOS_APLICACION = [
   { value: 'fungicida', label: 'Fungicida' },
 ]
 
-const PRODUCTO_VACIO: Producto = { producto: '', unidad: 'L', dosis_ha: '', costo_unitario: '' }
+const TIPOS_INSUMO = ['herbicida', 'fungicida', 'insecticida', 'coadyuvante', 'curasemilla', 'acaricida', 'otro']
+
+const TIPO_LABELS: Record<string, string> = {
+  herbicida: 'Herbicida',
+  fungicida: 'Fungicida',
+  insecticida: 'Insecticida',
+  coadyuvante: 'Coadyuvante',
+  curasemilla: 'Curasemilla',
+  acaricida: 'Acaricida',
+  otro: 'Otro',
+}
+
+const PRODUCTO_VACIO: Producto = { tipo_insumo: '', producto: '', unidad: 'L', dosis_ha: '', costo_unitario: '' }
 
 export default function EditarAplicacionPage() {
   const { ciclo_id, aplicacion_id } = useParams<{ ciclo_id: string; aplicacion_id: string }>()
   const router = useRouter()
   const supabase = createClient()
 
-  const [cicloInfo, setCicloInfo] = useState<{ lote: string; campo: string; campana: string } | null>(null)
+  const [cicloInfo, setCicloInfo] = useState<{ lote: string; campo: string; campana: string; cultivo: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [catalogo, setCatalogo] = useState<ProductoCatalogo[]>([])
+  const [precios, setPrecios] = useState<PrecioInsumo[]>([])
+  const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
 
   const [form, setForm] = useState({
     tipo: '',
@@ -54,13 +88,45 @@ export default function EditarAplicacionPage() {
   async function cargar() {
     setLoading(true)
 
-    const [{ data: cicloData }, { data: aplData }, { data: prodsData }] = await Promise.all([
-      supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana').eq('ciclo_id', Number(ciclo_id)).single(),
+    const [{ data: cicloData }, { data: aplData }, { data: prodsData }, { data: productosData }, { data: preciosData }, { data: servicios }] = await Promise.all([
+      supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo').eq('ciclo_id', Number(ciclo_id)).single(),
       supabase.from('sa_aplicaciones').select('*').eq('id', Number(aplicacion_id)).single(),
       supabase.from('sa_aplicacion_productos').select('*').eq('aplicacion_id', Number(aplicacion_id)),
+      supabase.from('agroquimicos_productos').select('id, nombre, tipo, unidad').eq('activo', true).order('nombre'),
+      supabase.from('vw_precios_insumos').select('producto, precio_usd, fecha_vigencia, fuente, producto_id').order('fecha_vigencia', { ascending: false }),
+      supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
     ])
 
     setCicloInfo(cicloData ?? null)
+    setTarifarioServicios(servicios ?? [])
+    setPrecios(preciosData ?? [])
+
+    // Armar catálogo con precios
+    const ultimoPrecioMap: Record<string, { precio: number; fuente: string }> = {}
+    ;(preciosData ?? []).forEach((p: any) => {
+      const nombre = p.producto?.trim().toLowerCase()
+      if (!nombre) return
+      const existing = ultimoPrecioMap[nombre]
+      if (!existing) {
+        ultimoPrecioMap[nombre] = { precio: p.precio_usd, fuente: p.fuente }
+      } else if (p.fuente === 'compra' && existing.fuente === 'tarifario') {
+        ultimoPrecioMap[nombre] = { precio: p.precio_usd, fuente: p.fuente }
+      }
+    })
+
+    const catalogoConPrecio: ProductoCatalogo[] = (productosData ?? []).map((p: any) => {
+      const nombreNorm = p.nombre?.trim().toLowerCase()
+      const precioInfo = ultimoPrecioMap[nombreNorm]
+      return {
+        id: p.id,
+        nombre: p.nombre,
+        tipo: p.tipo,
+        unidad: p.unidad,
+        ultimo_precio: precioInfo?.fuente === 'compra' ? precioInfo.precio : null,
+        precio_tarifario: precioInfo?.fuente === 'tarifario' ? precioInfo.precio : null,
+      }
+    })
+    setCatalogo(catalogoConPrecio)
 
     if (aplData) {
       setForm({
@@ -72,24 +138,83 @@ export default function EditarAplicacionPage() {
     }
 
     if (prodsData && prodsData.length > 0) {
-      setProductos(prodsData.map((p: any) => ({
-        id: p.id,
-        producto: p.producto ?? '',
-        unidad: p.unidad ?? 'L',
-        dosis_ha: p.dosis_ha?.toString() ?? '',
-        costo_unitario: p.costo_unitario?.toString() ?? '',
-      })))
+      // Para cada producto, buscar su tipo en el catálogo
+      setProductos(prodsData.map((p: any) => {
+        const enCatalogo = catalogoConPrecio.find(c => c.nombre.toLowerCase().trim() === (p.producto ?? '').toLowerCase().trim())
+        return {
+          id: p.id,
+          tipo_insumo: enCatalogo?.tipo ?? '',
+          producto: p.producto ?? '',
+          unidad: p.unidad ?? 'L',
+          dosis_ha: p.dosis_ha?.toString() ?? '',
+          costo_unitario: p.costo_unitario?.toString() ?? '',
+        }
+      }))
     }
 
     setLoading(false)
   }
 
+  function getPrecioVigenteParaFecha(nombreProducto: string, fecha: string): number | null {
+    if (!nombreProducto) return null
+    const nombreNorm = nombreProducto.trim().toLowerCase()
+    const candidatos = precios
+      .filter(p => p.producto?.trim().toLowerCase() === nombreNorm)
+      .filter(p => !fecha || p.fecha_vigencia <= fecha)
+      .sort((a, b) => {
+        if (b.fecha_vigencia !== a.fecha_vigencia) return b.fecha_vigencia.localeCompare(a.fecha_vigencia)
+        return a.fuente === 'compra' ? -1 : 1
+      })
+    return candidatos.length > 0 ? candidatos[0].precio_usd : null
+  }
+
+  function getCostoServicioVigente(fecha: string): number | null {
+    if (!fecha || !cicloInfo) return null
+    const registros = tarifarioServicios
+      .filter(s =>
+        s.tipo_servicio?.toLowerCase().includes('pulveriz') &&
+        (!s.cultivo || s.cultivo === cicloInfo.cultivo) &&
+        s.vigencia_desde <= fecha
+      )
+      .sort((a: any, b: any) => b.vigencia_desde.localeCompare(a.vigencia_desde))
+    if (registros.length === 0) return null
+    return registros[0].costo_usd_ha
+  }
+
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    setForm(f => ({ ...f, [name]: value }))
+    if (name === 'fecha' && value) {
+      // Recalcular precios de productos según la nueva fecha
+      setProductos(ps => ps.map(p => {
+        if (!p.producto) return p
+        const precio = getPrecioVigenteParaFecha(p.producto, value)
+        if (precio) return { ...p, costo_unitario: precio.toString() }
+        return p
+      }))
+    }
   }
 
   function handleProductoChange(index: number, field: keyof Producto, value: string) {
-    setProductos(ps => ps.map((p, i) => i === index ? { ...p, [field]: value } : p))
+    setProductos(ps => ps.map((p, i) => {
+      if (i !== index) return p
+      const updated = { ...p, [field]: value }
+      if (field === 'tipo_insumo') {
+        return { ...updated, producto: '', costo_unitario: '' }
+      }
+      if (field === 'producto' && value) {
+        const prod = catalogo.find(c => c.nombre === value)
+        if (prod) {
+          const precio = getPrecioVigenteParaFecha(value, form.fecha)
+          return {
+            ...updated,
+            unidad: prod.unidad ?? 'L',
+            costo_unitario: precio?.toString() ?? prod.ultimo_precio?.toString() ?? prod.precio_tarifario?.toString() ?? '',
+          }
+        }
+      }
+      return updated
+    }))
   }
 
   function agregarProducto() {
@@ -117,7 +242,6 @@ export default function EditarAplicacionPage() {
 
     setSaving(true)
 
-    // Actualizar aplicación
     const { error: aplErr } = await supabase
       .from('sa_aplicaciones')
       .update({
@@ -134,7 +258,6 @@ export default function EditarAplicacionPage() {
       return
     }
 
-    // Borrar productos existentes y reinsertar
     await supabase.from('sa_aplicacion_productos').delete().eq('aplicacion_id', Number(aplicacion_id))
 
     const productosInsert = productosValidos.map(p => ({
@@ -154,7 +277,7 @@ export default function EditarAplicacionPage() {
       return
     }
 
-    window.close()
+    router.push(`/seguimiento/lotes/${ciclo_id}`)
   }
 
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
@@ -181,128 +304,114 @@ export default function EditarAplicacionPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-campo-700 mb-1">Tipo de aplicación *</label>
-            <select
-              name="tipo"
-              value={form.tipo}
-              onChange={handleFormChange}
-              className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-            >
+            <select name="tipo" value={form.tipo} onChange={handleFormChange}
+              className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
               <option value="">Seleccionar tipo...</option>
-              {TIPOS_APLICACION.map(t => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
+              {TIPOS_APLICACION.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-campo-700 mb-1">Fecha</label>
-            <input
-              type="date"
-              name="fecha"
-              value={form.fecha}
-              onChange={handleFormChange}
-              className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-            />
+            <input type="date" name="fecha" value={form.fecha} onChange={handleFormChange}
+              className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-campo-700 mb-1">Superficie (ha) *</label>
-            <input
-              type="number"
-              name="superficie_ha"
-              value={form.superficie_ha}
-              onChange={handleFormChange}
-              step="0.01"
-              min="0"
-              className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-            />
+            <input type="number" name="superficie_ha" value={form.superficie_ha} onChange={handleFormChange}
+              step="0.01" min="0"
+              className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-campo-700 mb-1">Costo servicio (USD/ha)</label>
-            <input
-              type="number"
-              name="costo_servicio_usd_ha"
-              value={form.costo_servicio_usd_ha}
-              onChange={handleFormChange}
-              step="0.01"
-              min="0"
-              className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-            />
+            <label className="block text-sm font-medium text-campo-700 mb-1">
+              Costo servicio (USD/ha)
+              {form.fecha && getCostoServicioVigente(form.fecha) && (
+                <span className="ml-2 text-xs text-lime-600 font-normal">✓ del tarifario</span>
+              )}
+            </label>
+            <input type="number" name="costo_servicio_usd_ha" value={form.costo_servicio_usd_ha} onChange={handleFormChange}
+              step="0.01" min="0"
+              className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
           </div>
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-medium text-campo-700">Productos aplicados *</label>
-            <button
-              onClick={agregarProducto}
-              className="text-xs text-lime-700 hover:text-lime-600 font-medium"
-            >
+            <button onClick={agregarProducto} className="text-xs text-lime-700 hover:text-lime-600 font-medium">
               + Agregar producto
             </button>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {productos.map((p, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-end">
-                <div className="col-span-4">
-                  {i === 0 && <div className="text-xs text-campo-500 mb-1">Producto</div>}
-                  <input
-                    type="text"
-                    value={p.producto}
-                    onChange={e => handleProductoChange(i, 'producto', e.target.value)}
-                    placeholder="Ej: Glifosato LT Platinum"
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-                  />
+              <div key={i} className="space-y-2 p-3 rounded-lg bg-campo-50/50 border border-campo-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-campo-600">Producto {i + 1}</span>
+                  <button onClick={() => quitarProducto(i)} disabled={productos.length <= 1}
+                    className="text-campo-300 hover:text-red-400 disabled:opacity-0 text-lg leading-none">×</button>
                 </div>
-                <div className="col-span-2">
-                  {i === 0 && <div className="text-xs text-campo-500 mb-1">Unidad</div>}
-                  <select
-                    value={p.unidad}
-                    onChange={e => handleProductoChange(i, 'unidad', e.target.value)}
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-                  >
-                    <option value="L">L</option>
-                    <option value="kg">kg</option>
-                    <option value="cc">cc</option>
-                    <option value="g">g</option>
-                  </select>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-xs text-campo-500 mb-1">Tipo</div>
+                    <select value={p.tipo_insumo} onChange={e => handleProductoChange(i, 'tipo_insumo', e.target.value)}
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
+                      <option value="">Seleccionar tipo...</option>
+                      {TIPOS_INSUMO.map(t => <option key={t} value={t}>{TIPO_LABELS[t]}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <div className="text-xs text-campo-500 mb-1">
+                      Producto
+                      {p.costo_unitario && p.producto && (
+                        <span className="ml-1 text-lime-600">✓ precio cargado</span>
+                      )}
+                    </div>
+                    <ProductoSelector
+                      tipo={p.tipo_insumo}
+                      value={p.producto}
+                      catalogo={catalogo}
+                      onChange={val => handleProductoChange(i, 'producto', val)}
+                    />
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  {i === 0 && <div className="text-xs text-campo-500 mb-1">Dosis/ha</div>}
-                  <input
-                    type="number"
-                    value={p.dosis_ha}
-                    onChange={e => handleProductoChange(i, 'dosis_ha', e.target.value)}
-                    step="0.001"
-                    min="0"
-                    placeholder="0.00"
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-                  />
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <div className="text-xs text-campo-500 mb-1">Unidad</div>
+                    <select value={p.unidad} onChange={e => handleProductoChange(i, 'unidad', e.target.value)}
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
+                      <option value="L">L</option>
+                      <option value="kg">kg</option>
+                      <option value="cc">cc</option>
+                      <option value="g">g</option>
+                      <option value="caja">caja</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="text-xs text-campo-500 mb-1">Dosis/ha</div>
+                    <input type="number" value={p.dosis_ha} onChange={e => handleProductoChange(i, 'dosis_ha', e.target.value)}
+                      step="0.001" min="0" placeholder="0.00"
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-campo-500 mb-1">Costo USD/{p.unidad}</div>
+                    <input type="number" value={p.costo_unitario} onChange={e => handleProductoChange(i, 'costo_unitario', e.target.value)}
+                      step="0.001" min="0" placeholder="0.00"
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                  </div>
                 </div>
-                <div className="col-span-3">
-                  {i === 0 && <div className="text-xs text-campo-500 mb-1">Costo USD/{p.unidad}</div>}
-                  <input
-                    type="number"
-                    value={p.costo_unitario}
-                    onChange={e => handleProductoChange(i, 'costo_unitario', e.target.value)}
-                    step="0.001"
-                    min="0"
-                    placeholder="0.00"
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
-                  />
-                </div>
-                <div className="col-span-1 flex justify-center">
-                  {i === 0 && <div className="text-xs text-campo-500 mb-1 invisible">x</div>}
-                  <button
-                    onClick={() => quitarProducto(i)}
-                    disabled={productos.length <= 1}
-                    className="text-campo-300 hover:text-red-400 disabled:opacity-0 transition-colors text-lg leading-none pb-2"
-                  >
-                    ×
-                  </button>
-                </div>
+
+                {p.dosis_ha && p.costo_unitario && form.superficie_ha && (
+                  <div className="text-xs text-campo-400">
+                    Subtotal: <span className="font-semibold text-campo-700">
+                      USD {(Number(p.dosis_ha) * Number(form.superficie_ha) * Number(p.costo_unitario)).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -327,22 +436,65 @@ export default function EditarAplicacionPage() {
         )}
 
         <div className="flex gap-3 pt-2">
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="flex-1 bg-lime-600 hover:bg-lime-700 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors"
-          >
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 bg-lime-600 hover:bg-lime-700 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors">
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
-          <button
-            onClick={() => window.close()}
-            className="px-4 py-2.5 text-sm font-medium text-campo-600 hover:text-campo-900 hover:bg-campo-100 rounded-lg transition-colors"
-          >
+          <Link href={`/seguimiento/lotes/${ciclo_id}`}
+            className="px-4 py-2.5 text-sm font-medium text-campo-600 hover:text-campo-900 hover:bg-campo-100 rounded-lg transition-colors">
             Cancelar
-          </button>
+          </Link>
         </div>
 
       </div>
+    </div>
+  )
+}
+
+function ProductoSelector({ tipo, value, catalogo, onChange }: {
+  tipo: string
+  value: string
+  catalogo: ProductoCatalogo[]
+  onChange: (val: string) => void
+}) {
+  const [busqueda, setBusqueda] = useState('')
+  const [abierto, setAbierto] = useState(false)
+
+  const productosFiltrados = catalogo
+    .filter(p => !tipo || p.tipo === tipo)
+    .filter(p => !busqueda || p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre))
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={value || busqueda}
+        onChange={e => { setBusqueda(e.target.value); setAbierto(true); if (!e.target.value) onChange('') }}
+        onFocus={() => { setBusqueda(''); setAbierto(true) }}
+        onBlur={() => setTimeout(() => setAbierto(false), 200)}
+        placeholder="Buscar producto..."
+        className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
+      />
+      {abierto && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-campo-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {productosFiltrados.map(p => (
+            <button key={p.id} onMouseDown={() => { onChange(p.nombre); setBusqueda(''); setAbierto(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800 flex justify-between items-center">
+              <span>{p.nombre}</span>
+              {(p.ultimo_precio ?? p.precio_tarifario) && (
+                <span className="text-xs text-campo-400 ml-2">
+                  USD {(p.ultimo_precio ?? p.precio_tarifario)}/{p.unidad}
+                  {!p.ultimo_precio && p.precio_tarifario && <span className="text-amber-500 ml-1">(tarifario)</span>}
+                </span>
+              )}
+            </button>
+          ))}
+          {productosFiltrados.length === 0 && (
+            <div className="px-3 py-2 text-sm text-campo-400">Sin resultados</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
