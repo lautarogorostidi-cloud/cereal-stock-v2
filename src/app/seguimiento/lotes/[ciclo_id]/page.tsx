@@ -90,6 +90,12 @@ type CostoFijo = {
   costo_total_usd: number
 }
 
+type DistribucionCosto = {
+  tipo: string
+  costo_ha: number
+  costo_ciclo: number
+}
+
 type Acondicionamiento = {
   id: number
   fecha: string | null
@@ -134,7 +140,9 @@ const TIPO_COLORS: Record<string, string> = {
 const TIPO_FIJO_LABELS: Record<string, string> = {
   arrendamiento: 'Arrendamiento',
   asesor: 'Asesoramiento',
+  asesoramiento: 'Asesoramiento',
   seguro: 'Seguro',
+  indemnizacion_seguro: 'Indemnización seguro',
 }
 
 const TIPOS_ORDEN = [
@@ -180,6 +188,7 @@ export default function FichaCicloPage() {
   const [fertilizaciones, setFertilizaciones] = useState<Fertilizacion[]>([])
   const [cosecha, setCosecha] = useState<Cosecha | null>(null)
   const [costosFijos, setCostosFijos] = useState<CostoFijo[]>([])
+  const [distribucion, setDistribucion] = useState<DistribucionCosto[]>([])
   const [acondicionamiento, setAcondicionamiento] = useState<Acondicionamiento[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -208,6 +217,7 @@ export default function FichaCicloPage() {
       { data: cosechaData },
       { data: fijosData },
       { data: aconData },
+      { data: distData },
     ] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('*').eq('ciclo_id', id).single(),
       supabase.from('sa_aplicaciones').select('*').eq('ciclo_id', id).order('fecha').order('tipo'),
@@ -216,6 +226,7 @@ export default function FichaCicloPage() {
       supabase.from('sa_cosechas').select('*').eq('ciclo_id', id).maybeSingle(),
       supabase.from('sa_costos_fijos').select('*').eq('ciclo_id', id).order('tipo'),
       supabase.from('sa_acondicionamiento').select('*').eq('ciclo_id', id).order('fecha'),
+      supabase.from('vw_distribucion_costos_fijos').select('tipo, costo_ha, costo_ciclo').eq('ciclo_id', id),
     ])
 
     const aplIds = (apls ?? []).map((a: any) => a.id as number)
@@ -232,6 +243,7 @@ export default function FichaCicloPage() {
     setFertilizaciones(fertData ?? [])
     setCosecha(cosechaData ?? null)
     setCostosFijos(fijosData ?? [])
+    setDistribucion(distData ?? [])
     setAcondicionamiento(aconData ?? [])
     setLoading(false)
   }
@@ -239,6 +251,14 @@ export default function FichaCicloPage() {
   async function handleBorrarAcondicionamiento(id: number) {
     if (!confirm('¿Borrar este registro de acondicionamiento?')) return
     await supabase.from('sa_acondicionamiento').delete().eq('id', id)
+    cargar()
+  }
+
+  async function handleBorrarCostoFijo(id: number) {
+    if (!confirm('¿Borrar este costo fijo?')) return
+    setDeletingId(id)
+    await supabase.from('sa_costos_fijos').delete().eq('id', id)
+    setDeletingId(null)
     cargar()
   }
 
@@ -284,9 +304,9 @@ export default function FichaCicloPage() {
   const totalFijos = Number(ciclo.costo_fijos_usd ?? 0)
   const costoTotal = costoInsumos + costoServicios + totalFijos
 
-  const arrendamiento = costosFijos.find(f => f.tipo === 'arrendamiento')
-  const asesor = costosFijos.find(f => f.tipo === 'asesor')
-  const seguro = costosFijos.find(f => f.tipo === 'seguro')
+  const arrendamientoKpi = distribucion.find(d => d.tipo === 'arrendamiento')
+  const asesorKpi = distribucion.find(d => d.tipo === 'asesoramiento')
+  const seguroKpi = costosFijos.find(f => f.tipo === 'seguro')
 
   const aplPorTipo = aplicaciones.reduce((acc: Record<string, Aplicacion[]>, a) => {
     if (!acc[a.tipo]) acc[a.tipo] = []
@@ -332,15 +352,15 @@ export default function FichaCicloPage() {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <div className="text-xs text-campo-500 mb-0.5">Arrendamiento</div>
-              <div className="text-lg font-bold text-campo-900">{fmtUsd(arrendamiento?.costo_total_usd)}</div>
+              <div className="text-lg font-bold text-campo-900">{fmtUsd(arrendamientoKpi?.costo_ciclo)}</div>
             </div>
             <div>
               <div className="text-xs text-campo-500 mb-0.5">Asesoramiento</div>
-              <div className="text-lg font-bold text-campo-900">{fmtUsd(asesor?.costo_total_usd)}</div>
+              <div className="text-lg font-bold text-campo-900">{fmtUsd(asesorKpi?.costo_ciclo)}</div>
             </div>
             <div>
               <div className="text-xs text-campo-500 mb-0.5">Seguro</div>
-              <div className="text-lg font-bold text-campo-900">{fmtUsd(seguro?.costo_total_usd)}</div>
+              <div className="text-lg font-bold text-campo-900">{fmtUsd(seguroKpi?.costo_total_usd)}</div>
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-campo-100 text-xs text-campo-500">
@@ -568,9 +588,11 @@ export default function FichaCicloPage() {
       </Section>
 
       <Section title="Costos Fijos" action={
-        <Link href={`/seguimiento/lotes/${ciclo_id}/costos-fijos`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</Link>
+        <Link href={`/seguimiento/lotes/${ciclo_id}/costos-fijos`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar seguro</Link>
       }>
-        {costosFijos.length === 0 && totalFijos === 0 ? <Empty msg="Sin costos fijos registrados" /> : (
+        {costosFijos.length === 0 && distribucion.length === 0 && totalFijos === 0
+          ? <Empty msg="Sin costos fijos registrados" />
+          : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -578,19 +600,45 @@ export default function FichaCicloPage() {
                   <th className="text-left px-4 py-2 font-semibold text-campo-700">Tipo</th>
                   <th className="text-right px-4 py-2 font-semibold text-campo-700">USD/ha</th>
                   <th className="text-right px-4 py-2 font-semibold text-campo-700">Total USD</th>
+                  <th className="text-center px-4 py-2 font-semibold text-campo-700">Acciones</th>
                 </tr>
               </thead>
               <tbody>
+                {/* Costos distribuidos del nuevo sistema (arrendamiento, asesoramiento) */}
+                {distribucion.map((d, i) => (
+                  <tr key={`dist-${i}`} className="border-b border-campo-50 hover:bg-campo-50/50">
+                    <td className="px-4 py-2 text-campo-700">
+                      {TIPO_FIJO_LABELS[d.tipo] ?? d.tipo}
+                      <span className="ml-2 text-xs text-campo-400">(distribuido)</span>
+                    </td>
+                    <td className="px-4 py-2 text-right text-campo-700">{fmt(d.costo_ha, 4)}</td>
+                    <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(d.costo_ciclo)}</td>
+                    <td className="px-4 py-2 text-center text-campo-400 text-xs">—</td>
+                  </tr>
+                ))}
+                {/* Costos del sistema viejo (seguro, indemnización) */}
                 {costosFijos.map(f => (
                   <tr key={f.id} className="border-b border-campo-50 hover:bg-campo-50/50">
                     <td className="px-4 py-2 text-campo-700">{TIPO_FIJO_LABELS[f.tipo] ?? f.tipo}</td>
                     <td className="px-4 py-2 text-right text-campo-700">{fmt(f.costo_usd_ha, 2)}</td>
                     <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(f.costo_total_usd)}</td>
+                    <td className="px-4 py-2 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <Link href={`/seguimiento/lotes/${ciclo_id}/costos-fijos`} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                          Editar
+                        </Link>
+                        <button onClick={() => handleBorrarCostoFijo(f.id)} disabled={deletingId === f.id}
+                          className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50">
+                          {deletingId === f.id ? '...' : 'Borrar'}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {totalFijos > 0 && (
                   <tr className="bg-campo-50">
-                    <td colSpan={2} className="px-4 py-2 font-semibold text-campo-700">Total fijos (incl. distribución)</td>
+                    <td colSpan={3} className="px-4 py-2 font-semibold text-campo-700">Total fijos</td>
                     <td className="px-4 py-2 text-right font-bold text-campo-900">{fmtUsd(totalFijos)}</td>
                   </tr>
                 )}
