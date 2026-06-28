@@ -445,12 +445,19 @@ export default function NuevoCostoPage() {
                   ))}
                 </div>
 
-                {seleccionados.length > 0 && montoUsdHa && (
-                  <div className="pt-2 border-t border-campo-200 text-xs text-campo-600">
-                    {seleccionados.length} lote(s) · Total {esIndemnizacion ? 'indemnización' : 'seguro'}:{' '}
-                    <span className={`font-semibold ${esIndemnizacion ? 'text-emerald-700' : 'text-purple-700'}`}>
-                      {esIndemnizacion ? '−' : ''}{fmtUsd(totalPorCiclo)}
-                    </span>
+                {seleccionados.length > 0 && (
+                  <div className="pt-2 border-t border-campo-200 text-xs text-campo-600 space-y-0.5">
+                    <div>
+                      {seleccionados.length} lote(s) · {seleccionados.reduce((acc, c) => acc + (Number(c.ha_aseguradas) || c.sup_sembrada), 0).toLocaleString('es-AR')} ha aseguradas
+                    </div>
+                    {montoUsdHa && (
+                      <div>
+                        Total {esIndemnizacion ? 'indemnización' : 'seguro'}:{' '}
+                        <span className={`font-semibold ${esIndemnizacion ? 'text-emerald-700' : 'text-purple-700'}`}>
+                          {esIndemnizacion ? '−' : ''}{fmtUsd(totalPorCiclo)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
