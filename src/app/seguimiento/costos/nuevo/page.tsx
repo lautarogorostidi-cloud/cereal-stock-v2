@@ -25,6 +25,9 @@ const PERIODOS = [
   { value: 'anual', label: 'Anual', cuotas: 1 },
 ]
 
+// Cultivos agrícolas que pagan asesoramiento
+const CULTIVOS_ASESORAMIENTO = ['Trigo', 'Soja 1', 'Soja 2', 'Maíz Temprano', 'Maíz 1', 'Maíz 2', 'Maíz Tardío', 'Girasol']
+
 type Vencimiento = {
   fecha: string
   monto: string
@@ -49,6 +52,14 @@ export default function NuevoCostoPage() {
     observaciones: '',
   })
 
+  // Campos especiales para asesoramiento
+  const [asesor, setAsesor] = useState({
+    kg_soja_ha: '',
+    precio_soja_usd_ton: '',
+  })
+  const [haSembradas, setHaSembradas] = useState<number | null>(null)
+  const [loadingHa, setLoadingHa] = useState(false)
+
   const [vencimientos, setVencimientos] = useState<Vencimiento[]>([])
 
   useEffect(() => { cargar() }, [])
@@ -65,11 +76,75 @@ export default function NuevoCostoPage() {
     setLoading(false)
   }
 
+  // Cuando es asesoramiento y cambia campo o campaña, calcular ha sembradas agrícolas
+  useEffect(() => {
+    if (form.tipo !== 'asesoramiento' || !form.establecimiento || !form.campana_id) {
+      setHaSembradas(null)
+      return
+    }
+    calcularHaSembradas()
+  }, [form.tipo, form.establecimiento, form.campana_id])
+
+  async function calcularHaSembradas() {
+    setLoadingHa(true)
+    // Traer ciclos de cultivos agrícolas del campo+campaña
+    const { data } = await supabase
+      .from('vw_sa_resumen_ciclo')
+      .select('sup_sembrada, cultivo, campo, campana')
+      .eq('campo', form.establecimiento)
+
+    const campanaNombre = campanas.find(c => c.id.toString() === form.campana_id)?.nombre
+    const total = (data ?? [])
+      .filter((r: any) => r.campana === campanaNombre && CULTIVOS_ASESORAMIENTO.includes(r.cultivo))
+      .reduce((acc: number, r: any) => acc + Number(r.sup_sembrada ?? 0), 0)
+
+    setHaSembradas(total)
+    setLoadingHa(false)
+  }
+
+  // Cálculos derivados del asesoramiento
+  const costoUsdHa = asesor.kg_soja_ha && asesor.precio_soja_usd_ton
+    ? (Number(asesor.kg_soja_ha) * Number(asesor.precio_soja_usd_ton) / 1000)
+    : 0
+  const montoTotalAsesor = costoUsdHa && haSembradas ? costoUsdHa * haSembradas : 0
+
+  // Cuando cambian los valores del asesoramiento, generar el vencimiento automático
+  useEffect(() => {
+    if (form.tipo !== 'asesoramiento') return
+    if (montoTotalAsesor > 0 && form.campana_id) {
+      const campanaNombre = campanas.find(c => c.id.toString() === form.campana_id)?.nombre
+      // Fin de campaña: 31/08 del año mayor (campaña "25-26" → 2026)
+      let anioVenc = new Date().getFullYear()
+      if (campanaNombre && campanaNombre.includes('-')) {
+        const partes = campanaNombre.split('-')
+        anioVenc = 2000 + parseInt(partes[1])
+      }
+      setVencimientos([{
+        fecha: `${anioVenc}-08-31`,
+        monto: montoTotalAsesor.toFixed(2),
+        es_estimado: true,
+      }])
+    }
+  }, [montoTotalAsesor, form.tipo, form.campana_id])
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, value } = e.target
     setForm(f => ({ ...f, [name]: value }))
+    // Si cambia el tipo a algo que no es asesoramiento, limpiar
+    if (name === 'tipo' && value !== 'asesoramiento') {
+      setAsesor({ kg_soja_ha: '', precio_soja_usd_ton: '' })
+      setHaSembradas(null)
+      setVencimientos([])
+    }
+    if (name === 'tipo' && value === 'asesoramiento') {
+      setForm(f => ({ ...f, periodo: 'anual' }))
+      setVencimientos([])
+    }
+  }
 
-
+  function handleAsesorChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const { name, value } = e.target
+    setAsesor(a => ({ ...a, [name]: value }))
   }
 
   function generarVencimientos(periodo: string, montoTotal: number) {
@@ -117,6 +192,13 @@ export default function NuevoCostoPage() {
 
     setSaving(true)
 
+    // Observaciones: para asesoramiento, agregar el detalle del cálculo
+    let obs = form.observaciones || null
+    if (form.tipo === 'asesoramiento' && costoUsdHa > 0) {
+      const detalle = `Asesoramiento ${asesor.kg_soja_ha} kg soja/ha · soja ${asesor.precio_soja_usd_ton} USD/tn = ${costoUsdHa.toFixed(2)} USD/ha × ${haSembradas} ha sembradas`
+      obs = obs ? `${obs} · ${detalle}` : detalle
+    }
+
     const montoTotal = vencimientos.reduce((acc, v) => acc + (parseFloat(v.monto) || 0), 0)
     const { data: costo, error: errCosto } = await supabase
       .from('costos_fijos_campo')
@@ -126,7 +208,7 @@ export default function NuevoCostoPage() {
         tipo: form.tipo,
         periodo: form.periodo,
         monto_total: montoTotal,
-        observaciones: form.observaciones || null,
+        observaciones: obs,
       })
       .select('id')
       .single()
@@ -158,6 +240,7 @@ export default function NuevoCostoPage() {
 
   const fmtUsd = (n: number) => `USD ${Math.round(n).toLocaleString('es-AR')}`
   const totalVencimientos = vencimientos.reduce((acc, v) => acc + (parseFloat(v.monto) || 0), 0)
+  const esAsesoramiento = form.tipo === 'asesoramiento'
 
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
 
@@ -210,6 +293,53 @@ export default function NuevoCostoPage() {
           </div>
         </div>
 
+        {/* Bloque especial ASESORAMIENTO */}
+        {esAsesoramiento && (
+          <div className="rounded-lg border border-lime-200 bg-lime-50/50 p-4 space-y-3">
+            <div className="text-sm font-semibold text-lime-800">Cálculo del asesoramiento</div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Kg de soja / ha</label>
+                <input type="number" name="kg_soja_ha" value={asesor.kg_soja_ha} onChange={handleAsesorChange}
+                  step="0.01" min="0" placeholder="40"
+                  className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 bg-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Precio soja (USD/ton)</label>
+                <input type="number" name="precio_soja_usd_ton" value={asesor.precio_soja_usd_ton} onChange={handleAsesorChange}
+                  step="0.01" min="0" placeholder="317.73"
+                  className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 bg-white" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 pt-2 border-t border-lime-200">
+              <div>
+                <div className="text-xs text-campo-500">Costo USD/ha</div>
+                <div className="text-lg font-bold text-campo-900">
+                  {costoUsdHa > 0 ? costoUsdHa.toFixed(2) : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-campo-500">Ha sembradas agríc.</div>
+                <div className="text-lg font-bold text-campo-900">
+                  {loadingHa ? '...' : haSembradas != null ? haSembradas.toLocaleString('es-AR') : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-campo-500">Monto total</div>
+                <div className="text-lg font-bold text-lime-700">
+                  {montoTotalAsesor > 0 ? fmtUsd(montoTotalAsesor) : '—'}
+                </div>
+              </div>
+            </div>
+            {haSembradas === 0 && (
+              <p className="text-xs text-amber-600">⚠️ No hay cultivos agrícolas sembrados en este campo/campaña. Verificá que existan los ciclos.</p>
+            )}
+            <p className="text-xs text-campo-400">
+              El vencimiento se genera automáticamente al 31/08 (fin de campaña). Se distribuye por superficie sembrada de cultivos agrícolas.
+            </p>
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-campo-700 mb-1">Observaciones</label>
           <textarea name="observaciones" value={form.observaciones} onChange={handleChange}
@@ -223,14 +353,20 @@ export default function NuevoCostoPage() {
             <label className="text-sm font-medium text-campo-700">
               Vencimientos {vencimientos.length > 0 && <span className="text-campo-400 font-normal">— Total: {fmtUsd(totalVencimientos)}</span>}
             </label>
-            <button onClick={agregarVencimiento} type="button"
-              className="text-xs text-lime-700 hover:text-lime-600 font-medium">
-              + Agregar vencimiento
-            </button>
+            {!esAsesoramiento && (
+              <button onClick={agregarVencimiento} type="button"
+                className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                + Agregar vencimiento
+              </button>
+            )}
           </div>
 
           {vencimientos.length === 0 && (
-            <p className="text-xs text-campo-400">Seleccioná un período y monto para generar los vencimientos automáticamente, o agregá manualmente.</p>
+            <p className="text-xs text-campo-400">
+              {esAsesoramiento
+                ? 'Completá los kg de soja/ha y el precio para generar el vencimiento automáticamente.'
+                : 'Agregá los vencimientos manualmente con el botón de arriba.'}
+            </p>
           )}
 
           <div className="space-y-2">
@@ -258,8 +394,6 @@ export default function NuevoCostoPage() {
               </div>
             ))}
           </div>
-
-
         </div>
 
         {error && (
