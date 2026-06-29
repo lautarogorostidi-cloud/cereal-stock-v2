@@ -161,7 +161,6 @@ export default function NuevaCosechaPage() {
 
     await supabase.from('movimientos_cereal').insert({
       tipo: 'cosecha',
-      es_entrada: true,
       fecha: form.fecha || new Date().toISOString().split('T')[0],
       campania_id: campCereal.id,
       cultivo_id: cicloIds.cultivo_id,
