@@ -155,6 +155,10 @@ export default function NuevaCosechaPage() {
 
     const toneladas = kgTotal / 1000
 
+    // Obtener el usuario logueado (campo usuario_id es obligatorio)
+    const { data: userData } = await supabase.auth.getUser()
+    const usuarioId = userData?.user?.id ?? null
+
     await supabase.from('movimientos_cereal').insert({
       tipo: 'cosecha',
       es_entrada: true,
@@ -165,6 +169,7 @@ export default function NuevaCosechaPage() {
       toneladas: toneladas,
       humedad: form.humedad_pct ? Number(form.humedad_pct) : null,
       ciclo_id: Number(ciclo_id),
+      usuario_id: usuarioId,
       descripcion_movimiento: `Cosecha desde seguimiento — ${ciclo?.lote} ${ciclo?.cultivo} ${ciclo?.campana}`,
     })
   }
