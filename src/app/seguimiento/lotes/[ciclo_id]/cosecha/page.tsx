@@ -13,11 +13,19 @@ type CicloInfo = {
   hectareas: number
 }
 
+// Datos uuid del ciclo para vincular con stock de cereal
+type CicloIds = {
+  lote_id: string | null
+  cultivo_id: string | null
+  campana_nombre: string | null
+}
+
 export default function NuevaCosechaPage() {
   const { ciclo_id } = useParams<{ ciclo_id: string }>()
   const supabase = createClient()
 
   const [ciclo, setCiclo] = useState<CicloInfo | null>(null)
+  const [cicloIds, setCicloIds] = useState<CicloIds | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -47,13 +55,21 @@ export default function NuevaCosechaPage() {
   async function cargar() {
     setLoading(true)
     const id = Number(ciclo_id)
-    const [{ data: cicloData }, { data: cosechaData }, { data: servicios }] = await Promise.all([
+    const [{ data: cicloData }, { data: cosechaData }, { data: servicios }, { data: cicloRaw }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', id).single(),
       supabase.from('sa_cosechas').select('*').eq('ciclo_id', id).maybeSingle(),
       supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
+      supabase.from('sa_ciclos').select('lote_id, cultivo_id, campana_id').eq('id', id).single(),
     ])
     setCiclo(cicloData ?? null)
     setTarifarioServicios(servicios ?? [])
+
+    // Guardar los uuid del ciclo para la vinculación con cereal
+    setCicloIds({
+      lote_id: cicloRaw?.lote_id ?? null,
+      cultivo_id: cicloRaw?.cultivo_id ?? null,
+      campana_nombre: cicloData?.campana ?? null,
+    })
 
     const supDefault = cicloData?.sup_sembrada ?? cicloData?.hectareas ?? 0
 
@@ -84,7 +100,6 @@ export default function NuevaCosechaPage() {
     setForm(f => {
       const updated = { ...f, [name]: value }
 
-      // Auto-calcular rinde_kg_ha_cosecha si tenemos total y superficie
       if (name === 'rinde_kg_total' || name === 'superficie_ha') {
         const total = Number(name === 'rinde_kg_total' ? value : f.rinde_kg_total)
         const sup = Number(name === 'superficie_ha' ? value : f.superficie_ha)
@@ -93,7 +108,6 @@ export default function NuevaCosechaPage() {
         }
       }
 
-      // Auto-calcular rinde_kg_ha_sembrada
       if (name === 'rinde_kg_total') {
         const total = Number(value)
         const supSembrada = ciclo?.sup_sembrada ?? ciclo?.hectareas ?? 0
@@ -102,7 +116,6 @@ export default function NuevaCosechaPage() {
         }
       }
 
-      // Auto-completar costo cosecha desde tarifario
       if (name === 'fecha' && value && ciclo) {
         const registros = tarifarioServicios.filter(s =>
           s.tipo_servicio?.toLowerCase().includes('cosecha') &&
@@ -115,6 +128,44 @@ export default function NuevaCosechaPage() {
       }
 
       return updated
+    })
+  }
+
+  // ── Vinculación con stock de cereal ──
+  async function sincronizarStockCereal() {
+    if (!cicloIds || !cicloIds.cultivo_id || !cicloIds.campana_nombre) return
+    const kgTotal = form.rinde_kg_total ? Number(form.rinde_kg_total) : 0
+
+    // Buscar el uuid de la campaña en la tabla de cereal (campanias, por nombre)
+    const { data: campCereal } = await supabase
+      .from('campanias')
+      .select('id')
+      .eq('nombre', cicloIds.campana_nombre)
+      .maybeSingle()
+
+    // Borrar siempre el movimiento anterior de esta cosecha (para ediciones / recargas)
+    await supabase
+      .from('movimientos_cereal')
+      .delete()
+      .eq('ciclo_id', Number(ciclo_id))
+      .eq('tipo', 'cosecha')
+
+    // Si no hay kg o no se pudo mapear la campaña, no creamos movimiento nuevo
+    if (kgTotal <= 0 || !campCereal?.id) return
+
+    const toneladas = kgTotal / 1000
+
+    await supabase.from('movimientos_cereal').insert({
+      tipo: 'cosecha',
+      es_entrada: true,
+      fecha: form.fecha || new Date().toISOString().split('T')[0],
+      campania_id: campCereal.id,
+      cultivo_id: cicloIds.cultivo_id,
+      lote_id: cicloIds.lote_id,
+      toneladas: toneladas,
+      humedad: form.humedad_pct ? Number(form.humedad_pct) : null,
+      ciclo_id: Number(ciclo_id),
+      descripcion_movimiento: `Cosecha desde seguimiento — ${ciclo?.lote} ${ciclo?.cultivo} ${ciclo?.campana}`,
     })
   }
 
@@ -146,12 +197,20 @@ export default function NuevaCosechaPage() {
       if (err) { setError(`Error: ${err.message}`); setSaving(false); return }
     }
 
+    // Sincronizar con el stock de cereal (no bloquea si falla)
+    try {
+      await sincronizarStockCereal()
+    } catch (e) {
+      console.error('Error al sincronizar stock de cereal:', e)
+    }
+
     setSaving(false)
     window.close()
   }
 
   const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
   const costoTotal = Number(form.costo_cosecha_usd_ha || 0) * Number(form.superficie_ha || 0)
+  const toneladas = form.rinde_kg_total ? Number(form.rinde_kg_total) / 1000 : 0
 
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!ciclo) return <div className="text-center text-campo-400 py-20">Ciclo no encontrado</div>
@@ -166,7 +225,6 @@ export default function NuevaCosechaPage() {
 
       <div className="card p-6 space-y-5">
 
-        {/* Fecha y superficie */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-campo-700 mb-1">Fecha</label>
@@ -182,7 +240,6 @@ export default function NuevaCosechaPage() {
           </div>
         </div>
 
-        {/* Producción */}
         <div>
           <div className="text-sm font-medium text-campo-700 mb-3">Producción</div>
           <div className="grid grid-cols-2 gap-4">
@@ -191,6 +248,9 @@ export default function NuevaCosechaPage() {
               <input type="number" name="rinde_kg_total" value={form.rinde_kg_total} onChange={handleChange}
                 step="1" placeholder="0"
                 className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400" />
+              {toneladas > 0 && (
+                <p className="text-xs text-lime-600 mt-1">= {toneladas.toLocaleString('es-AR', { maximumFractionDigits: 2 })} tn → suma al stock de cereal</p>
+              )}
             </div>
             <div>
               <label className="block text-xs text-campo-500 mb-1">Humedad (%)</label>
@@ -226,7 +286,6 @@ export default function NuevaCosechaPage() {
           </div>
         </div>
 
-        {/* Costo cosecha */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-campo-700 mb-1">
