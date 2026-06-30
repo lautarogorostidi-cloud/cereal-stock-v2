@@ -41,6 +41,15 @@ export const MODULOS: Modulo[] = [
     badgeColor: 'bg-lime-400 text-lime-950 font-semibold',
   },
   {
+    href: '/ganaderia',
+    icon: '🐄',
+    titulo: 'Ganadería',
+    descripcion: 'Stock de hacienda por categoría y costos ganaderos por campo',
+    activo: true,
+    color: 'border-lime-400 bg-lime-500/20 hover:bg-lime-500/30',
+    badgeColor: 'bg-lime-400 text-lime-950 font-semibold',
+  },
+  {
     href: '/semillas',
     icon: '🌱',
     titulo: 'Semillas',
