@@ -1,175 +1,154 @@
-# Baratza SRL — App Agropecuaria
+# Baratza SRL — Sistema de Gestión Agropecuaria
 
-**URL:** https://cereal-stock.vercel.app  
-**Repo:** `lautarogorostidi-cloud/cereal-stock-v2`  
-**Stack:** Next.js 14 + Supabase + TypeScript + Tailwind CSS
+Aplicación web para la gestión integral de operaciones agrícolas y ganaderas: seguimiento de cultivos, control de stock de agroquímicos y cereal, costos por campaña y análisis de resultados.
+
+**Stack:** Next.js 14 · Supabase (PostgreSQL) · TypeScript · Tailwind CSS
+**Deploy:** Vercel — https://cereal-stock.vercel.app
+
+---
+
+## Conceptos del dominio
+
+### Campañas
+Una campaña es el año fiscal agrícola, del 1/9 al 30/8, en formato `YY-YY` (ej: `25-26`).
+
+> ⚠️ **Importante:** existen dos tablas de campañas distintas, una por módulo:
+> - `campanas` (sin i) → módulo **Seguimiento**, id tipo `bigint`
+> - `campanias` (con i) → módulo **Cereal**, id tipo `uuid`
+>
+> Para vincular datos entre módulos se mapean **por nombre** (ej: ambas tienen "25-26").
+
+### Campos (establecimientos)
+Don Francisco · El Vasco · La Media Luna · Zabala
+
+### Cultivos
+- **Agrícolas** (pagan asesoramiento): Trigo, Soja 1, Soja 2, Maíz Temprano, Maíz 1, Maíz 2, Maíz Tardío, Girasol
+- **Ganaderos** (no pagan asesoramiento): Alfalfa, Verdeos, Centeno
+
+### Ciclo
+Un ciclo es la combinación **lote + cultivo + campaña**. Un mismo lote puede tener varios ciclos en una campaña (distintos cultivos). Toda la información productiva y de costos se vincula al ciclo.
 
 ---
 
 ## Módulos
 
-### 🌾 Seguimiento Agronómico (`/seguimiento`)
-- **Dashboard** — KPIs por campaña
-- **Lotes / Cultivos** — tabla por lote o por cultivo, selector de campaña y campo, Ha acondicionadas
-- **Ficha de ciclo** — acondicionamiento, siembra, aplicaciones, fertilizaciones, cosecha, costos fijos (todos con editar/borrar, recarga automática al cerrar formularios hijos)
+### 1. Seguimiento Agronómico
+Gestión productiva por ciclo: siembra, aplicaciones (pulverizaciones), fertilizaciones, cosecha, acondicionamiento y costos fijos.
 
-### 🌽 Stock Cereal (`/dashboard`)
-- **Dashboard** — stock y comprometido calculado desde movimientos reales
-- **Ventas** — con bonificación
-- **Contratos** — toneladas entregadas desde movimientos reales (`vw_posicion_contratos`)
-- **Cartas de Porte** — extracción automática PDF con tarifa de flete
+**Aplicaciones de agroquímicos**
+- Tipos: barbecho, pre-siembra, pre-emergente, post-emergente (temprano/normal), rescate, desecación, insecticida, fungicida.
+- Cada producto se selecciona del catálogo filtrando por tipo (herbicida, coadyuvante, etc.).
+- El precio se trae automáticamente del tarifario vigente a la fecha de la aplicación.
+- **Vinculación con stock:** al guardar una aplicación, valida que haya stock suficiente y descuenta del inventario de agroquímicos automáticamente. Si falta stock, bloquea el guardado.
 
-### 🧪 Agroquímicos (`/agroquimicos`)
-- **Dashboard** — KPIs + gráfico mensual de costos (insumos + servicio pulverización) con filtros por año y tipo de producto
-- **Stock** — stock actual con alerta inteligente al 10% del uso histórico, buscador
-- **Movimientos** — compras/aplicaciones/devoluciones con editar/borrar, filtro campaña, buscador, agregar producto/proveedor nuevo inline, campaña en todos los tipos
-- **Aplicaciones** — detalle de todo lo aplicado desde Seguimiento Agronómico, filtro campaña, resumen por producto
-- **Productos** — catálogo
+**Cosecha**
+- Registra producción total (kg), rinde, humedad, costo de cosecha.
+- **Vinculación con stock de cereal:** al guardar, genera un movimiento de entrada en el stock de cereal (convierte kg a toneladas). Ver sección Vinculaciones.
 
----
+### 2. Agroquímicos (Stock)
+Catálogo de productos, registro de compras y movimientos, control de stock.
+- Unidades soportadas: L, kg, caja, cc, g, unidad.
+- Tipos de movimiento: compra, aplicacion, devolucion, ajuste.
+- El stock se calcula desde la vista `vw_stock_agroquimicos`.
 
-## Base de Datos (Supabase)
+### 3. Cereal (Stock)
+Control de stock de granos cosechados, con movimientos de entrada/salida.
+- Trabaja en **toneladas**.
+- Tipos de movimiento: cosecha, compra, recepcion_cliente, otro_ingreso, entrega, consumo_hacienda, merma, otro_egreso, transferencia, ajuste, venta, devolucion.
+- La columna `es_entrada` es **generada automáticamente** por la base según el tipo de movimiento (no se inserta manualmente).
 
-### Tablas Seguimiento Agronómico
-| Tabla | Descripción |
-|-------|-------------|
-| `sa_ciclos` | Ciclo productivo por lote y campaña |
-| `sa_siembras` | Siembra: híbridos, densidad, fertilizantes, costos |
-| `sa_aplicaciones` | Aplicaciones fitosanitarias |
-| `sa_aplicacion_productos` | Productos por aplicación (dosis, costo, unidad) |
-| `sa_fertilizaciones` | Fertilizaciones independientes |
-| `sa_cosechas` | Cosecha: rinde, superficie, humedad, costo |
-| `sa_costos_fijos` | Arrendamiento, asesoramiento, seguro, otro |
-| `sa_acondicionamiento` | Laboreo de suelo |
-| `tarifario_insumos` | 185 registros: tipo_insumo, insumo, fecha_vigencia, precio_usd, unidad |
-| `tarifario_servicios` | 92 registros: tipo_servicio, cultivo, vigencia_desde, costo_usd_ha |
+### 4. Costos
+Costos fijos por campaña y campo. Ver sección Costos Fijos.
 
-### Tipos de servicio en tarifario_servicios
-`Acondicionado`, `Cosecha`, `Fertilización`, `Hilerada`, `Pulverización`, `Rastra y Rolo`, `Rolo Triturador`, `RS-SD`, `SD`, `SD c/DF`, `Siembra`, `Siembra Altina`
+### 5. Reportes *(pendiente de desarrollo)*
+Análisis de costos discriminados por actividad agrícola/ganadero.
 
-### Mapeo tipo laboreo → tipo servicio tarifario
-| Tipo laboreo | Tipo servicio |
-|---|---|
-| Cincel, Subsolador, Arado, Rotovator | Acondicionado |
-| Rastra de disco | Rastra y Rolo |
-| Rolo Triturador | Rolo Triturador |
-
-### Tablas Agroquímicos
-| Tabla | Descripción |
-|-------|-------------|
-| `agroquimicos_productos` | Catálogo (tipo constraint: herbicida, fungicida, insecticida, acaricida, curasemilla, coadyuvante, otro — en minúscula) |
-| `agroquimicos_movimientos` | Movimientos: tipo, fecha, cantidad, campaña, proveedor_id, precio_unitario, numero_remito, numero_factura |
-
-### Vistas
-| Vista | Descripción |
-|-------|-------------|
-| `vw_sa_resumen_ciclo` | Resumen por ciclo con costos calculados |
-| `vw_sa_costos_campana` | Costos agregados por campaña |
-| `vw_posicion_contratos` | Toneladas entregadas calculadas desde movimientos reales |
-| `vw_comprometido` | Toneladas pendientes desde movimientos reales |
-| `vw_stock_agroquimicos` | Stock total histórico por producto |
-
-### Tablas Cereal
-- `movimientos_cereal` (con `bonificacion_calidad`)
-- `contratos` (con `bonificacion_calidad`)
-- `cartas_porte` (con `tarifa_flete`)
+### 6. Dashboard *(pendiente de desarrollo)*
+KPIs de producción, costos y rindes por campaña.
 
 ---
 
-## Estructura de Archivos Clave
+## Costos Fijos
 
+El sistema maneja **dos mecanismos distintos** según el tipo de costo:
+
+### Costos distribuidos — sistema nuevo (`costos_fijos_campo`)
+Se cargan **una vez por campo** y la vista `vw_distribucion_costos_fijos` los reparte automáticamente entre los ciclos.
+
+| Tipo | Base de distribución |
+|------|---------------------|
+| **Arrendamiento** | Hectáreas totales del lote |
+| **Asesoramiento** | Superficie sembrada de cultivos **agrícolas** (los ganaderos no pagan) |
+
+**Asesoramiento:** se cobra en kg de soja por hectárea (ej: 40 kg/ha). El formulario calcula el costo en USD:
 ```
-src/
-  app/
-    seguimiento/
-      page.tsx                          # Dashboard seguimiento
-      lotes/
-        page.tsx                        # Lista lotes/cultivos
-        nuevo/page.tsx                  # Crear/editar ciclo
-        [ciclo_id]/
-          page.tsx                      # Ficha del ciclo ✅
-          acondicionamiento/page.tsx    # ✅ + tarifario (según tipo laboreo)
-          siembra/page.tsx              # ✅ + tarifario (semilla por cultivo, fertilizantes, servicio por sistema+cultivo)
-          fertilizaciones/page.tsx      # ✅ + tarifario
-          cosecha/page.tsx              # ✅ + tarifario
-          costos-fijos/page.tsx         # ✅
-          aplicaciones/
-            nueva/page.tsx              # ✅ + tarifario (selector por tipo, precio vigente)
-    dashboard/
-      page.tsx                          # Dashboard cereal
-      ventas/page.tsx + VentasClient.tsx
-      contratos/nuevo/page.tsx
-      contratos/editar/editarContratoForm.tsx
-      cartas-de-porte/nueva/page.tsx
-    agroquimicos/
-      page.tsx                          # Dashboard con gráfico mensual + filtros año/tipo
-      stock/page.tsx                    # Stock con alerta 10% histórico + buscador
-      movimientos/page.tsx              # Movimientos completo con editar/borrar
-      aplicaciones/page.tsx             # Aplicaciones desde seguimiento agronómico
-      productos/page.tsx
-    api/
-      extraer-cpe/route.ts              # Extrae tarifa_flete del PDF
-  components/
-    layout/
-      SidebarAgroquimicos.tsx           # Con link Aplicaciones
+costo USD/ha = kg_soja_ha × (precio_soja_USD_ton / 1000)
 ```
+El precio de soja se carga en USD/ton (conversión desde pesos: `pesos_ton / tipo_cambio`). Genera un único vencimiento al 31/08 (fin de campaña).
+
+### Costos por ciclo — sistema viejo (`sa_costos_fijos`)
+Se cargan con un **selector de lotes/cultivos** (uno, varios o todos). Cada ciclo seleccionado recibe su registro.
+
+| Tipo | Signo | Notas |
+|------|-------|-------|
+| **Seguro** | Positivo | Monto en USD/ha × hectáreas aseguradas (editables) |
+| **Indemnización seguro** | **Negativo** | Reduce el costo total del ciclo (fue un ingreso del seguro) |
+
+El monto se carga en **USD/ha** y se multiplica por las hectáreas aseguradas (por defecto la superficie sembrada del ciclo, editable por si se asegura menos).
+
+> La indemnización se guarda con valor negativo. Como la vista `vw_sa_resumen_ciclo` suma `costo_total_usd` directo, el negativo resta solo del total del ciclo. En la interfaz se muestra en positivo.
 
 ---
 
-## Tarifario — Integración ✅ COMPLETA
+## Vinculaciones entre módulos
 
-| Formulario | Insumo | Servicio |
-|---|---|---|
-| Nueva aplicación | Herbicida/Fungicida/Insecticida/Coadyuvante | Pulverización |
-| Siembra | Semilla por cultivo, Fertilizante | SD/SD c/DF/Siembra según sistema+cultivo |
-| Fertilizaciones | Fertilizante | Fertilización |
-| Acondicionamiento | — | Según tipo de laboreo |
-| Cosecha | — | Cosecha |
+El valor del sistema está en que los módulos no son silos: las acciones en Seguimiento actualizan los stocks automáticamente.
 
----
+### Aplicación → Stock de agroquímicos
+Al guardar una pulverización, cada producto descuenta del stock (movimiento tipo `aplicacion`, vinculado por `ciclo_id`). Valida stock disponible antes de guardar.
 
-## Permisos Supabase ejecutados
-
-```sql
-GRANT INSERT, UPDATE, DELETE ON sa_acondicionamiento TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE sa_acondicionamiento_id_seq TO authenticated;
-GRANT INSERT, UPDATE, DELETE ON sa_cosechas TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE sa_cosechas_id_seq TO authenticated;
-GRANT INSERT, UPDATE, DELETE ON sa_costos_fijos TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE sa_costos_fijos_id_seq TO authenticated;
-GRANT INSERT, UPDATE, DELETE ON sa_fertilizaciones TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE sa_fertilizaciones_id_seq TO authenticated;
-GRANT INSERT, UPDATE, DELETE ON agroquimicos_movimientos TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE agroquimicos_movimientos_id_seq TO authenticated;
-GRANT INSERT ON agroquimicos_productos TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE agroquimicos_productos_id_seq TO authenticated;
-GRANT INSERT ON proveedores TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE proveedores_id_seq TO authenticated;
-CREATE POLICY "authenticated can select agroquimicos_movimientos" ON agroquimicos_movimientos FOR SELECT TO authenticated USING (true);
-CREATE POLICY "authenticated can select agroquimicos_productos" ON agroquimicos_productos FOR SELECT TO authenticated USING (true);
-```
+### Cosecha → Stock de cereal
+Al guardar una cosecha, genera un movimiento de entrada en `movimientos_cereal`:
+- `tipo = 'cosecha'`, toneladas = `rinde_kg_total / 1000`
+- Mapea la campaña de seguimiento (`campanas`, bigint) a la de cereal (`campanias`, uuid) **por nombre**
+- Vincula lote y cultivo (uuid, compartidos entre módulos)
+- Rastrea el origen con `ciclo_id` para evitar duplicados: al editar una cosecha, borra el movimiento anterior y crea el actualizado
+- Completa `usuario_id` con el usuario logueado (campo obligatorio)
 
 ---
 
-## ✅ Completado
+## Notas técnicas
 
-- Todos los formularios seguimiento agronómico con tarifario integrado
-- Ficha ciclo con recarga automática
-- `vw_posicion_contratos` y `vw_comprometido` calculan desde movimientos reales
-- Extracción tarifa flete en CPE
-- Módulo agroquímicos: stock, movimientos, aplicaciones desde seguimiento, dashboard con gráfico
-- Campañas: 23-24, 24-25, 25-26, 26-27
-
-## 🔲 Pendiente
-
-1. **Dashboard agroquímicos** — corregir filtro de años (muestra campañas en lugar de años), identificar productos "Otros" (nombres no coinciden entre seguimiento y catálogo), meses sin costo de servicio
-2. **Vinculación Seguimiento ↔ Agroquímicos** — al cargar aplicación en seguimiento, descontar automáticamente del stock
-3. **Editar aplicación** — integrar tarifario en formulario de edición
-4. **FIFO de insumos** — agregar `cantidad` al tarifario y calcular precio por lote
-5. **Módulo Costos** — `/seguimiento/costos/` con análisis por campaña
-6. **Módulo Reportes** — `/seguimiento/reportes/`
-7. **Dashboard Seguimiento** — KPIs del Power BI
+- **RLS:** las tablas usan Row Level Security. Los INSERT en `movimientos_cereal` requieren que el usuario tenga rol `admin`, `comercial` u `operario` en la tabla `perfiles` (función `get_user_rol()`).
+- **Carga histórica masiva:** para cargar datos históricos sin afectar el stock, la vinculación de aplicaciones se desactiva temporalmente, se cargan los datos vía SQL, se ajusta el stock al inventario físico real, y se reactiva la vinculación.
+- **Productos por nombre:** las tablas `sa_aplicacion_productos` y `tarifario_insumos` guardan el producto por nombre de texto (no por id). Mantener la consistencia de nombres es clave al unificar duplicados. Concentraciones distintas (ej: "Cletodim" vs "Cletodim 24%") son productos distintos.
+- **Precios:** la vista `vw_precios_insumos` ordena por fecha de vigencia y prioriza precios de compra sobre los del tarifario. Si un precio tiene fecha de vigencia posterior a la aplicación, el producto queda con costo 0 hasta corregir la vigencia.
 
 ---
 
-*Última actualización: Junio 2026*
+## Vistas principales
+
+| Vista | Función |
+|-------|---------|
+| `vw_sa_resumen_ciclo` | Resumen de costos e ingresos por ciclo (insumos, servicios, fijos) |
+| `vw_distribucion_costos_fijos` | Distribuye arrendamiento y asesoramiento entre ciclos |
+| `vw_sa_costos_campana` | Totales de costos por campaña |
+| `vw_stock_agroquimicos` | Stock actual de cada agroquímico |
+| `vw_precios_insumos` | Precios vigentes de insumos (compras + tarifario) |
+
+---
+
+## Flujo de trabajo de desarrollo
+
+1. Los cambios de código se entregan como archivos `.tsx` completos.
+2. Se hace commit y **push** manual al repositorio (el push dispara el deploy en Vercel).
+3. Los cambios de base de datos se ejecutan como scripts SQL en el editor de Supabase.
+4. Para scripts SQL: copiar siempre desde el archivo descargado (no desde el chat) para evitar arrastrar texto de más.
+
+---
+
+## Pendientes
+
+- [ ] Módulo de **Reportes** — costos discriminados por actividad agrícola/ganadero
+- [ ] **Dashboard** — KPIs de producción, costos y rindes por campaña
+- [ ] **KPI de indemnización** en la ficha del lote (mostrar en positivo)
