@@ -10,7 +10,6 @@ const nav = [
   { href: '/ganaderia',          label: 'Movimientos',      icon: '🐄' },
   { href: '/ganaderia/pastoreo', label: 'Pastoreo por lote', icon: '🌿' },
   { href: '/ganaderia/sanidad',  label: 'Sanidad',           icon: '💉' },
-  { href: '/ganaderia/inmag',    label: 'INMAG',             icon: '📊' },
 ]
 
 interface GanaderiaSidebarProps { perfil: Perfil | null }
