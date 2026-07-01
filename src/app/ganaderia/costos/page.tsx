@@ -93,7 +93,7 @@ export default function CostosPage() {
       ])
       setCampos(c ?? [])
       setCampanias(camp ?? [])
-      setLotesFeedlot((lotes ?? []) as LoteFeedlot[])
+      setLotesFeedlot((lotes ?? []) as unknown as LoteFeedlot[])
     }
     cargar(); cargarCostos()
   }, [])
