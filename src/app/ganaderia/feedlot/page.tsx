@@ -12,7 +12,7 @@ type CategoriaHacienda = { id: string; nombre: string; orden: number }
 type LoteFeedlot = {
   id: string; numero_lote: string; campo_id: number; categoria_id: string
   cantidad_cabezas: number; fecha_entrada: string; fecha_salida: string | null
-  peso_entrada_tn: number; peso_salida_tn: number | null; observaciones: string | null
+  peso_entrada_kg: number; peso_salida_kg: number | null; observaciones: string | null
   campos: { nombre: string }; categorias_hacienda: { nombre: string }
 }
 
@@ -169,8 +169,8 @@ export default function FeedlotPage() {
         cantidad_cabezas: Number(lCabezas),
         fecha_entrada: lFechaEntrada,
         fecha_salida: lFechaSalida || null,
-        peso_entrada_tn: Number(lPesoEntrada),
-        peso_salida_tn: lPesoSalida ? Number(lPesoSalida) : null,
+        peso_entrada_kg: Number(lPesoEntrada),
+        peso_salida_kg: lPesoSalida ? Number(lPesoSalida) : null,
         observaciones: lObs || null,
       })
       if (eIns) throw eIns
@@ -211,7 +211,7 @@ export default function FeedlotPage() {
 
   // ---- Editar lote ----
   const abrirEditLote = (l: LoteFeedlot) => {
-    setEditLote(l); setElFechaSalida(l.fecha_salida ?? ''); setElPesoSalida(l.peso_salida_tn ? String(l.peso_salida_tn) : '')
+    setEditLote(l); setElFechaSalida(l.fecha_salida ?? ''); setElPesoSalida(l.peso_salida_kg ? String(l.peso_salida_kg) : '')
     setElCabezas(String(l.cantidad_cabezas)); setElObs(l.observaciones ?? ''); setElError(null)
   }
 
@@ -222,7 +222,7 @@ export default function FeedlotPage() {
       const { error: eUp } = await supabase.from('lotes_feedlot').update({
         cantidad_cabezas: Number(elCabezas),
         fecha_salida: elFechaSalida || null,
-        peso_salida_tn: elPesoSalida ? Number(elPesoSalida) : null,
+        peso_salida_kg: elPesoSalida ? Number(elPesoSalida) : null,
         observaciones: elObs || null,
       }).eq('id', editLote.id)
       if (eUp) throw eUp
@@ -276,9 +276,9 @@ export default function FeedlotPage() {
   // ---- Cálculos por lote ----
   const calcularKPIs = (lote: LoteFeedlot, cargasLote: CargaSilo[]) => {
     const dias = diasEntre(lote.fecha_entrada, lote.fecha_salida)
-    const aumentoTotalTn = lote.peso_salida_tn && lote.peso_salida_tn > lote.peso_entrada_tn
-      ? lote.peso_salida_tn - lote.peso_entrada_tn : null
-    const aumentoPorCabezaKg = aumentoTotalTn ? (aumentoTotalTn / lote.cantidad_cabezas) * 1000 : null
+    const aumentoTotalKg = lote.peso_salida_kg && lote.peso_salida_kg > lote.peso_entrada_kg
+      ? lote.peso_salida_kg - lote.peso_entrada_kg : null
+    const aumentoPorCabezaKg = aumentoTotalKg ? aumentoTotalKg / lote.cantidad_cabezas : null
     const gdpKg = aumentoPorCabezaKg && dias > 0 ? aumentoPorCabezaKg / dias : null
 
     const totalMaizTn = cargasLote.reduce((s, c) => s + c.maiz_tn, 0)
@@ -289,11 +289,11 @@ export default function FeedlotPage() {
     const costoPorCabezaUSD = lote.cantidad_cabezas > 0 ? costoRacionUSD / lote.cantidad_cabezas : 0
     const consumoDiarioTn = dias > 0 ? totalMezclatn / dias : 0
     const consumoPorCabezaKgDia = lote.cantidad_cabezas > 0 ? (consumoDiarioTn / lote.cantidad_cabezas) * 1000 : 0
-    const costoKgAumentoUSD = aumentoTotalTn && aumentoTotalTn > 0 ? costoRacionUSD / (aumentoTotalTn * 1000) : null
+    const costoKgAumentoUSD = aumentoTotalKg && aumentoTotalKg > 0 ? costoRacionUSD / aumentoTotalKg : null
     const pctMaiz = totalMezclatn > 0 ? (totalMaizTn / totalMezclatn) * 100 : 0
     const pctExpeller = totalMezclatn > 0 ? (totalExpellerTn / totalMezclatn) * 100 : 0
 
-    return { dias, aumentoTotalTn, aumentoPorCabezaKg, gdpKg, totalMaizTn, totalExpellerTn, totalMezclatn, costoRacionUSD, costoPorCabezaUSD, consumoDiarioTn, consumoPorCabezaKgDia, costoKgAumentoUSD, pctMaiz, pctExpeller }
+    return { dias, aumentoTotalKg, aumentoPorCabezaKg, gdpKg, totalMaizTn, totalExpellerTn, totalMezclatn, costoRacionUSD, costoPorCabezaUSD, consumoDiarioTn, consumoPorCabezaKgDia, costoKgAumentoUSD, pctMaiz, pctExpeller }
   }
 
   const kpis = loteSeleccionado ? calcularKPIs(loteSeleccionado, cargas) : null
@@ -345,9 +345,9 @@ export default function FeedlotPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div><label className={labelCls}>Peso entrada (tn)</label>
+              <div><label className={labelCls}>Peso entrada (kg)</label>
                 <input type="number" min={0} step="0.001" value={lPesoEntrada} onChange={(e) => setLPesoEntrada(e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Peso salida (tn) <span className="text-stone-400">(opc.)</span></label>
+              <div><label className={labelCls}>Peso salida (kg) <span className="text-stone-400">(opc.)</span></label>
                 <input type="number" min={0} step="0.001" value={lPesoSalida} onChange={(e) => setLPesoSalida(e.target.value)} className={inputCls} /></div>
             </div>
 
@@ -409,8 +409,8 @@ export default function FeedlotPage() {
                     </p>
                   </div>
                   <div className="text-right text-sm text-stone-500">
-                    <div>Peso entrada: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_entrada_tn)} tn</span></div>
-                    {loteSeleccionado.peso_salida_tn && <div>Peso salida: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_salida_tn)} tn</span></div>}
+                    <div>Peso entrada: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_entrada_kg, 0)} kg</span></div>
+                    {loteSeleccionado.peso_salida_kg && <div>Peso salida: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_salida_kg, 0)} kg</span></div>}
                   </div>
                 </div>
 
@@ -565,7 +565,7 @@ export default function FeedlotPage() {
           <div className="grid grid-cols-2 gap-3">
             <div><label className={labelCls}>Fecha salida <span className="text-stone-400">(opc.)</span></label>
               <input type="date" value={elFechaSalida} onChange={(e) => setElFechaSalida(e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Peso salida (tn) <span className="text-stone-400">(opc.)</span></label>
+            <div><label className={labelCls}>Peso salida (kg) <span className="text-stone-400">(opc.)</span></label>
               <input type="number" min={0} step="0.001" value={elPesoSalida} onChange={(e) => setElPesoSalida(e.target.value)} className={inputCls} /></div>
           </div>
           <div><label className={labelCls}>Observaciones</label>
