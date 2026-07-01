@@ -151,4 +151,4 @@ Al guardar una cosecha, genera un movimiento de entrada en `movimientos_cereal`:
 
 - [ ] Módulo de **Reportes** — costos discriminados por actividad agrícola/ganadero
 - [ ] **Dashboard** — KPIs de producción, costos y rindes por campaña
-- [ ] **KPI de indemnización** en la ficha del lote (mostrar en positivo)
+- [ ] **KPI de indemnización** en la ficha del lote (mostrar en positivo) 
