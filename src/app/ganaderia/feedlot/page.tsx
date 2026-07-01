@@ -215,8 +215,18 @@ export default function FeedlotPage() {
         observaciones: elObs || null,
       }).eq('id', editLote.id)
       if (eUp) throw eUp
-      setEditLote(null); cargarLotes()
-      if (loteSeleccionado?.id === editLote.id) cargarCargas(editLote.id)
+      setEditLote(null)
+      const { data: lotesActualizados } = await supabase
+        .from('lotes_feedlot')
+        .select('*, campos(nombre), categorias_hacienda(nombre)')
+        .order('fecha_entrada', { ascending: false })
+      const lista = (lotesActualizados ?? []) as LoteFeedlot[]
+      setLotes(lista)
+      if (loteSeleccionado?.id === editLote.id) {
+        const actualizado = lista.find((l) => l.id === editLote.id)
+        if (actualizado) setLoteSeleccionado(actualizado)
+        cargarCargas(editLote.id)
+      }
     } catch (err: any) { setElError(err?.message ?? 'Error al guardar.') }
     finally { setElGuardando(false) }
   }
