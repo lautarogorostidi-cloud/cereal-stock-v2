@@ -55,6 +55,7 @@ export default function FeedlotPage() {
   const [categorias, setCategorias] = useState<CategoriaHacienda[]>([])
   const [lotes, setLotes] = useState<LoteFeedlot[]>([])
   const [cargandoLotes, setCargandoLotes] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const [lNumeroLote, setLNumeroLote] = useState('')
   const [lCampoId, setLCampoId] = useState('')
@@ -157,8 +158,8 @@ export default function FeedlotPage() {
         cantidad_cabezas: Number(lCabezas),
         fecha_entrada: lFechaEntrada,
         fecha_salida: lFechaSalida || null,
-        peso_entrada_kg: Number(lPesoEntrada),
-        peso_salida_kg: lPesoSalida ? Number(lPesoSalida) : null,
+        peso_entrada_kg: Number(lPesoEntrada) * Number(lCabezas),
+        peso_salida_kg: lPesoSalida ? Number(lPesoSalida) * Number(lCabezas) : null,
         observaciones: lObs || null,
       })
       if (eIns) throw eIns
@@ -198,7 +199,7 @@ export default function FeedlotPage() {
   const abrirEditLote = (l: LoteFeedlot) => {
     setEditLote(l)
     setElFechaSalida(l.fecha_salida ?? '')
-    setElPesoSalida(l.peso_salida_kg ? String(l.peso_salida_kg) : '')
+    setElPesoSalida(l.peso_salida_kg ? String(Math.round(l.peso_salida_kg / l.cantidad_cabezas)) : '')
     setElCabezas(String(l.cantidad_cabezas))
     setElObs(l.observaciones ?? '')
     setElError(null)
@@ -211,7 +212,7 @@ export default function FeedlotPage() {
       const { error: eUp } = await supabase.from('lotes_feedlot').update({
         cantidad_cabezas: Number(elCabezas),
         fecha_salida: elFechaSalida || null,
-        peso_salida_kg: elPesoSalida ? Number(elPesoSalida) : null,
+        peso_salida_kg: elPesoSalida ? Number(elPesoSalida) * Number(elCabezas) : null,
         observaciones: elObs || null,
       }).eq('id', editLote.id)
       if (eUp) throw eUp
@@ -225,6 +226,7 @@ export default function FeedlotPage() {
       if (loteSeleccionado?.id === editLote.id) {
         const actualizado = lista.find((l) => l.id === editLote.id)
         if (actualizado) setLoteSeleccionado(actualizado)
+        setRefreshKey((k) => k + 1)
         cargarCargas(editLote.id)
       }
     } catch (err: any) { setElError(err?.message ?? 'Error al guardar.') }
@@ -337,10 +339,14 @@ export default function FeedlotPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div><label className={labelCls}>Peso entrada (kg)</label>
-                <input type="number" min={0} step="1" value={lPesoEntrada} onChange={(e) => setLPesoEntrada(e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Peso salida (kg) (opc.)</label>
-                <input type="number" min={0} step="1" value={lPesoSalida} onChange={(e) => setLPesoSalida(e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Peso entrada/cab (kg)</label>
+                <input type="number" min={0} step="1" value={lPesoEntrada} onChange={(e) => setLPesoEntrada(e.target.value)} className={inputCls} />
+                {lPesoEntrada && lCabezas && <p className="mt-1 text-xs text-stone-400">Total: {(Number(lPesoEntrada) * Number(lCabezas)).toLocaleString('es-AR')} kg</p>}
+              </div>
+              <div><label className={labelCls}>Peso salida/cab (kg) (opc.)</label>
+                <input type="number" min={0} step="1" value={lPesoSalida} onChange={(e) => setLPesoSalida(e.target.value)} className={inputCls} />
+                {lPesoSalida && lCabezas && <p className="mt-1 text-xs text-stone-400">Total: {(Number(lPesoSalida) * Number(lCabezas)).toLocaleString('es-AR')} kg</p>}
+              </div>
             </div>
 
             <div><label className={labelCls}>Observaciones</label>
@@ -381,7 +387,7 @@ export default function FeedlotPage() {
           </div>
         </div>
 
-        <div>
+        <div key={refreshKey}>
           {!loteSeleccionado ? (
             <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-stone-300">
               <p className="text-sm text-stone-400">Selecciona un lote para ver el detalle y cargar raciones</p>
@@ -400,9 +406,9 @@ export default function FeedlotPage() {
                     </p>
                   </div>
                   <div className="text-right text-sm text-stone-500">
-                    <div>Peso entrada: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_entrada_kg, 0)} kg</span></div>
+                    <div>Peso entrada: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_entrada_kg / loteSeleccionado.cantidad_cabezas, 0)} kg/cab</span></div>
                     {loteSeleccionado.peso_salida_kg && (
-                      <div>Peso salida: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_salida_kg, 0)} kg</span></div>
+                      <div>Peso salida: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_salida_kg / loteSeleccionado.cantidad_cabezas, 0)} kg/cab</span></div>
                     )}
                   </div>
                 </div>
@@ -556,7 +562,7 @@ export default function FeedlotPage() {
           <div className="grid grid-cols-2 gap-3">
             <div><label className={labelCls}>Fecha salida (opc.)</label>
               <input type="date" value={elFechaSalida} onChange={(e) => setElFechaSalida(e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Peso salida (kg) (opc.)</label>
+            <div><label className={labelCls}>Peso salida/cab (kg) (opc.)</label>
               <input type="number" min={0} step="1" value={elPesoSalida} onChange={(e) => setElPesoSalida(e.target.value)} className={inputCls} /></div>
           </div>
           <div><label className={labelCls}>Observaciones</label>
