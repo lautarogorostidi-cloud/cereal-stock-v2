@@ -46,9 +46,16 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
 
 
   async function borrar(carta: any) {
-    if (!confirm(`¿Borrar la CPE ${carta.numero_cpe}? Esta acción no se puede deshacer.`)) return
+    if (!confirm(`¿Borrar la CPE ${carta.numero_cpe} y su movimiento de stock? Esta acción no se puede deshacer.`)) return
+    // Primero borramos el movimiento de cereal vinculado
+    const { error: errorMov } = await supabase
+      .from('movimientos_cereal')
+      .delete()
+      .eq('carta_porte_id', carta.id)
+    if (errorMov) { alert('Error al borrar el movimiento de stock: ' + errorMov.message); return }
+    // Después borramos la carta de porte
     const { error } = await supabase.from('cartas_porte').delete().eq('id', carta.id)
-    if (error) { alert('Error al borrar: ' + error.message); return }
+    if (error) { alert('Error al borrar la carta: ' + error.message); return }
     setLista(prev => prev.filter(c => c.id !== carta.id))
   }
 
