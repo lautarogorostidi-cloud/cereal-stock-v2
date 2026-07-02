@@ -68,8 +68,8 @@ SECCIÓN A - INTERVINIENTES:
 SECCIÓN B - GRANO:
 - cultivo: nombre del grano en "Grano / Tipo:"
 - campania: campo "Campaña:" convertido (ej: "2526" a "25-26")
-- peso_bruto_kg: en la tabla de sección B hay una fila con encabezados "Peso Bruto" y "Peso Tara" y debajo sus valores numéricos. Tomá el número bajo "Peso Bruto" (ej: 48500). Esta sección NO tiene la palabra "(kg)" en los encabezados
-- peso_tara_kg: en la misma tabla de sección B, el número bajo "Peso Tara" (ej: 18500). IMPORTANTE: este valor es DIFERENTE al de sección G
+- peso_bruto_kg: número de "Peso Bruto" en sección B SOLAMENTE (NO de sección G). En sección B los campos NO tienen (kg) entre paréntesis.
+- peso_tara_kg: número de "Peso Tara" en sección B SOLAMENTE (NO de sección G). Valor típico entre 15000 y 20000.
 - declaracion_calidad: "conforme" o "condicional"
 - humedad_origen: humedad en origen si aparece
 
@@ -101,11 +101,18 @@ SECCIÓN E - TRANSPORTE:
 - tarifa_flete: "Tarifa:" en sección E (valor numérico, ej: 35.7)
 
 SECCIÓN G - DESCARGA:
-- fecha_arribo: "Fecha Arribo:" solo fecha YYYY-MM-DD
-- fecha_descarga: "Fecha Descarga:" solo fecha YYYY-MM-DD
-- nro_turno: "N° Turno:"
-- peso_bruto_destino: en sección G - DESCARGA buscá "Peso Bruto (kg):" (con paréntesis y dos puntos) y tomá el número que le sigue (ej: 50540). Este valor es MAYOR que el peso bruto de sección B porque incluye el camión
-- peso_tara_destino: en sección G - DESCARGA buscá "Peso Tara (kg):" (con paréntesis y dos puntos) y tomá el número que le sigue (ej: 19020)
+IMPORTANTE: Esta sección tiene los labels en una columna y los valores numéricos en otra columna del PDF.
+El layout típico es:
+  Labels:          Valores:
+  Peso Bruto (kg): 50540
+  Peso Neto (kg):  31520  
+  Peso Tara (kg):  19020
+Los valores de esta sección son DISTINTOS a los de sección B.
+- fecha_arribo: fecha en "Fecha Arribo:" formato YYYY-MM-DD
+- fecha_descarga: fecha en "Fecha Descarga:" formato YYYY-MM-DD
+- nro_turno: valor en "N° Turno:"
+- peso_bruto_destino: número asociado a "Peso Bruto (kg):" en sección G ÚNICAMENTE. Este número es el peso del camión cargado al llegar a destino, SIEMPRE mayor a 30000. NO usar valores de sección B.
+- peso_tara_destino: número asociado a "Peso Tara (kg):" en sección G ÚNICAMENTE. Es el peso del camión vacío en destino. NO usar valores de sección B.
 - humedad_destino: humedad en destino si aparece
 
 Devolvé ÚNICAMENTE el JSON sin markdown:
