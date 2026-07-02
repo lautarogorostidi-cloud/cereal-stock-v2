@@ -44,6 +44,14 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
     cerrarModal()
   }
 
+
+  async function borrar(carta: any) {
+    if (!confirm(`¿Borrar la CPE ${carta.numero_cpe}? Esta acción no se puede deshacer.`)) return
+    const { error } = await supabase.from('cartas_porte').delete().eq('id', carta.id)
+    if (error) { alert('Error al borrar: ' + error.message); return }
+    setLista(prev => prev.filter(c => c.id !== carta.id))
+  }
+
   function descargarExcel() {
     const sep = ';'
     const headers = [
@@ -204,12 +212,20 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                     </button>
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => router.push(`/dashboard/cartas-porte/editar?numero_cpe=${c.numero_cpe}`)}
-                      className="text-xs text-campo-500 hover:text-campo-700 underline"
-                    >
-                      editar
-                    </button>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => router.push(`/dashboard/cartas-porte/editar?numero_cpe=${c.numero_cpe}`)}
+                        className="text-xs text-campo-500 hover:text-campo-700 underline"
+                      >
+                        editar
+                      </button>
+                      <button
+                        onClick={() => borrar(c)}
+                        className="text-xs text-red-400 hover:text-red-600 underline"
+                      >
+                        borrar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
