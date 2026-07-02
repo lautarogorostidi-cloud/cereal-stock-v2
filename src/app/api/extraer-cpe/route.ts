@@ -68,8 +68,8 @@ SECCIÓN A - INTERVINIENTES:
 SECCIÓN B - GRANO:
 - cultivo: nombre del grano en "Grano / Tipo:"
 - campania: campo "Campaña:" convertido (ej: "2526" a "25-26")
-- peso_bruto_kg: "Peso Bruto" en sección B
-- peso_tara_kg: "Peso Tara" en sección B
+- peso_bruto_kg: número en "Peso Bruto" de la sección B - GRANO / ESPECIE (origen, NO el de sección G)
+- peso_tara_kg: número en "Peso Tara" de la sección B - GRANO / ESPECIE (origen, NO el de sección G)
 - declaracion_calidad: "conforme" o "condicional"
 - humedad_origen: humedad en origen si aparece
 
@@ -104,8 +104,8 @@ SECCIÓN G - DESCARGA:
 - fecha_arribo: "Fecha Arribo:" solo fecha YYYY-MM-DD
 - fecha_descarga: "Fecha Descarga:" solo fecha YYYY-MM-DD
 - nro_turno: "N° Turno:"
-- peso_bruto_destino: "Peso Bruto (kg):" en sección G
-- peso_tara_destino: "Peso Tara (kg):" en sección G
+- peso_bruto_destino: número en "Peso Bruto (kg):" que aparece DENTRO de la sección G - DESCARGA (NO el de sección B)
+- peso_tara_destino: número en "Peso Tara (kg):" que aparece DENTRO de la sección G - DESCARGA (NO el de sección B)
 - humedad_destino: humedad en destino si aparece
 
 Devolvé ÚNICAMENTE el JSON sin markdown:
