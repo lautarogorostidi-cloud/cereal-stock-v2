@@ -20,11 +20,14 @@ type CostoGanaderia = {
 type AsociacionTipo = 'feedlot' | 'general'
 
 const TIPOS = [
+  { value: 'sanidad', label: 'Sanidad' },
+  { value: 'racion', label: 'Ración' },
   { value: 'flete', label: 'Flete' },
-  { value: 'mano_obra', label: 'Mano de obra' },
-  { value: 'veterinario', label: 'Veterinario' },
+  { value: 'guia_senasa', label: 'Guía SENASA' },
+  { value: 'caravanas', label: 'Caravanas' },
   { value: 'arrendamiento', label: 'Arrendamiento' },
-  { value: 'otros', label: 'Otros' },
+  { value: 'mano_obra', label: 'Mano de obra' },
+  { value: 'otro', label: 'Otro' },
 ]
 
 const inputCls = 'w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none'
@@ -59,6 +62,7 @@ export default function CostosPage() {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [tipo, setTipo] = useState('flete')
   const [descripcion, setDescripcion] = useState('')
+  const [tipoOtroDesc, setTipoOtroDesc] = useState('')
   const [monto, setMonto] = useState('')
   const [categoriaId, setCategoriaId] = useState('')
   const [loteId, setLoteId] = useState('')
@@ -80,6 +84,7 @@ export default function CostosPage() {
   const [eFecha, setEFecha] = useState('')
   const [eTipo, setETipo] = useState('')
   const [eDescripcion, setEDescripcion] = useState('')
+  const [eTipoOtroDesc, setETipoOtroDesc] = useState('')
   const [eMonto, setEMonto] = useState('')
   const [eCategoriaId, setECategoriaId] = useState('')
   const [eLoteId, setELoteId] = useState('')
@@ -124,7 +129,8 @@ export default function CostosPage() {
     setGuardando(true)
     try {
       const { error: eIns } = await supabase.from('costos_ganaderia').insert({
-        fecha, tipo, descripcion: descripcion || null,
+        fecha, tipo,
+        descripcion: tipo === 'otro' ? (tipoOtroDesc || null) : (descripcion || null),
         monto_usd: Number(monto),
         categoria_id: categoriaId || null,
         lote_feedlot_id: asociacion === 'feedlot' ? loteId : null,
@@ -134,7 +140,7 @@ export default function CostosPage() {
       })
       if (eIns) throw eIns
       setExito('Costo registrado.')
-      setDescripcion(''); setMonto(''); setCategoriaId(''); setLoteId('')
+      setDescripcion(''); setTipoOtroDesc(''); setMonto(''); setCategoriaId(''); setLoteId('')
       setCampoId(''); setCampania(''); setObservaciones('')
       cargarCostos()
     } catch (err: any) { setError(err?.message ?? 'Error al guardar.') }
@@ -143,7 +149,8 @@ export default function CostosPage() {
 
   const abrirEdit = (c: CostoGanaderia) => {
     setEditCosto(c); setEFecha(c.fecha); setETipo(c.tipo)
-    setEDescripcion(c.descripcion ?? ''); setEMonto(String(c.monto_usd))
+    setEDescripcion(c.descripcion ?? '')
+    setETipoOtroDesc(c.tipo === 'otro' ? (c.descripcion ?? '') : ''); setEMonto(String(c.monto_usd))
     setECategoriaId(c.categoria_id ?? '')
     setELoteId(c.lote_feedlot_id ?? ''); setECampoId(c.campo_id ? String(c.campo_id) : '')
     setECampania(c.campania ?? ''); setEObs(c.observaciones ?? '')
@@ -260,8 +267,13 @@ export default function CostosPage() {
             </select>
           </div>
 
-          <div><label className={labelCls}>Descripcion</label>
-            <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej: Flete Rosario 15/06" className={inputCls} /></div>
+          {tipo === 'otro' ? (
+            <div><label className={labelCls}>Descripcion del costo</label>
+              <input value={tipoOtroDesc} onChange={(e) => setTipoOtroDesc(e.target.value)} placeholder="Ej: Caravanas SENASA, Reparacion alambrado..." className={inputCls} /></div>
+          ) : (
+            <div><label className={labelCls}>Descripcion <span className="text-stone-400">(opc.)</span></label>
+              <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ej: Flete Rosario 15/06" className={inputCls} /></div>
+          )}
 
           <div><label className={labelCls}>Monto (USD)</label>
             <input type="number" min={0} step="0.01" value={monto} onChange={(e) => setMonto(e.target.value)} className={inputCls} /></div>
