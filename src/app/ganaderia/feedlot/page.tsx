@@ -113,6 +113,31 @@ export default function FeedlotPage() {
   const [cError, setCError] = useState<string | null>(null)
   const [cExito, setCExito] = useState<string | null>(null)
 
+  // Modal editar carga
+  const [editCarga, setEditCarga] = useState<FeedlotCarga | null>(null)
+  const [ecFecha, setEcFecha] = useState('')
+  const [ecMaizTn, setEcMaizTn] = useState('')
+  const [ecMaizPrecio, setEcMaizPrecio] = useState('')
+  const [ecNucleoTn, setEcNucleoTn] = useState('')
+  const [ecNucleoPrecio, setEcNucleoPrecio] = useState('')
+  const [ecExpellerTn, setEcExpellerTn] = useState('')
+  const [ecExpellerPrecio, setEcExpellerPrecio] = useState('')
+  const [ecOtros, setEcOtros] = useState<OtroAlimento[]>([])
+  const [ecObs, setEcObs] = useState('')
+  const [ecGuardando, setEcGuardando] = useState(false)
+  const [ecError, setEcError] = useState<string | null>(null)
+
+  // Modal editar salida
+  const [editSalida, setEditSalida] = useState<FeedlotSalida | null>(null)
+  const [esFechaSalida, setEsFechaSalida] = useState('')
+  const [esCabezas, setEsCabezas] = useState('')
+  const [esMotivo, setEsMotivo] = useState('venta')
+  const [esPrecioPorKg, setEsPrecioPorKg] = useState('')
+  const [esPesoPromedio, setEsPesoPromedio] = useState('')
+  const [esObs, setEsObs] = useState('')
+  const [esGuardando, setEsGuardando] = useState(false)
+  const [esError, setEsError] = useState<string | null>(null)
+
   // Modal editar ingreso
   const [editIngreso, setEditIngreso] = useState<FeedlotIngreso | null>(null)
   const [eiCabezas, setEiCabezas] = useState('')
@@ -250,6 +275,58 @@ export default function FeedlotPage() {
       if (ingresoSel?.id === editIngreso.id) cargarDetalle({ ...editIngreso, cantidad_cabezas: Number(eiCabezas) || editIngreso.cantidad_cabezas })
     }
     setEiGuardando(false)
+  }
+
+  const abrirEditCarga = (c: FeedlotCarga) => {
+    setEditCarga(c); setEcFecha(c.fecha_carga)
+    setEcMaizTn(String(c.maiz_tn)); setEcMaizPrecio(String(c.maiz_precio_usd_tn))
+    setEcNucleoTn(String(c.nucleo_tn)); setEcNucleoPrecio(String(c.nucleo_precio_usd_tn))
+    setEcExpellerTn(String(c.expeller_tn)); setEcExpellerPrecio(String(c.expeller_precio_usd_tn))
+    setEcOtros(c.otros_alimentos ?? []); setEcObs(c.observaciones ?? ''); setEcError(null)
+  }
+
+  const handleGuardarEditCarga = async () => {
+    if (!editCarga || !ingresoSel) return; setEcError(null)
+    setEcGuardando(true)
+    try {
+      const { error } = await supabase.from('feedlot_cargas').update({
+        fecha_carga: ecFecha,
+        maiz_tn: Number(ecMaizTn) || 0, maiz_precio_usd_tn: Number(ecMaizPrecio) || 0,
+        nucleo_tn: Number(ecNucleoTn) || 0, nucleo_precio_usd_tn: Number(ecNucleoPrecio) || 0,
+        expeller_tn: Number(ecExpellerTn) || 0, expeller_precio_usd_tn: Number(ecExpellerPrecio) || 0,
+        otros_alimentos: ecOtros.filter(o => o.cantidad_tn > 0).length > 0 ? ecOtros.filter(o => o.cantidad_tn > 0) : null,
+        observaciones: ecObs || null,
+      }).eq('id', editCarga.id)
+      if (error) throw error
+      setEditCarga(null); cargarDetalle(ingresoSel)
+    } catch (err: any) { setEcError(err.message) }
+    finally { setEcGuardando(false) }
+  }
+
+  const abrirEditSalida = (s: FeedlotSalida) => {
+    setEditSalida(s); setEsFechaSalida(s.fecha_salida); setEsCabezas(String(s.cantidad_cabezas))
+    setEsMotivo(s.motivo); setEsPrecioPorKg(s.precio_por_kg_usd ? String(s.precio_por_kg_usd) : '')
+    setEsPesoPromedio(s.peso_promedio_kg ? String(s.peso_promedio_kg) : '')
+    setEsObs(s.observaciones ?? ''); setEsError(null)
+  }
+
+  const handleGuardarEditSalida = async () => {
+    if (!editSalida || !ingresoSel) return; setEsError(null)
+    setEsGuardando(true)
+    try {
+      const precioPorKg = esMotivo === 'venta' && esPrecioPorKg ? Number(esPrecioPorKg) : null
+      const pesoPromedio = esMotivo === 'venta' && esPesoPromedio ? Number(esPesoPromedio) : null
+      const ingresoTotal = precioPorKg && pesoPromedio ? Number(esCabezas) * pesoPromedio * precioPorKg : null
+      const { error } = await supabase.from('feedlot_salidas').update({
+        fecha_salida: esFechaSalida, cantidad_cabezas: Number(esCabezas),
+        motivo: esMotivo, precio_por_kg_usd: precioPorKg,
+        peso_promedio_kg: pesoPromedio, ingreso_total_usd: ingresoTotal,
+        observaciones: esObs || null,
+      }).eq('id', editSalida.id)
+      if (error) throw error
+      setEditSalida(null); cargarDetalle(ingresoSel); setRefreshKey(k => k + 1)
+    } catch (err: any) { setEsError(err.message) }
+    finally { setEsGuardando(false) }
   }
 
   const handleBorrarIngreso = async (id: string) => {
@@ -564,7 +641,10 @@ export default function FeedlotPage() {
                             <td className="px-3 py-2 text-right font-medium">{fmt(mezclaTotalCarga(c), 3)} tn</td>
                             <td className="px-3 py-2 text-right font-medium text-stone-900">USD {fmt(costoTotalCarga(c))}</td>
                             <td className="px-3 py-2">
-                              <button onClick={() => handleBorrarCarga(c.id)} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
+                              <div className="flex gap-2 justify-end">
+                                <button onClick={() => abrirEditCarga(c)} className="text-xs text-stone-500 hover:text-stone-900 underline">Editar</button>
+                                <button onClick={() => handleBorrarCarga(c.id)} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -599,7 +679,10 @@ export default function FeedlotPage() {
                             <td className="px-3 py-2 text-right">{s.precio_por_kg_usd ? 'USD ' + fmt(s.precio_por_kg_usd, 3) : '—'}</td>
                             <td className="px-3 py-2 text-right font-medium text-green-700">{s.ingreso_total_usd ? 'USD ' + fmt(s.ingreso_total_usd) : '—'}</td>
                             <td className="px-3 py-2">
-                              <button onClick={() => handleBorrarSalida(s.id)} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
+                              <div className="flex gap-2 justify-end">
+                                <button onClick={() => abrirEditSalida(s)} className="text-xs text-stone-500 hover:text-stone-900 underline">Editar</button>
+                                <button onClick={() => handleBorrarSalida(s.id)} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -612,6 +695,106 @@ export default function FeedlotPage() {
           )}
         </div>
       </div>
+
+      {/* Modal editar carga */}
+      {editCarga && (
+        <Modal title="Editar carga de ración" onClose={() => setEditCarga(null)}>
+          {ecError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{ecError}</div>}
+          <div><label className={labelCls}>Fecha de carga</label>
+            <input type="date" value={ecFecha} onChange={e => setEcFecha(e.target.value)} className={inputCls} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2 rounded-md bg-stone-50 p-3">
+              <p className="text-xs font-semibold text-stone-600 uppercase">Maíz</p>
+              <div><label className={labelCls}>Toneladas</label>
+                <input type="number" min={0} step="0.001" value={ecMaizTn} onChange={e => setEcMaizTn(e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Precio (USD/tn)</label>
+                <input type="number" min={0} step="0.01" value={ecMaizPrecio} onChange={e => setEcMaizPrecio(e.target.value)} className={inputCls} /></div>
+            </div>
+            <div className="space-y-2 rounded-md bg-stone-50 p-3">
+              <p className="text-xs font-semibold text-stone-600 uppercase">Núcleo</p>
+              <div><label className={labelCls}>Toneladas</label>
+                <input type="number" min={0} step="0.001" value={ecNucleoTn} onChange={e => setEcNucleoTn(e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Precio (USD/tn)</label>
+                <input type="number" min={0} step="0.01" value={ecNucleoPrecio} onChange={e => setEcNucleoPrecio(e.target.value)} className={inputCls} /></div>
+            </div>
+          </div>
+          <details className="rounded-md border border-stone-200 p-3">
+            <summary className="text-xs font-semibold text-stone-500 cursor-pointer">Expeller (opcional)</summary>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div><label className={labelCls}>Toneladas</label>
+                <input type="number" min={0} step="0.001" value={ecExpellerTn} onChange={e => setEcExpellerTn(e.target.value)} className={inputCls} /></div>
+              <div><label className={labelCls}>Precio (USD/tn)</label>
+                <input type="number" min={0} step="0.01" value={ecExpellerPrecio} onChange={e => setEcExpellerPrecio(e.target.value)} className={inputCls} /></div>
+            </div>
+          </details>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-stone-600 uppercase">Otros alimentos</p>
+              <button type="button" onClick={() => setEcOtros(prev => [...prev, { nombre: '', cantidad_tn: 0, precio_usd_tn: 0 }])} className="text-xs text-stone-500 underline hover:text-stone-900">+ Agregar</button>
+            </div>
+            {ecOtros.map((o, i) => (
+              <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end rounded-md bg-amber-50 p-3">
+                <div><label className={labelCls}>Nombre</label>
+                  <input value={o.nombre} onChange={e => setEcOtros(prev => prev.map((x, idx) => idx === i ? { ...x, nombre: e.target.value } : x))} className={inputCls} /></div>
+                <div><label className={labelCls}>Tn</label>
+                  <input type="number" min={0} step="0.001" value={o.cantidad_tn || ''} onChange={e => setEcOtros(prev => prev.map((x, idx) => idx === i ? { ...x, cantidad_tn: Number(e.target.value) } : x))} className="w-20 rounded-md border border-stone-300 px-2 py-2 text-sm" /></div>
+                <div><label className={labelCls}>USD/tn</label>
+                  <input type="number" min={0} step="0.01" value={o.precio_usd_tn || ''} onChange={e => setEcOtros(prev => prev.map((x, idx) => idx === i ? { ...x, precio_usd_tn: Number(e.target.value) } : x))} className="w-20 rounded-md border border-stone-300 px-2 py-2 text-sm" /></div>
+                <button type="button" onClick={() => setEcOtros(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600 text-lg">×</button>
+              </div>
+            ))}
+          </div>
+          <div><label className={labelCls}>Observaciones</label>
+            <textarea value={ecObs} onChange={e => setEcObs(e.target.value)} rows={2} className={inputCls} /></div>
+          <div className="flex gap-3 pt-1">
+            <button onClick={() => setEditCarga(null)} className="flex-1 rounded-md border border-stone-300 px-4 py-2 text-sm text-stone-700 hover:bg-stone-50">Cancelar</button>
+            <button onClick={handleGuardarEditCarga} disabled={ecGuardando} className="flex-1 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
+              {ecGuardando ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal editar salida */}
+      {editSalida && (
+        <Modal title="Editar salida" onClose={() => setEditSalida(null)}>
+          {esError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{esError}</div>}
+          <div><label className={labelCls}>Fecha de salida</label>
+            <input type="date" value={esFechaSalida} onChange={e => setEsFechaSalida(e.target.value)} className={inputCls} /></div>
+          <div><label className={labelCls}>Cantidad de cabezas</label>
+            <input type="number" min={1} value={esCabezas} onChange={e => setEsCabezas(e.target.value)} className={inputCls} /></div>
+          <div><label className={labelCls}>Motivo</label>
+            <select value={esMotivo} onChange={e => { setEsMotivo(e.target.value); setEsPrecioPorKg(''); setEsPesoPromedio('') }} className={inputCls}>
+              <option value="venta">Venta</option>
+              <option value="muerte">Muerte</option>
+              <option value="otro">Otro</option>
+            </select></div>
+          {esMotivo === 'venta' && (
+            <div className="space-y-3 rounded-md bg-green-50 p-3">
+              <p className="text-xs font-semibold text-stone-600 uppercase">Datos de la venta</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={labelCls}>Peso promedio/cab (kg)</label>
+                  <input type="number" min={0} step="0.1" value={esPesoPromedio} onChange={e => setEsPesoPromedio(e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>Precio (USD/kg)</label>
+                  <input type="number" min={0} step="0.001" value={esPrecioPorKg} onChange={e => setEsPrecioPorKg(e.target.value)} className={inputCls} /></div>
+              </div>
+              {esCabezas && esPrecioPorKg && esPesoPromedio && (
+                <div className="rounded-md bg-green-100 px-3 py-2 text-xs text-green-800">
+                  Ingreso total: <span className="font-bold">USD {fmt(Number(esCabezas) * Number(esPesoPromedio) * Number(esPrecioPorKg))}</span>
+                </div>
+              )}
+            </div>
+          )}
+          <div><label className={labelCls}>Observaciones</label>
+            <textarea value={esObs} onChange={e => setEsObs(e.target.value)} rows={2} className={inputCls} /></div>
+          <div className="flex gap-3 pt-1">
+            <button onClick={() => setEditSalida(null)} className="flex-1 rounded-md border border-stone-300 px-4 py-2 text-sm text-stone-700 hover:bg-stone-50">Cancelar</button>
+            <button onClick={handleGuardarEditSalida} disabled={esGuardando} className="flex-1 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
+              {esGuardando ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {editIngreso && (
         <Modal title={`Editar — ${editIngreso.categorias_hacienda?.nombre}`} onClose={() => setEditIngreso(null)}>
