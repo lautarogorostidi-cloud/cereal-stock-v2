@@ -15,13 +15,17 @@ type FeedlotIngreso = {
 type FeedlotSalida = {
   id: string; ingreso_id: string; fecha_salida: string
   cantidad_cabezas: number; motivo: string; observaciones: string | null
+  precio_por_kg_usd: number | null; peso_promedio_kg: number | null; ingreso_total_usd: number | null
 }
+
+type OtroAlimento = { nombre: string; cantidad_tn: number; precio_usd_tn: number }
 
 type FeedlotCarga = {
   id: string; ingreso_id: string; campania: string; fecha_carga: string
   maiz_tn: number; maiz_precio_usd_tn: number
   nucleo_tn: number; nucleo_precio_usd_tn: number
   expeller_tn: number; expeller_precio_usd_tn: number
+  otros_alimentos: OtroAlimento[] | null
   observaciones: string | null
 }
 
@@ -50,6 +54,18 @@ function diasDesde(fecha: string): number {
   return Math.max(0, Math.round((new Date().getTime() - new Date(fecha + 'T00:00:00').getTime()) / 86400000))
 }
 
+function costoTotalCarga(c: FeedlotCarga): number {
+  const base = c.maiz_tn * c.maiz_precio_usd_tn + c.nucleo_tn * c.nucleo_precio_usd_tn + c.expeller_tn * c.expeller_precio_usd_tn
+  const otros = (c.otros_alimentos ?? []).reduce((s, o) => s + o.cantidad_tn * o.precio_usd_tn, 0)
+  return base + otros
+}
+
+function mezclaTotalCarga(c: FeedlotCarga): number {
+  const base = c.maiz_tn + c.nucleo_tn + c.expeller_tn
+  const otros = (c.otros_alimentos ?? []).reduce((s, o) => s + o.cantidad_tn, 0)
+  return base + otros
+}
+
 export default function FeedlotPage() {
   const supabase = createClient()
   const [campanias, setCampanias] = useState<Campania[]>([])
@@ -76,6 +92,8 @@ export default function FeedlotPage() {
   const [sFechaSalida, setSFechaSalida] = useState(new Date().toISOString().slice(0, 10))
   const [sCabezas, setSCabezas] = useState('')
   const [sMotivo, setSMotivo] = useState('venta')
+  const [sPrecioPorKg, setSPrecioPorKg] = useState('')
+  const [sPesoPromedio, setSPesoPromedio] = useState('')
   const [sObs, setSObs] = useState('')
   const [sGuardando, setSGuardando] = useState(false)
   const [sError, setSError] = useState<string | null>(null)
@@ -89,6 +107,7 @@ export default function FeedlotPage() {
   const [cNucleoPrecio, setCNucleoPrecio] = useState('')
   const [cExpellerTn, setCExpellerTn] = useState('')
   const [cExpellerPrecio, setCExpellerPrecio] = useState('')
+  const [cOtros, setCOtros] = useState<OtroAlimento[]>([])
   const [cObs, setCObs] = useState('')
   const [cGuardando, setCGuardando] = useState(false)
   const [cError, setCError] = useState<string | null>(null)
@@ -134,10 +153,10 @@ export default function FeedlotPage() {
     setSError(null); setCError(null); setCExito(null)
   }
 
-  // Cabezas activas = ingreso - salidas
   const cabezasActivas = (ingreso: FeedlotIngreso, salidasLote: FeedlotSalida[]) =>
     ingreso.cantidad_cabezas - salidasLote.reduce((s, x) => s + x.cantidad_cabezas, 0)
 
+  // ---- Submit ingreso ----
   const handleSubmitIngreso = async (e: React.FormEvent) => {
     e.preventDefault(); setIError(null); setIExito(null)
     if (!iCategoriaId) return setIError('Seleccioná una categoría.')
@@ -158,29 +177,41 @@ export default function FeedlotPage() {
     finally { setIGuardando(false) }
   }
 
+  // ---- Submit salida ----
   const handleSubmitSalida = async (e: React.FormEvent) => {
     e.preventDefault(); setSError(null)
     if (!ingresoSel) return
     const activas = cabezasActivas(ingresoSel, salidas)
     if (!sCabezas || Number(sCabezas) <= 0) return setSError('Ingresá la cantidad.')
     if (Number(sCabezas) > activas) return setSError(`Solo hay ${activas} cabezas activas.`)
+    if (sMotivo === 'venta' && (!sPrecioPorKg || !sPesoPromedio)) return setSError('Para una venta ingresá precio por kg y peso promedio.')
     setSGuardando(true)
     try {
+      const cabezas = Number(sCabezas)
+      const precioPorKg = sMotivo === 'venta' ? Number(sPrecioPorKg) : null
+      const pesoPromedio = sMotivo === 'venta' ? Number(sPesoPromedio) : null
+      const ingresoTotal = precioPorKg && pesoPromedio ? cabezas * pesoPromedio * precioPorKg : null
       const { error } = await supabase.from('feedlot_salidas').insert({
         ingreso_id: ingresoSel.id, fecha_salida: sFechaSalida,
-        cantidad_cabezas: Number(sCabezas), motivo: sMotivo, observaciones: sObs || null,
+        cantidad_cabezas: cabezas, motivo: sMotivo,
+        precio_por_kg_usd: precioPorKg, peso_promedio_kg: pesoPromedio,
+        ingreso_total_usd: ingresoTotal,
+        observaciones: sObs || null,
       })
       if (error) throw error
-      setSCabezas(''); setSObs(''); setShowSalida(false)
+      setSCabezas(''); setSObs(''); setSPrecioPorKg(''); setSPesoPromedio('')
+      setShowSalida(false)
       cargarDetalle(ingresoSel); setRefreshKey(k => k + 1); cargarIngresos()
     } catch (err: any) { setSError(err.message) }
     finally { setSGuardando(false) }
   }
 
+  // ---- Submit carga ----
   const handleSubmitCarga = async (e: React.FormEvent) => {
     e.preventDefault(); setCError(null); setCExito(null)
     if (!ingresoSel) return
-    if (!cMaizTn && !cNucleoTn && !cExpellerTn) return setCError('Ingresá al menos un ingrediente.')
+    const tieneAlgo = Number(cMaizTn) > 0 || Number(cNucleoTn) > 0 || Number(cExpellerTn) > 0 || cOtros.some(o => o.cantidad_tn > 0)
+    if (!tieneAlgo) return setCError('Ingresá al menos un alimento.')
     setCGuardando(true)
     try {
       const { error } = await supabase.from('feedlot_cargas').insert({
@@ -188,16 +219,24 @@ export default function FeedlotPage() {
         maiz_tn: Number(cMaizTn) || 0, maiz_precio_usd_tn: Number(cMaizPrecio) || 0,
         nucleo_tn: Number(cNucleoTn) || 0, nucleo_precio_usd_tn: Number(cNucleoPrecio) || 0,
         expeller_tn: Number(cExpellerTn) || 0, expeller_precio_usd_tn: Number(cExpellerPrecio) || 0,
+        otros_alimentos: cOtros.filter(o => o.cantidad_tn > 0).length > 0
+          ? cOtros.filter(o => o.cantidad_tn > 0) : null,
         observaciones: cObs || null,
       })
       if (error) throw error
       setCExito('Carga registrada.')
       setCMaizTn(''); setCMaizPrecio(''); setCNucleoTn(''); setCNucleoPrecio('')
-      setCExpellerTn(''); setCExpellerPrecio(''); setCObs('')
+      setCExpellerTn(''); setCExpellerPrecio(''); setCOtros([]); setCObs('')
       cargarDetalle(ingresoSel)
     } catch (err: any) { setCError(err.message) }
     finally { setCGuardando(false) }
   }
+
+  const agregarOtroAlimento = () => setCOtros(prev => [...prev, { nombre: '', cantidad_tn: 0, precio_usd_tn: 0 }])
+  const actualizarOtro = (i: number, campo: keyof OtroAlimento, valor: string) => {
+    setCOtros(prev => prev.map((o, idx) => idx === i ? { ...o, [campo]: campo === 'nombre' ? valor : Number(valor) } : o))
+  }
+  const quitarOtro = (i: number) => setCOtros(prev => prev.filter((_, idx) => idx !== i))
 
   const handleGuardarEditIngreso = async () => {
     if (!editIngreso) return
@@ -206,7 +245,10 @@ export default function FeedlotPage() {
       cantidad_cabezas: Number(eiCabezas) || editIngreso.cantidad_cabezas,
       observaciones: eiObs || null,
     }).eq('id', editIngreso.id)
-    if (!error) { setEditIngreso(null); cargarIngresos(); if (ingresoSel?.id === editIngreso.id) cargarDetalle(editIngreso) }
+    if (!error) {
+      setEditIngreso(null); cargarIngresos()
+      if (ingresoSel?.id === editIngreso.id) cargarDetalle({ ...editIngreso, cantidad_cabezas: Number(eiCabezas) || editIngreso.cantidad_cabezas })
+    }
     setEiGuardando(false)
   }
 
@@ -229,28 +271,36 @@ export default function FeedlotPage() {
     if (ingresoSel) cargarDetalle(ingresoSel)
   }
 
-  // KPIs de cargas
-  const totalMaizTn = cargas.reduce((s, c) => s + c.maiz_tn, 0)
-  const totalNucleoTn = cargas.reduce((s, c) => s + c.nucleo_tn, 0)
-  const totalExpellerTn = cargas.reduce((s, c) => s + c.expeller_tn, 0)
-  const totalMezclaTn = totalMaizTn + totalNucleoTn + totalExpellerTn
-  const costoRacion = cargas.reduce((s, c) =>
-    s + c.maiz_tn * c.maiz_precio_usd_tn + c.nucleo_tn * c.nucleo_precio_usd_tn + c.expeller_tn * c.expeller_precio_usd_tn, 0)
+  // KPIs
+  const totalMezclaTn = cargas.reduce((s, c) => s + mezclaTotalCarga(c), 0)
+  const costoRacion = cargas.reduce((s, c) => s + costoTotalCarga(c), 0)
   const cabActivas = ingresoSel ? cabezasActivas(ingresoSel, salidas) : 0
   const diasFeedlot = ingresoSel ? diasDesde(ingresoSel.fecha_entrada) : 0
-  const consumoPorCabDia = cabActivas > 0 && diasFeedlot > 0 ? (totalMezclaTn * 1000) / cabActivas / diasFeedlot : 0
+  // Consumo/cab/día: total mezcla en kg ÷ días ÷ cabezas ingresadas originalmente
+  const consumoPorCabDia = ingresoSel && ingresoSel.cantidad_cabezas > 0 && diasFeedlot > 0
+    ? (totalMezclaTn * 1000) / ingresoSel.cantidad_cabezas / diasFeedlot : 0
+  const totalIngresoVentas = salidas.filter(s => s.motivo === 'venta' && s.ingreso_total_usd)
+    .reduce((s, x) => s + (x.ingreso_total_usd ?? 0), 0)
+  const resultadoNeto = totalIngresoVentas - costoRacion
+
+  // Preview salida venta
+  const ingresoTotalPreview = sMotivo === 'venta' && sCabezas && sPrecioPorKg && sPesoPromedio
+    ? Number(sCabezas) * Number(sPesoPromedio) * Number(sPrecioPorKg) : null
+
+  // Preview carga
+  const totalMezclaForm = (Number(cMaizTn)||0) + (Number(cNucleoTn)||0) + (Number(cExpellerTn)||0) + cOtros.reduce((s,o) => s + o.cantidad_tn, 0)
+  const costoTotalForm = (Number(cMaizTn)||0)*(Number(cMaizPrecio)||0) + (Number(cNucleoTn)||0)*(Number(cNucleoPrecio)||0) + (Number(cExpellerTn)||0)*(Number(cExpellerPrecio)||0) + cOtros.reduce((s,o) => s + o.cantidad_tn * o.precio_usd_tn, 0)
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-stone-900">Feedlot</h1>
-        <p className="text-sm text-stone-500">Ingresos de hacienda al feedlot, cargas de ración y salidas.</p>
+        <p className="text-sm text-stone-500">Ingresos de hacienda, cargas de ración y salidas por venta o muerte.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[360px_1fr]">
-        {/* Panel izquierdo */}
+        {/* ---- Panel izquierdo ---- */}
         <div className="space-y-4">
-          {/* Formulario nuevo ingreso */}
           <form onSubmit={handleSubmitIngreso} className="space-y-4 rounded-lg border border-stone-200 bg-white p-5">
             <h2 className="text-base font-semibold text-stone-900">Nuevo ingreso al feedlot</h2>
             {iError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{iError}</div>}
@@ -282,7 +332,6 @@ export default function FeedlotPage() {
             </button>
           </form>
 
-          {/* Lista de ingresos */}
           <div className="rounded-lg border border-stone-200 bg-white overflow-hidden">
             <div className="bg-stone-50 px-4 py-3 border-b border-stone-200">
               <h3 className="text-sm font-semibold text-stone-900">Ingresos registrados</h3>
@@ -295,7 +344,7 @@ export default function FeedlotPage() {
                   className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${ingresoSel?.id === i.id ? 'bg-stone-100' : 'hover:bg-stone-50'}`}>
                   <div>
                     <div className="text-sm font-semibold text-stone-900">{i.categorias_hacienda?.nombre}</div>
-                    <div className="text-xs text-stone-500">{i.campania} · {i.cantidad_cabezas} cab. · entrada {new Date(i.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')}</div>
+                    <div className="text-xs text-stone-500">{i.campania} · {i.cantidad_cabezas} cab. · {new Date(i.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')}</div>
                   </div>
                   <div className="flex gap-2 shrink-0 ml-2">
                     <button onClick={ev => { ev.stopPropagation(); setEditIngreso(i); setEiCabezas(String(i.cantidad_cabezas)); setEiObs(i.observaciones ?? '') }}
@@ -309,7 +358,7 @@ export default function FeedlotPage() {
           </div>
         </div>
 
-        {/* Panel derecho - detalle */}
+        {/* ---- Panel derecho ---- */}
         <div key={refreshKey}>
           {!ingresoSel ? (
             <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-stone-300">
@@ -317,12 +366,12 @@ export default function FeedlotPage() {
             </div>
           ) : (
             <div className="space-y-5">
-              {/* Header */}
+              {/* Header con KPIs */}
               <div className="rounded-lg border border-stone-200 bg-white p-5">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between mb-4">
                   <div>
                     <h2 className="text-lg font-bold text-stone-900">{ingresoSel.categorias_hacienda?.nombre}</h2>
-                    <p className="text-sm text-stone-500">Campaña {ingresoSel.campania} · Entrada: {new Date(ingresoSel.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')} · {diasFeedlot} días en feedlot</p>
+                    <p className="text-sm text-stone-500">Campaña {ingresoSel.campania} · Entrada: {new Date(ingresoSel.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')} · {diasFeedlot} días</p>
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-bold text-stone-900">{cabActivas}</div>
@@ -331,27 +380,30 @@ export default function FeedlotPage() {
                   </div>
                 </div>
 
-                {/* KPIs ración */}
                 {cargas.length > 0 && (
-                  <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <div className="rounded-md bg-stone-50 p-3">
                       <p className="text-xs text-stone-500">Mezcla total</p>
                       <p className="text-base font-bold text-stone-900">{fmt(totalMezclaTn, 3)} tn</p>
-                      <p className="text-xs text-stone-400">Maíz: {fmt(totalMaizTn, 3)} · Núcleo: {fmt(totalNucleoTn, 3)}{totalExpellerTn > 0 ? ` · Exp: ${fmt(totalExpellerTn, 3)}` : ''}</p>
-                    </div>
-                    <div className="rounded-md bg-stone-50 p-3">
-                      <p className="text-xs text-stone-500">Costo ración</p>
-                      <p className="text-base font-bold text-stone-900">USD {fmt(costoRacion)}</p>
-                      {cabActivas > 0 && <p className="text-xs text-stone-400">USD {fmt(costoRacion / ingresoSel.cantidad_cabezas)}/cab</p>}
                     </div>
                     <div className="rounded-md bg-stone-50 p-3">
                       <p className="text-xs text-stone-500">Consumo/cab/día</p>
                       <p className="text-base font-bold text-stone-900">{fmt(consumoPorCabDia, 1)} kg</p>
+                      <p className="text-xs text-stone-400">kg de alimento por cabeza por día</p>
+                    </div>
+                    <div className="rounded-md bg-stone-50 p-3">
+                      <p className="text-xs text-stone-500">Costo ración</p>
+                      <p className="text-base font-bold text-stone-900">USD {fmt(costoRacion)}</p>
+                      {ingresoSel.cantidad_cabezas > 0 && <p className="text-xs text-stone-400">USD {fmt(costoRacion / ingresoSel.cantidad_cabezas)}/cab</p>}
+                    </div>
+                    <div className={`rounded-md p-3 ${resultadoNeto >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                      <p className="text-xs text-stone-500">Resultado neto</p>
+                      <p className={`text-base font-bold ${resultadoNeto >= 0 ? 'text-green-700' : 'text-red-700'}`}>USD {fmt(resultadoNeto)}</p>
+                      <p className="text-xs text-stone-400">Ventas - Ración</p>
                     </div>
                   </div>
                 )}
 
-                {/* Acciones */}
                 <div className="mt-4 flex gap-2">
                   <button onClick={() => { setShowCarga(v => !v); setShowSalida(false) }}
                     className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${showCarga ? 'bg-stone-900 text-white' : 'border border-stone-300 text-stone-700 hover:bg-stone-50'}`}>
@@ -370,8 +422,10 @@ export default function FeedlotPage() {
                   <h3 className="text-base font-semibold text-stone-900">Nueva carga de ración</h3>
                   {cError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{cError}</div>}
                   {cExito && <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{cExito}</div>}
+
                   <div><label className={labelCls}>Fecha de carga</label>
                     <input type="date" value={cFecha} onChange={e => setCFecha(e.target.value)} className={inputCls} /></div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3 rounded-md bg-stone-50 p-3">
                       <p className="text-xs font-semibold text-stone-600 uppercase">Maíz</p>
@@ -388,7 +442,7 @@ export default function FeedlotPage() {
                         <input type="number" min={0} step="0.01" value={cNucleoPrecio} onChange={e => setCNucleoPrecio(e.target.value)} className={inputCls} /></div>
                     </div>
                   </div>
-                  {/* Expeller (colapsado por defecto) */}
+
                   <details className="rounded-md border border-stone-200 p-3">
                     <summary className="text-xs font-semibold text-stone-500 cursor-pointer">Expeller (opcional)</summary>
                     <div className="grid grid-cols-2 gap-3 mt-3">
@@ -398,14 +452,35 @@ export default function FeedlotPage() {
                         <input type="number" min={0} step="0.01" value={cExpellerPrecio} onChange={e => setCExpellerPrecio(e.target.value)} className={inputCls} /></div>
                     </div>
                   </details>
-                  {(Number(cMaizTn) > 0 || Number(cNucleoTn) > 0 || Number(cExpellerTn) > 0) && (
+
+                  {/* Otros alimentos */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-stone-600 uppercase">Otros alimentos</p>
+                      <button type="button" onClick={agregarOtroAlimento} className="text-xs text-stone-500 underline hover:text-stone-900">+ Agregar</button>
+                    </div>
+                    {cOtros.map((o, i) => (
+                      <div key={i} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end rounded-md bg-amber-50 p-3">
+                        <div><label className={labelCls}>Nombre (ej: Rollo, Silo)</label>
+                          <input value={o.nombre} onChange={e => actualizarOtro(i, 'nombre', e.target.value)} placeholder="Ej: Rollo" className={inputCls} /></div>
+                        <div><label className={labelCls}>Tn</label>
+                          <input type="number" min={0} step="0.001" value={o.cantidad_tn || ''} onChange={e => actualizarOtro(i, 'cantidad_tn', e.target.value)} className="w-24 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none" /></div>
+                        <div><label className={labelCls}>USD/tn</label>
+                          <input type="number" min={0} step="0.01" value={o.precio_usd_tn || ''} onChange={e => actualizarOtro(i, 'precio_usd_tn', e.target.value)} className="w-24 rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none" /></div>
+                        <button type="button" onClick={() => quitarOtro(i)} className="mb-0.5 text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {totalMezclaForm > 0 && (
                     <div className="rounded-md bg-stone-100 px-3 py-2 text-xs text-stone-600">
-                      Total mezcla: {fmt((Number(cMaizTn)||0)+(Number(cNucleoTn)||0)+(Number(cExpellerTn)||0), 3)} tn ·
-                      Costo: USD {fmt((Number(cMaizTn)||0)*(Number(cMaizPrecio)||0)+(Number(cNucleoTn)||0)*(Number(cNucleoPrecio)||0)+(Number(cExpellerTn)||0)*(Number(cExpellerPrecio)||0))}
+                      Total mezcla: <span className="font-medium">{fmt(totalMezclaForm, 3)} tn</span> · Costo: <span className="font-medium">USD {fmt(costoTotalForm)}</span>
                     </div>
                   )}
+
                   <div><label className={labelCls}>Observaciones</label>
                     <textarea value={cObs} onChange={e => setCObs(e.target.value)} rows={2} className={inputCls} /></div>
+
                   <button type="submit" disabled={cGuardando} className="w-full rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
                     {cGuardando ? 'Guardando...' : 'Registrar carga'}
                   </button>
@@ -418,18 +493,42 @@ export default function FeedlotPage() {
                   <h3 className="text-base font-semibold text-stone-900">Registrar salida</h3>
                   <p className="text-sm text-stone-500">Cabezas activas: <span className="font-semibold text-stone-900">{cabActivas}</span></p>
                   {sError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{sError}</div>}
+
                   <div><label className={labelCls}>Fecha de salida</label>
                     <input type="date" value={sFechaSalida} onChange={e => setSFechaSalida(e.target.value)} className={inputCls} /></div>
+
                   <div><label className={labelCls}>Cantidad de cabezas</label>
                     <input type="number" min={1} max={cabActivas} value={sCabezas} onChange={e => setSCabezas(e.target.value)} className={inputCls} /></div>
+
                   <div><label className={labelCls}>Motivo</label>
-                    <select value={sMotivo} onChange={e => setSMotivo(e.target.value)} className={inputCls}>
+                    <select value={sMotivo} onChange={e => { setSMotivo(e.target.value); setSPrecioPorKg(''); setSPesoPromedio('') }} className={inputCls}>
                       <option value="venta">Venta</option>
                       <option value="muerte">Muerte</option>
                       <option value="otro">Otro</option>
                     </select></div>
+
+                  {sMotivo === 'venta' && (
+                    <div className="space-y-3 rounded-md bg-green-50 p-3">
+                      <p className="text-xs font-semibold text-stone-600 uppercase">Datos de la venta</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div><label className={labelCls}>Peso promedio/cab (kg)</label>
+                          <input type="number" min={0} step="0.1" value={sPesoPromedio} onChange={e => setSPesoPromedio(e.target.value)} placeholder="Ej: 380" className={inputCls} /></div>
+                        <div><label className={labelCls}>Precio (USD/kg)</label>
+                          <input type="number" min={0} step="0.001" value={sPrecioPorKg} onChange={e => setSPrecioPorKg(e.target.value)} placeholder="Ej: 1.85" className={inputCls} /></div>
+                      </div>
+                      {ingresoTotalPreview && (
+                        <div className="rounded-md bg-green-100 px-3 py-2 text-xs text-green-800 space-y-0.5">
+                          <div>Peso total: <span className="font-medium">{fmt(Number(sCabezas) * Number(sPesoPromedio), 0)} kg</span></div>
+                          <div>Ingreso total: <span className="font-bold text-base">USD {fmt(ingresoTotalPreview)}</span></div>
+                          <div>Por cabeza: <span className="font-medium">USD {fmt(ingresoTotalPreview / Number(sCabezas))}</span></div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div><label className={labelCls}>Observaciones</label>
                     <textarea value={sObs} onChange={e => setSObs(e.target.value)} rows={2} className={inputCls} /></div>
+
                   <button type="submit" disabled={sGuardando} className="w-full rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
                     {sGuardando ? 'Guardando...' : 'Registrar salida'}
                   </button>
@@ -444,9 +543,10 @@ export default function FeedlotPage() {
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
                         <th className="px-3 py-2 font-medium">Fecha</th>
-                        <th className="px-3 py-2 text-right font-medium">Maíz (tn)</th>
-                        <th className="px-3 py-2 text-right font-medium">Núcleo (tn)</th>
-                        <th className="px-3 py-2 text-right font-medium">Expeller (tn)</th>
+                        <th className="px-3 py-2 text-right font-medium">Maíz</th>
+                        <th className="px-3 py-2 text-right font-medium">Núcleo</th>
+                        <th className="px-3 py-2 text-right font-medium">Otros</th>
+                        <th className="px-3 py-2 text-right font-medium">Total</th>
                         <th className="px-3 py-2 text-right font-medium">Costo USD</th>
                         <th className="px-3 py-2" />
                       </tr></thead>
@@ -454,10 +554,15 @@ export default function FeedlotPage() {
                         {cargas.map(c => (
                           <tr key={c.id} className="border-t border-stone-100">
                             <td className="px-3 py-2 text-stone-700">{new Date(c.fecha_carga + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                            <td className="px-3 py-2 text-right">{c.maiz_tn > 0 ? fmt(c.maiz_tn, 3) : '—'}</td>
-                            <td className="px-3 py-2 text-right">{c.nucleo_tn > 0 ? fmt(c.nucleo_tn, 3) : '—'}</td>
-                            <td className="px-3 py-2 text-right">{c.expeller_tn > 0 ? fmt(c.expeller_tn, 3) : '—'}</td>
-                            <td className="px-3 py-2 text-right font-medium">USD {fmt(c.maiz_tn*c.maiz_precio_usd_tn + c.nucleo_tn*c.nucleo_precio_usd_tn + c.expeller_tn*c.expeller_precio_usd_tn)}</td>
+                            <td className="px-3 py-2 text-right">{c.maiz_tn > 0 ? fmt(c.maiz_tn, 3) + ' tn' : '—'}</td>
+                            <td className="px-3 py-2 text-right">{c.nucleo_tn > 0 ? fmt(c.nucleo_tn, 3) + ' tn' : '—'}</td>
+                            <td className="px-3 py-2 text-right text-xs text-stone-500">
+                              {c.otros_alimentos && c.otros_alimentos.length > 0
+                                ? c.otros_alimentos.map(o => `${o.nombre}: ${fmt(o.cantidad_tn, 3)}`).join(', ')
+                                : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-right font-medium">{fmt(mezclaTotalCarga(c), 3)} tn</td>
+                            <td className="px-3 py-2 text-right font-medium text-stone-900">USD {fmt(costoTotalCarga(c))}</td>
                             <td className="px-3 py-2">
                               <button onClick={() => handleBorrarCarga(c.id)} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
                             </td>
@@ -479,16 +584,20 @@ export default function FeedlotPage() {
                         <th className="px-3 py-2 font-medium">Fecha</th>
                         <th className="px-3 py-2 text-right font-medium">Cabezas</th>
                         <th className="px-3 py-2 font-medium">Motivo</th>
-                        <th className="px-3 py-2 font-medium">Observaciones</th>
+                        <th className="px-3 py-2 text-right font-medium">Peso prom.</th>
+                        <th className="px-3 py-2 text-right font-medium">USD/kg</th>
+                        <th className="px-3 py-2 text-right font-medium">Ingreso</th>
                         <th className="px-3 py-2" />
                       </tr></thead>
                       <tbody>
                         {salidas.map(s => (
                           <tr key={s.id} className="border-t border-stone-100">
                             <td className="px-3 py-2 text-stone-700">{new Date(s.fecha_salida + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                            <td className="px-3 py-2 text-right font-medium text-stone-900">{s.cantidad_cabezas}</td>
+                            <td className="px-3 py-2 text-right font-medium">{s.cantidad_cabezas}</td>
                             <td className="px-3 py-2 text-stone-600 capitalize">{s.motivo}</td>
-                            <td className="px-3 py-2 text-stone-500 text-xs">{s.observaciones ?? '—'}</td>
+                            <td className="px-3 py-2 text-right">{s.peso_promedio_kg ? fmt(s.peso_promedio_kg, 0) + ' kg' : '—'}</td>
+                            <td className="px-3 py-2 text-right">{s.precio_por_kg_usd ? 'USD ' + fmt(s.precio_por_kg_usd, 3) : '—'}</td>
+                            <td className="px-3 py-2 text-right font-medium text-green-700">{s.ingreso_total_usd ? 'USD ' + fmt(s.ingreso_total_usd) : '—'}</td>
                             <td className="px-3 py-2">
                               <button onClick={() => handleBorrarSalida(s.id)} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
                             </td>
@@ -504,9 +613,8 @@ export default function FeedlotPage() {
         </div>
       </div>
 
-      {/* Modal editar ingreso */}
       {editIngreso && (
-        <Modal title={`Editar ingreso — ${editIngreso.categorias_hacienda?.nombre}`} onClose={() => setEditIngreso(null)}>
+        <Modal title={`Editar — ${editIngreso.categorias_hacienda?.nombre}`} onClose={() => setEditIngreso(null)}>
           <div><label className={labelCls}>Cantidad de cabezas</label>
             <input type="number" min={1} value={eiCabezas} onChange={e => setEiCabezas(e.target.value)} className={inputCls} /></div>
           <div><label className={labelCls}>Observaciones</label>
