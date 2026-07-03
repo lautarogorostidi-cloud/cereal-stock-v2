@@ -7,12 +7,13 @@ import { useRouter } from 'next/navigation'
 import type { Perfil } from '@/types'
 
 const nav = [
-  { href: '/ganaderia',          label: 'Movimientos',       icon: '🐄' },
-  { href: '/ganaderia/pastoreo', label: 'Pastoreo por lote', icon: '🌿' },
-  { href: '/ganaderia/sanidad',  label: 'Sanidad',           icon: '💉' },
-  { href: '/ganaderia/feedlot',  label: 'Feedlot',           icon: '🐮' },
-  { href: '/ganaderia/costos',   label: 'Costos',            icon: '💰' },
-  { href: '/ganaderia/inmag',    label: 'INMAG',             icon: '📊' },
+  { href: '/ganaderia',           label: 'Movimientos',       icon: '🐄' },
+  { href: '/ganaderia/pastoreo',  label: 'Pastoreo por lote', icon: '🌿' },
+  { href: '/ganaderia/sanidad',   label: 'Sanidad',           icon: '💉' },
+  { href: '/ganaderia/feedlot',   label: 'Feedlot',           icon: '🐮' },
+  { href: '/ganaderia/costos',    label: 'Costos',            icon: '💰' },
+  { href: '/ganaderia/resumen',   label: 'Resumen campaña',   icon: '📋' },
+  { href: '/ganaderia/inmag',     label: 'INMAG',             icon: '📊' },
 ]
 
 interface GanaderiaSidebarProps { perfil: Perfil | null }
