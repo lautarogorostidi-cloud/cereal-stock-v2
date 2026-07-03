@@ -225,7 +225,7 @@ export default function ResumenCampaniaPage() {
                     <td className="px-4 py-2 text-right text-stone-900">USD {fmt(totalVerdeoServicios)}</td>
                     <td className="px-4 py-2 text-right text-stone-900">USD {fmt(totalVerdeoFijos)}</td>
                     <td className="px-4 py-2 text-right text-stone-900">USD {fmt(totalVerdeo)}</td>
-                  </tfoot>
+                  </tr></tfoot>
                 </table>
               </div>
             </div>
@@ -291,7 +291,7 @@ export default function ResumenCampaniaPage() {
                   <tfoot><tr className="border-t-2 border-stone-200 bg-stone-50">
                     <td className="px-4 py-2 font-semibold text-stone-900">Total</td>
                     <td className="px-4 py-2 text-right font-bold text-stone-900">USD {fmt(totalCostosManual)}</td>
-                  </tfoot>
+                  </tr></tfoot>
                 </table>
               </div>
             </div>
