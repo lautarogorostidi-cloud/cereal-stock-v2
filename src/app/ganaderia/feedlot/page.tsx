@@ -3,20 +3,24 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-type Campo = { id: number; nombre: string }
+type Campania = { id: number; nombre: string }
 type CategoriaHacienda = { id: string; nombre: string; orden: number }
 
-type LoteFeedlot = {
-  id: string; numero_lote: string; campo_id: number; categoria_id: string
-  cantidad_cabezas: number; fecha_entrada: string; fecha_salida: string | null
-  peso_entrada_kg: number; peso_salida_kg: number | null; observaciones: string | null
-  campos: { nombre: string }; categorias_hacienda: { nombre: string }
+type FeedlotIngreso = {
+  id: string; categoria_id: string; campania: string
+  cantidad_cabezas: number; fecha_entrada: string; observaciones: string | null
+  categorias_hacienda: { nombre: string }
 }
 
-type CargaSilo = {
-  id: string; lote_feedlot_id: string; fecha_carga: string
-  fecha_agotamiento_estimada: string | null
+type FeedlotSalida = {
+  id: string; ingreso_id: string; fecha_salida: string
+  cantidad_cabezas: number; motivo: string; observaciones: string | null
+}
+
+type FeedlotCarga = {
+  id: string; ingreso_id: string; campania: string; fecha_carga: string
   maiz_tn: number; maiz_precio_usd_tn: number
+  nucleo_tn: number; nucleo_precio_usd_tn: number
   expeller_tn: number; expeller_precio_usd_tn: number
   observaciones: string | null
 }
@@ -38,46 +42,51 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   )
 }
 
-function fmt(n: number, dec = 3) {
+function fmt(n: number, dec = 2) {
   return n.toLocaleString('es-AR', { minimumFractionDigits: dec, maximumFractionDigits: dec })
 }
 
-function diasEntre(desde: string, hasta: string | null): number {
-  const d1 = new Date(desde + 'T00:00:00')
-  const d2 = hasta ? new Date(hasta + 'T00:00:00') : new Date()
-  return Math.max(0, Math.round((d2.getTime() - d1.getTime()) / 86400000))
+function diasDesde(fecha: string): number {
+  return Math.max(0, Math.round((new Date().getTime() - new Date(fecha + 'T00:00:00').getTime()) / 86400000))
 }
 
 export default function FeedlotPage() {
   const supabase = createClient()
-
-  const [campos, setCampos] = useState<Campo[]>([])
+  const [campanias, setCampanias] = useState<Campania[]>([])
   const [categorias, setCategorias] = useState<CategoriaHacienda[]>([])
-  const [lotes, setLotes] = useState<LoteFeedlot[]>([])
-  const [cargandoLotes, setCargandoLotes] = useState(true)
+  const [ingresos, setIngresos] = useState<FeedlotIngreso[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [ingresoSel, setIngresoSel] = useState<FeedlotIngreso | null>(null)
+  const [salidas, setSalidas] = useState<FeedlotSalida[]>([])
+  const [cargas, setCargas] = useState<FeedlotCarga[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
 
-  const [lNumeroLote, setLNumeroLote] = useState('')
-  const [lCampoId, setLCampoId] = useState('')
-  const [lCategoriaId, setLCategoriaId] = useState('')
-  const [lCabezas, setLCabezas] = useState('')
-  const [lFechaEntrada, setLFechaEntrada] = useState(new Date().toISOString().slice(0, 10))
-  const [lFechaSalida, setLFechaSalida] = useState('')
-  const [lPesoEntrada, setLPesoEntrada] = useState('')
-  const [lPesoSalida, setLPesoSalida] = useState('')
-  const [lObs, setLObs] = useState('')
-  const [lGuardando, setLGuardando] = useState(false)
-  const [lError, setLError] = useState<string | null>(null)
-  const [lExito, setLExito] = useState<string | null>(null)
+  // Formulario ingreso
+  const [iCategoriaId, setICategoriaId] = useState('')
+  const [iCampania, setICampania] = useState('')
+  const [iCabezas, setICabezas] = useState('')
+  const [iFechaEntrada, setIFechaEntrada] = useState(new Date().toISOString().slice(0, 10))
+  const [iObs, setIObs] = useState('')
+  const [iGuardando, setIGuardando] = useState(false)
+  const [iError, setIError] = useState<string | null>(null)
+  const [iExito, setIExito] = useState<string | null>(null)
 
-  const [loteSeleccionado, setLoteSeleccionado] = useState<LoteFeedlot | null>(null)
-  const [cargas, setCargas] = useState<CargaSilo[]>([])
-  const [cargandoCargas, setCargandoCargas] = useState(false)
+  // Formulario salida
+  const [showSalida, setShowSalida] = useState(false)
+  const [sFechaSalida, setSFechaSalida] = useState(new Date().toISOString().slice(0, 10))
+  const [sCabezas, setSCabezas] = useState('')
+  const [sMotivo, setSMotivo] = useState('venta')
+  const [sObs, setSObs] = useState('')
+  const [sGuardando, setSGuardando] = useState(false)
+  const [sError, setSError] = useState<string | null>(null)
 
-  const [cFechaCarga, setCFechaCarga] = useState(new Date().toISOString().slice(0, 10))
-  const [cFechaAgotamiento, setCFechaAgotamiento] = useState('')
+  // Formulario carga
+  const [showCarga, setShowCarga] = useState(false)
+  const [cFecha, setCFecha] = useState(new Date().toISOString().slice(0, 10))
   const [cMaizTn, setCMaizTn] = useState('')
   const [cMaizPrecio, setCMaizPrecio] = useState('')
+  const [cNucleoTn, setCNucleoTn] = useState('')
+  const [cNucleoPrecio, setCNucleoPrecio] = useState('')
   const [cExpellerTn, setCExpellerTn] = useState('')
   const [cExpellerPrecio, setCExpellerPrecio] = useState('')
   const [cObs, setCObs] = useState('')
@@ -85,465 +94,406 @@ export default function FeedlotPage() {
   const [cError, setCError] = useState<string | null>(null)
   const [cExito, setCExito] = useState<string | null>(null)
 
-  const [editLote, setEditLote] = useState<LoteFeedlot | null>(null)
-  const [elFechaSalida, setElFechaSalida] = useState('')
-  const [elPesoSalida, setElPesoSalida] = useState('')
-  const [elCabezas, setElCabezas] = useState('')
-  const [elObs, setElObs] = useState('')
-  const [elGuardando, setElGuardando] = useState(false)
-  const [elError, setElError] = useState<string | null>(null)
-
-  const [editCarga, setEditCarga] = useState<CargaSilo | null>(null)
-  const [ecFechaCarga, setEcFechaCarga] = useState('')
-  const [ecFechaAgotamiento, setEcFechaAgotamiento] = useState('')
-  const [ecMaizTn, setEcMaizTn] = useState('')
-  const [ecMaizPrecio, setEcMaizPrecio] = useState('')
-  const [ecExpellerTn, setEcExpellerTn] = useState('')
-  const [ecExpellerPrecio, setEcExpellerPrecio] = useState('')
-  const [ecObs, setEcObs] = useState('')
-  const [ecGuardando, setEcGuardando] = useState(false)
-  const [ecError, setEcError] = useState<string | null>(null)
+  // Modal editar ingreso
+  const [editIngreso, setEditIngreso] = useState<FeedlotIngreso | null>(null)
+  const [eiCabezas, setEiCabezas] = useState('')
+  const [eiObs, setEiObs] = useState('')
+  const [eiGuardando, setEiGuardando] = useState(false)
 
   useEffect(() => {
     const cargar = async () => {
-      const [{ data: c }, { data: cat }] = await Promise.all([
-        supabase.from('campos').select('id, nombre').order('nombre'),
+      const [{ data: camp }, { data: cat }] = await Promise.all([
+        supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false }),
         supabase.from('categorias_hacienda').select('id, nombre, orden').order('orden'),
       ])
-      setCampos(c ?? []); setCategorias(cat ?? [])
+      setCampanias(camp ?? [])
+      setCategorias(cat ?? [])
     }
-    cargar(); cargarLotes()
+    cargar(); cargarIngresos()
   }, [])
 
-  const cargarLotes = async () => {
-    setCargandoLotes(true)
+  const cargarIngresos = async () => {
+    setCargando(true)
     const { data } = await supabase
-      .from('lotes_feedlot')
-      .select('*, campos(nombre), categorias_hacienda(nombre)')
+      .from('feedlot_ingresos')
+      .select('*, categorias_hacienda(nombre)')
       .order('fecha_entrada', { ascending: false })
-    setLotes((data ?? []) as LoteFeedlot[])
-    setCargandoLotes(false)
+    setIngresos((data ?? []) as FeedlotIngreso[])
+    setCargando(false)
   }
 
-  const cargarCargas = async (loteId: string) => {
-    setCargandoCargas(true)
-    const { data } = await supabase
-      .from('cargas_silo_feedlot')
-      .select('*')
-      .eq('lote_feedlot_id', loteId)
-      .order('fecha_carga', { ascending: true })
-    setCargas((data ?? []) as CargaSilo[])
-    setCargandoCargas(false)
+  const cargarDetalle = async (ingreso: FeedlotIngreso) => {
+    setIngresoSel(ingreso)
+    const [{ data: sal }, { data: car }] = await Promise.all([
+      supabase.from('feedlot_salidas').select('*').eq('ingreso_id', ingreso.id).order('fecha_salida'),
+      supabase.from('feedlot_cargas').select('*').eq('ingreso_id', ingreso.id).order('fecha_carga'),
+    ])
+    setSalidas((sal ?? []) as FeedlotSalida[])
+    setCargas((car ?? []) as FeedlotCarga[])
+    setShowSalida(false); setShowCarga(false)
+    setSError(null); setCError(null); setCExito(null)
   }
 
-  const seleccionarLote = (lote: LoteFeedlot) => {
-    setLoteSeleccionado(lote)
-    cargarCargas(lote.id)
-    setCError(null); setCExito(null)
-  }
+  // Cabezas activas = ingreso - salidas
+  const cabezasActivas = (ingreso: FeedlotIngreso, salidasLote: FeedlotSalida[]) =>
+    ingreso.cantidad_cabezas - salidasLote.reduce((s, x) => s + x.cantidad_cabezas, 0)
 
-  const handleSubmitLote = async (e: React.FormEvent) => {
-    e.preventDefault(); setLError(null); setLExito(null)
-    if (!lNumeroLote.trim()) return setLError('Ingresa el numero de lote.')
-    if (!lCampoId) return setLError('Selecciona un campo.')
-    if (!lCategoriaId) return setLError('Selecciona una categoria.')
-    if (!lCabezas || Number(lCabezas) <= 0) return setLError('Ingresa la cantidad de cabezas.')
-    if (!lPesoEntrada || Number(lPesoEntrada) <= 0) return setLError('Ingresa el peso de entrada en kg.')
-    setLGuardando(true)
+  const handleSubmitIngreso = async (e: React.FormEvent) => {
+    e.preventDefault(); setIError(null); setIExito(null)
+    if (!iCategoriaId) return setIError('Seleccioná una categoría.')
+    if (!iCampania) return setIError('Seleccioná una campaña.')
+    if (!iCabezas || Number(iCabezas) <= 0) return setIError('Ingresá la cantidad de cabezas.')
+    setIGuardando(true)
     try {
-      const { error: eIns } = await supabase.from('lotes_feedlot').insert({
-        numero_lote: lNumeroLote.trim(),
-        campo_id: Number(lCampoId),
-        categoria_id: lCategoriaId,
-        cantidad_cabezas: Number(lCabezas),
-        fecha_entrada: lFechaEntrada,
-        fecha_salida: lFechaSalida || null,
-        peso_entrada_kg: Number(lPesoEntrada) * Number(lCabezas),
-        peso_salida_kg: lPesoSalida ? Number(lPesoSalida) * Number(lCabezas) : null,
-        observaciones: lObs || null,
+      const { error } = await supabase.from('feedlot_ingresos').insert({
+        categoria_id: iCategoriaId, campania: iCampania,
+        cantidad_cabezas: Number(iCabezas), fecha_entrada: iFechaEntrada,
+        observaciones: iObs || null,
       })
-      if (eIns) throw eIns
-      setLExito('Lote registrado correctamente.')
-      setLNumeroLote(''); setLCampoId(''); setLCategoriaId(''); setLCabezas('')
-      setLFechaSalida(''); setLPesoEntrada(''); setLPesoSalida(''); setLObs('')
-      cargarLotes()
-    } catch (err: any) { setLError(err?.message ?? 'Error al guardar.') }
-    finally { setLGuardando(false) }
+      if (error) throw error
+      setIExito('Ingreso registrado.')
+      setICategoriaId(''); setICampania(''); setICabezas(''); setIObs('')
+      cargarIngresos()
+    } catch (err: any) { setIError(err.message) }
+    finally { setIGuardando(false) }
+  }
+
+  const handleSubmitSalida = async (e: React.FormEvent) => {
+    e.preventDefault(); setSError(null)
+    if (!ingresoSel) return
+    const activas = cabezasActivas(ingresoSel, salidas)
+    if (!sCabezas || Number(sCabezas) <= 0) return setSError('Ingresá la cantidad.')
+    if (Number(sCabezas) > activas) return setSError(`Solo hay ${activas} cabezas activas.`)
+    setSGuardando(true)
+    try {
+      const { error } = await supabase.from('feedlot_salidas').insert({
+        ingreso_id: ingresoSel.id, fecha_salida: sFechaSalida,
+        cantidad_cabezas: Number(sCabezas), motivo: sMotivo, observaciones: sObs || null,
+      })
+      if (error) throw error
+      setSCabezas(''); setSObs(''); setShowSalida(false)
+      cargarDetalle(ingresoSel); setRefreshKey(k => k + 1); cargarIngresos()
+    } catch (err: any) { setSError(err.message) }
+    finally { setSGuardando(false) }
   }
 
   const handleSubmitCarga = async (e: React.FormEvent) => {
     e.preventDefault(); setCError(null); setCExito(null)
-    if (!loteSeleccionado) return
-    if (!cMaizTn && !cExpellerTn) return setCError('Ingresa al menos maiz o expeller.')
+    if (!ingresoSel) return
+    if (!cMaizTn && !cNucleoTn && !cExpellerTn) return setCError('Ingresá al menos un ingrediente.')
     setCGuardando(true)
     try {
-      const { error: eIns } = await supabase.from('cargas_silo_feedlot').insert({
-        lote_feedlot_id: loteSeleccionado.id,
-        fecha_carga: cFechaCarga,
-        fecha_agotamiento_estimada: cFechaAgotamiento || null,
-        maiz_tn: Number(cMaizTn) || 0,
-        maiz_precio_usd_tn: Number(cMaizPrecio) || 0,
-        expeller_tn: Number(cExpellerTn) || 0,
-        expeller_precio_usd_tn: Number(cExpellerPrecio) || 0,
+      const { error } = await supabase.from('feedlot_cargas').insert({
+        ingreso_id: ingresoSel.id, campania: ingresoSel.campania, fecha_carga: cFecha,
+        maiz_tn: Number(cMaizTn) || 0, maiz_precio_usd_tn: Number(cMaizPrecio) || 0,
+        nucleo_tn: Number(cNucleoTn) || 0, nucleo_precio_usd_tn: Number(cNucleoPrecio) || 0,
+        expeller_tn: Number(cExpellerTn) || 0, expeller_precio_usd_tn: Number(cExpellerPrecio) || 0,
         observaciones: cObs || null,
       })
-      if (eIns) throw eIns
+      if (error) throw error
       setCExito('Carga registrada.')
-      setCMaizTn(''); setCMaizPrecio(''); setCExpellerTn(''); setCExpellerPrecio('')
-      setCFechaAgotamiento(''); setCObs('')
-      cargarCargas(loteSeleccionado.id)
-    } catch (err: any) { setCError(err?.message ?? 'Error al guardar.') }
+      setCMaizTn(''); setCMaizPrecio(''); setCNucleoTn(''); setCNucleoPrecio('')
+      setCExpellerTn(''); setCExpellerPrecio(''); setCObs('')
+      cargarDetalle(ingresoSel)
+    } catch (err: any) { setCError(err.message) }
     finally { setCGuardando(false) }
   }
 
-  const abrirEditLote = (l: LoteFeedlot) => {
-    setEditLote(l)
-    setElFechaSalida(l.fecha_salida ?? '')
-    setElPesoSalida(l.peso_salida_kg ? String(Math.round(l.peso_salida_kg / l.cantidad_cabezas)) : '')
-    setElCabezas(String(l.cantidad_cabezas))
-    setElObs(l.observaciones ?? '')
-    setElError(null)
+  const handleGuardarEditIngreso = async () => {
+    if (!editIngreso) return
+    setEiGuardando(true)
+    const { error } = await supabase.from('feedlot_ingresos').update({
+      cantidad_cabezas: Number(eiCabezas) || editIngreso.cantidad_cabezas,
+      observaciones: eiObs || null,
+    }).eq('id', editIngreso.id)
+    if (!error) { setEditIngreso(null); cargarIngresos(); if (ingresoSel?.id === editIngreso.id) cargarDetalle(editIngreso) }
+    setEiGuardando(false)
   }
 
-  const handleGuardarEditLote = async () => {
-    if (!editLote) return; setElError(null)
-    setElGuardando(true)
-    try {
-      const { error: eUp } = await supabase.from('lotes_feedlot').update({
-        cantidad_cabezas: Number(elCabezas),
-        fecha_salida: elFechaSalida || null,
-        peso_salida_kg: elPesoSalida ? Number(elPesoSalida) * Number(elCabezas) : null,
-        observaciones: elObs || null,
-      }).eq('id', editLote.id)
-      if (eUp) throw eUp
-      setEditLote(null)
-      const { data: lotesActualizados } = await supabase
-        .from('lotes_feedlot')
-        .select('*, campos(nombre), categorias_hacienda(nombre)')
-        .order('fecha_entrada', { ascending: false })
-      const lista = (lotesActualizados ?? []) as LoteFeedlot[]
-      setLotes(lista)
-      if (loteSeleccionado?.id === editLote.id) {
-        const actualizado = lista.find((l) => l.id === editLote.id)
-        if (actualizado) setLoteSeleccionado(actualizado)
-        setRefreshKey((k) => k + 1)
-        cargarCargas(editLote.id)
-      }
-    } catch (err: any) { setElError(err?.message ?? 'Error al guardar.') }
-    finally { setElGuardando(false) }
+  const handleBorrarIngreso = async (id: string) => {
+    if (!confirm('¿Borrar este ingreso y todas sus cargas y salidas?')) return
+    await supabase.from('feedlot_ingresos').delete().eq('id', id)
+    if (ingresoSel?.id === id) setIngresoSel(null)
+    cargarIngresos()
   }
 
-  const handleBorrarLote = async (id: string) => {
-    if (!confirm('Borrar este lote y todas sus cargas de silo?')) return
-    await supabase.from('lotes_feedlot').delete().eq('id', id)
-    if (loteSeleccionado?.id === id) setLoteSeleccionado(null)
-    cargarLotes()
-  }
-
-  const abrirEditCarga = (c: CargaSilo) => {
-    setEditCarga(c); setEcFechaCarga(c.fecha_carga)
-    setEcFechaAgotamiento(c.fecha_agotamiento_estimada ?? '')
-    setEcMaizTn(String(c.maiz_tn)); setEcMaizPrecio(String(c.maiz_precio_usd_tn))
-    setEcExpellerTn(String(c.expeller_tn)); setEcExpellerPrecio(String(c.expeller_precio_usd_tn))
-    setEcObs(c.observaciones ?? ''); setEcError(null)
-  }
-
-  const handleGuardarEditCarga = async () => {
-    if (!editCarga) return; setEcError(null)
-    setEcGuardando(true)
-    try {
-      const { error: eUp } = await supabase.from('cargas_silo_feedlot').update({
-        fecha_carga: ecFechaCarga,
-        fecha_agotamiento_estimada: ecFechaAgotamiento || null,
-        maiz_tn: Number(ecMaizTn) || 0,
-        maiz_precio_usd_tn: Number(ecMaizPrecio) || 0,
-        expeller_tn: Number(ecExpellerTn) || 0,
-        expeller_precio_usd_tn: Number(ecExpellerPrecio) || 0,
-        observaciones: ecObs || null,
-      }).eq('id', editCarga.id)
-      if (eUp) throw eUp
-      setEditCarga(null)
-      if (loteSeleccionado) cargarCargas(loteSeleccionado.id)
-    } catch (err: any) { setEcError(err?.message ?? 'Error al guardar.') }
-    finally { setEcGuardando(false) }
+  const handleBorrarSalida = async (id: string) => {
+    if (!confirm('¿Borrar esta salida?')) return
+    await supabase.from('feedlot_salidas').delete().eq('id', id)
+    if (ingresoSel) cargarDetalle(ingresoSel)
   }
 
   const handleBorrarCarga = async (id: string) => {
-    if (!confirm('Borrar esta carga de silo?')) return
-    await supabase.from('cargas_silo_feedlot').delete().eq('id', id)
-    if (loteSeleccionado) cargarCargas(loteSeleccionado.id)
+    if (!confirm('¿Borrar esta carga?')) return
+    await supabase.from('feedlot_cargas').delete().eq('id', id)
+    if (ingresoSel) cargarDetalle(ingresoSel)
   }
 
-  const calcularKPIs = (lote: LoteFeedlot, cargasLote: CargaSilo[]) => {
-    const dias = diasEntre(lote.fecha_entrada, lote.fecha_salida)
-    const aumentoTotalKg = lote.peso_salida_kg && lote.peso_salida_kg > lote.peso_entrada_kg
-      ? lote.peso_salida_kg - lote.peso_entrada_kg : null
-    const aumentoPorCabezaKg = aumentoTotalKg ? aumentoTotalKg / lote.cantidad_cabezas : null
-    const gdpKg = aumentoPorCabezaKg && dias > 0 ? aumentoPorCabezaKg / dias : null
-    const totalMaizTn = cargasLote.reduce((s, c) => s + c.maiz_tn, 0)
-    const totalExpellerTn = cargasLote.reduce((s, c) => s + c.expeller_tn, 0)
-    const totalMezclaTn = totalMaizTn + totalExpellerTn
-    const costoRacionUSD = cargasLote.reduce((s, c) =>
-      s + c.maiz_tn * c.maiz_precio_usd_tn + c.expeller_tn * c.expeller_precio_usd_tn, 0)
-    const costoPorCabezaUSD = lote.cantidad_cabezas > 0 ? costoRacionUSD / lote.cantidad_cabezas : 0
-    const consumoDiarioTn = dias > 0 ? totalMezclaTn / dias : 0
-    const consumoPorCabezaKgDia = lote.cantidad_cabezas > 0 ? (consumoDiarioTn / lote.cantidad_cabezas) * 1000 : 0
-    const costoKgAumentoUSD = aumentoTotalKg && aumentoTotalKg > 0 ? costoRacionUSD / aumentoTotalKg : null
-    const pctMaiz = totalMezclaTn > 0 ? (totalMaizTn / totalMezclaTn) * 100 : 0
-    const pctExpeller = totalMezclaTn > 0 ? (totalExpellerTn / totalMezclaTn) * 100 : 0
-    return { dias, aumentoTotalKg, aumentoPorCabezaKg, gdpKg, totalMaizTn, totalExpellerTn, totalMezclaTn, costoRacionUSD, costoPorCabezaUSD, consumoDiarioTn, consumoPorCabezaKgDia, costoKgAumentoUSD, pctMaiz, pctExpeller }
-  }
-
-  const kpis = loteSeleccionado ? calcularKPIs(loteSeleccionado, cargas) : null
-  const totalMezclaForm = (Number(cMaizTn) || 0) + (Number(cExpellerTn) || 0)
-  const costoTotalForm = (Number(cMaizTn) || 0) * (Number(cMaizPrecio) || 0) + (Number(cExpellerTn) || 0) * (Number(cExpellerPrecio) || 0)
-  const diasAgotamientoForm = cFechaAgotamiento ? diasEntre(cFechaCarga, cFechaAgotamiento) : null
+  // KPIs de cargas
+  const totalMaizTn = cargas.reduce((s, c) => s + c.maiz_tn, 0)
+  const totalNucleoTn = cargas.reduce((s, c) => s + c.nucleo_tn, 0)
+  const totalExpellerTn = cargas.reduce((s, c) => s + c.expeller_tn, 0)
+  const totalMezclaTn = totalMaizTn + totalNucleoTn + totalExpellerTn
+  const costoRacion = cargas.reduce((s, c) =>
+    s + c.maiz_tn * c.maiz_precio_usd_tn + c.nucleo_tn * c.nucleo_precio_usd_tn + c.expeller_tn * c.expeller_precio_usd_tn, 0)
+  const cabActivas = ingresoSel ? cabezasActivas(ingresoSel, salidas) : 0
+  const diasFeedlot = ingresoSel ? diasDesde(ingresoSel.fecha_entrada) : 0
+  const consumoPorCabDia = cabActivas > 0 && diasFeedlot > 0 ? (totalMezclaTn * 1000) / cabActivas / diasFeedlot : 0
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-stone-900">Feedlot</h1>
-        <p className="text-sm text-stone-500">Gestion de lotes de feedlot, cargas de silo de autoconsumo y KPIs de engorde.</p>
+        <p className="text-sm text-stone-500">Ingresos de hacienda al feedlot, cargas de ración y salidas.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[360px_1fr]">
+        {/* Panel izquierdo */}
         <div className="space-y-4">
-          <form onSubmit={handleSubmitLote} className="space-y-4 rounded-lg border border-stone-200 bg-white p-6">
-            <h2 className="text-base font-semibold text-stone-900">Nuevo lote feedlot</h2>
-            {lError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{lError}</div>}
-            {lExito && <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{lExito}</div>}
+          {/* Formulario nuevo ingreso */}
+          <form onSubmit={handleSubmitIngreso} className="space-y-4 rounded-lg border border-stone-200 bg-white p-5">
+            <h2 className="text-base font-semibold text-stone-900">Nuevo ingreso al feedlot</h2>
+            {iError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{iError}</div>}
+            {iExito && <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{iExito}</div>}
 
-            <div><label className={labelCls}>N de lote</label>
-              <input value={lNumeroLote} onChange={(e) => setLNumeroLote(e.target.value)} placeholder="Ej: FL-001" className={inputCls} /></div>
-
-            <div><label className={labelCls}>Campo</label>
-              <select value={lCampoId} onChange={(e) => setLCampoId(e.target.value)} className={inputCls}>
-                <option value="">Seleccionar campo...</option>
-                {campos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            <div><label className={labelCls}>Campaña</label>
+              <select value={iCampania} onChange={e => setICampania(e.target.value)} className={inputCls}>
+                <option value="">Seleccionar campaña...</option>
+                {campanias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
               </select></div>
 
-            <div><label className={labelCls}>Categoria</label>
-              <select value={lCategoriaId} onChange={(e) => setLCategoriaId(e.target.value)} className={inputCls}>
-                <option value="">Seleccionar categoria...</option>
-                {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            <div><label className={labelCls}>Categoría</label>
+              <select value={iCategoriaId} onChange={e => setICategoriaId(e.target.value)} className={inputCls}>
+                <option value="">Seleccionar categoría...</option>
+                {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select></div>
 
-            <div><label className={labelCls}>Cantidad de cabezas</label>
-              <input type="number" min={1} value={lCabezas} onChange={(e) => setLCabezas(e.target.value)} className={inputCls} /></div>
+            <div><label className={labelCls}>Cabezas que ingresan</label>
+              <input type="number" min={1} value={iCabezas} onChange={e => setICabezas(e.target.value)} className={inputCls} /></div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className={labelCls}>Fecha entrada</label>
-                <input type="date" value={lFechaEntrada} onChange={(e) => setLFechaEntrada(e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Fecha salida (opc.)</label>
-                <input type="date" value={lFechaSalida} onChange={(e) => setLFechaSalida(e.target.value)} min={lFechaEntrada} className={inputCls} /></div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className={labelCls}>Peso entrada/cab (kg)</label>
-                <input type="number" min={0} step="1" value={lPesoEntrada} onChange={(e) => setLPesoEntrada(e.target.value)} className={inputCls} />
-                {lPesoEntrada && lCabezas && <p className="mt-1 text-xs text-stone-400">Total: {(Number(lPesoEntrada) * Number(lCabezas)).toLocaleString('es-AR')} kg</p>}
-              </div>
-              <div><label className={labelCls}>Peso salida/cab (kg) (opc.)</label>
-                <input type="number" min={0} step="1" value={lPesoSalida} onChange={(e) => setLPesoSalida(e.target.value)} className={inputCls} />
-                {lPesoSalida && lCabezas && <p className="mt-1 text-xs text-stone-400">Total: {(Number(lPesoSalida) * Number(lCabezas)).toLocaleString('es-AR')} kg</p>}
-              </div>
-            </div>
+            <div><label className={labelCls}>Fecha de entrada</label>
+              <input type="date" value={iFechaEntrada} onChange={e => setIFechaEntrada(e.target.value)} className={inputCls} /></div>
 
             <div><label className={labelCls}>Observaciones</label>
-              <textarea value={lObs} onChange={(e) => setLObs(e.target.value)} rows={2} className={inputCls} /></div>
+              <textarea value={iObs} onChange={e => setIObs(e.target.value)} rows={2} className={inputCls} /></div>
 
-            <button type="submit" disabled={lGuardando} className="w-full rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-50">
-              {lGuardando ? 'Guardando...' : 'Crear lote'}
+            <button type="submit" disabled={iGuardando} className="w-full rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
+              {iGuardando ? 'Guardando...' : 'Registrar ingreso'}
             </button>
           </form>
 
+          {/* Lista de ingresos */}
           <div className="rounded-lg border border-stone-200 bg-white overflow-hidden">
             <div className="bg-stone-50 px-4 py-3 border-b border-stone-200">
-              <h3 className="text-sm font-semibold text-stone-900">Lotes activos</h3>
+              <h3 className="text-sm font-semibold text-stone-900">Ingresos registrados</h3>
             </div>
-            {cargandoLotes && <p className="px-4 py-3 text-sm text-stone-500">Cargando...</p>}
-            {!cargandoLotes && lotes.length === 0 && <p className="px-4 py-3 text-sm text-stone-500">Sin lotes registrados.</p>}
-            {!cargandoLotes && lotes.length > 0 && (
-              <div className="divide-y divide-stone-100">
-                {lotes.map((l) => (
-                  <div key={l.id} onClick={() => seleccionarLote(l)}
-                    className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${loteSeleccionado?.id === l.id ? 'bg-stone-100' : 'hover:bg-stone-50'}`}>
-                    <div>
-                      <div className="text-sm font-semibold text-stone-900">{l.numero_lote}</div>
-                      <div className="text-xs text-stone-500">{l.campos?.nombre} · {l.categorias_hacienda?.nombre} · {l.cantidad_cabezas} cab.</div>
-                      <div className="text-xs text-stone-400">
-                        {new Date(l.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')}
-                        {l.fecha_salida ? ' a ' + new Date(l.fecha_salida + 'T00:00:00').toLocaleDateString('es-AR') : ' (en curso)'}
-                      </div>
-                    </div>
-                    <div className="flex gap-2 shrink-0 ml-2">
-                      <button onClick={(e) => { e.stopPropagation(); abrirEditLote(l) }} className="text-xs text-stone-500 hover:text-stone-900 underline">Editar</button>
-                      <button onClick={(e) => { e.stopPropagation(); handleBorrarLote(l.id) }} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
-                    </div>
+            {cargando && <p className="px-4 py-3 text-sm text-stone-500">Cargando...</p>}
+            {!cargando && ingresos.length === 0 && <p className="px-4 py-3 text-sm text-stone-500">Sin ingresos registrados.</p>}
+            <div className="divide-y divide-stone-100">
+              {ingresos.map(i => (
+                <div key={i.id} onClick={() => cargarDetalle(i)}
+                  className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${ingresoSel?.id === i.id ? 'bg-stone-100' : 'hover:bg-stone-50'}`}>
+                  <div>
+                    <div className="text-sm font-semibold text-stone-900">{i.categorias_hacienda?.nombre}</div>
+                    <div className="text-xs text-stone-500">{i.campania} · {i.cantidad_cabezas} cab. · entrada {new Date(i.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')}</div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="flex gap-2 shrink-0 ml-2">
+                    <button onClick={ev => { ev.stopPropagation(); setEditIngreso(i); setEiCabezas(String(i.cantidad_cabezas)); setEiObs(i.observaciones ?? '') }}
+                      className="text-xs text-stone-500 hover:text-stone-900 underline">Editar</button>
+                    <button onClick={ev => { ev.stopPropagation(); handleBorrarIngreso(i.id) }}
+                      className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
+        {/* Panel derecho - detalle */}
         <div key={refreshKey}>
-          {!loteSeleccionado ? (
+          {!ingresoSel ? (
             <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-stone-300">
-              <p className="text-sm text-stone-400">Selecciona un lote para ver el detalle y cargar raciones</p>
+              <p className="text-sm text-stone-400">Seleccioná un ingreso para ver el detalle</p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-5">
+              {/* Header */}
               <div className="rounded-lg border border-stone-200 bg-white p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="text-lg font-bold text-stone-900">Lote {loteSeleccionado.numero_lote}</h2>
-                    <p className="text-sm text-stone-500">{loteSeleccionado.campos?.nombre} · {loteSeleccionado.categorias_hacienda?.nombre} · {loteSeleccionado.cantidad_cabezas} cabezas</p>
-                    <p className="text-xs text-stone-400 mt-0.5">
-                      Entrada: {new Date(loteSeleccionado.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')}
-                      {loteSeleccionado.fecha_salida && ' | Salida: ' + new Date(loteSeleccionado.fecha_salida + 'T00:00:00').toLocaleDateString('es-AR')}
-                      {' | '}{kpis?.dias} dias {!loteSeleccionado.fecha_salida && '(en curso)'}
-                    </p>
+                    <h2 className="text-lg font-bold text-stone-900">{ingresoSel.categorias_hacienda?.nombre}</h2>
+                    <p className="text-sm text-stone-500">Campaña {ingresoSel.campania} · Entrada: {new Date(ingresoSel.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')} · {diasFeedlot} días en feedlot</p>
                   </div>
-                  <div className="text-right text-sm text-stone-500">
-                    <div>Peso entrada: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_entrada_kg / loteSeleccionado.cantidad_cabezas, 0)} kg/cab</span></div>
-                    {loteSeleccionado.peso_salida_kg && (
-                      <div>Peso salida: <span className="font-medium text-stone-900">{fmt(loteSeleccionado.peso_salida_kg / loteSeleccionado.cantidad_cabezas, 0)} kg/cab</span></div>
-                    )}
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-stone-900">{cabActivas}</div>
+                    <div className="text-xs text-stone-500">cabezas activas</div>
+                    <div className="text-xs text-stone-400">de {ingresoSel.cantidad_cabezas} ingresadas</div>
                   </div>
                 </div>
 
-                {kpis && cargas.length > 0 && (
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {/* KPIs ración */}
+                {cargas.length > 0 && (
+                  <div className="mt-4 grid grid-cols-3 gap-3">
                     <div className="rounded-md bg-stone-50 p-3">
                       <p className="text-xs text-stone-500">Mezcla total</p>
-                      <p className="text-base font-bold text-stone-900">{fmt(kpis.totalMezclaTn)} tn</p>
-                      <p className="text-xs text-stone-400">{fmt(kpis.pctMaiz, 0)}% maiz · {fmt(kpis.pctExpeller, 0)}% exp.</p>
+                      <p className="text-base font-bold text-stone-900">{fmt(totalMezclaTn, 3)} tn</p>
+                      <p className="text-xs text-stone-400">Maíz: {fmt(totalMaizTn, 3)} · Núcleo: {fmt(totalNucleoTn, 3)}{totalExpellerTn > 0 ? ` · Exp: ${fmt(totalExpellerTn, 3)}` : ''}</p>
                     </div>
                     <div className="rounded-md bg-stone-50 p-3">
-                      <p className="text-xs text-stone-500">Consumo/cab/dia</p>
-                      <p className="text-base font-bold text-stone-900">{fmt(kpis.consumoPorCabezaKgDia, 1)} kg</p>
-                      <p className="text-xs text-stone-400">{fmt(kpis.consumoDiarioTn)} tn/dia total</p>
+                      <p className="text-xs text-stone-500">Costo ración</p>
+                      <p className="text-base font-bold text-stone-900">USD {fmt(costoRacion)}</p>
+                      {cabActivas > 0 && <p className="text-xs text-stone-400">USD {fmt(costoRacion / ingresoSel.cantidad_cabezas)}/cab</p>}
                     </div>
                     <div className="rounded-md bg-stone-50 p-3">
-                      <p className="text-xs text-stone-500">Costo racion</p>
-                      <p className="text-base font-bold text-stone-900">USD {fmt(kpis.costoRacionUSD, 2)}</p>
-                      <p className="text-xs text-stone-400">USD {fmt(kpis.costoPorCabezaUSD, 2)}/cab</p>
+                      <p className="text-xs text-stone-500">Consumo/cab/día</p>
+                      <p className="text-base font-bold text-stone-900">{fmt(consumoPorCabDia, 1)} kg</p>
                     </div>
-                    {kpis.gdpKg !== null ? (
-                      <div className="rounded-md bg-green-50 p-3">
-                        <p className="text-xs text-stone-500">GDP (ganancia diaria)</p>
-                        <p className="text-base font-bold text-green-700">{fmt(kpis.gdpKg, 3)} kg/dia</p>
-                        {kpis.costoKgAumentoUSD && (
-                          <p className="text-xs text-stone-400">USD {fmt(kpis.costoKgAumentoUSD, 3)}/kg aumento</p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="rounded-md bg-stone-50 p-3">
-                        <p className="text-xs text-stone-500">GDP</p>
-                        <p className="text-sm text-stone-400 italic mt-1">Sin peso salida</p>
-                      </div>
-                    )}
                   </div>
                 )}
+
+                {/* Acciones */}
+                <div className="mt-4 flex gap-2">
+                  <button onClick={() => { setShowCarga(v => !v); setShowSalida(false) }}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${showCarga ? 'bg-stone-900 text-white' : 'border border-stone-300 text-stone-700 hover:bg-stone-50'}`}>
+                    + Carga de ración
+                  </button>
+                  <button onClick={() => { setShowSalida(v => !v); setShowCarga(false) }}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${showSalida ? 'bg-stone-900 text-white' : 'border border-stone-300 text-stone-700 hover:bg-stone-50'}`}>
+                    + Registrar salida
+                  </button>
+                </div>
               </div>
 
-              <form onSubmit={handleSubmitCarga} className="rounded-lg border border-stone-200 bg-white p-5 space-y-4">
-                <h3 className="text-base font-semibold text-stone-900">Nueva carga de silo</h3>
-                {cError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{cError}</div>}
-                {cExito && <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{cExito}</div>}
-
-                <div className="grid grid-cols-2 gap-3">
+              {/* Formulario carga */}
+              {showCarga && (
+                <form onSubmit={handleSubmitCarga} className="rounded-lg border border-stone-200 bg-white p-5 space-y-4">
+                  <h3 className="text-base font-semibold text-stone-900">Nueva carga de ración</h3>
+                  {cError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{cError}</div>}
+                  {cExito && <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{cExito}</div>}
                   <div><label className={labelCls}>Fecha de carga</label>
-                    <input type="date" value={cFechaCarga} onChange={(e) => setCFechaCarga(e.target.value)} className={inputCls} /></div>
-                  <div><label className={labelCls}>Fecha agotamiento est. (opc.)</label>
-                    <input type="date" value={cFechaAgotamiento} onChange={(e) => setCFechaAgotamiento(e.target.value)} min={cFechaCarga} className={inputCls} /></div>
-                </div>
-
-                {diasAgotamientoForm !== null && diasAgotamientoForm > 0 && (
-                  <p className="text-xs text-stone-500">Duracion estimada: <span className="font-medium">{diasAgotamientoForm} dias</span></p>
-                )}
-
-                <div className="rounded-md border border-stone-100 bg-stone-50 p-3 space-y-3">
-                  <p className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Maiz</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className={labelCls}>Toneladas</label>
-                      <input type="number" min={0} step="0.001" value={cMaizTn} onChange={(e) => setCMaizTn(e.target.value)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Precio (USD/tn)</label>
-                      <input type="number" min={0} step="0.01" value={cMaizPrecio} onChange={(e) => setCMaizPrecio(e.target.value)} className={inputCls} /></div>
-                  </div>
-                </div>
-
-                <div className="rounded-md border border-stone-100 bg-stone-50 p-3 space-y-3">
-                  <p className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Expeller</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className={labelCls}>Toneladas</label>
-                      <input type="number" min={0} step="0.001" value={cExpellerTn} onChange={(e) => setCExpellerTn(e.target.value)} className={inputCls} /></div>
-                    <div><label className={labelCls}>Precio (USD/tn)</label>
-                      <input type="number" min={0} step="0.01" value={cExpellerPrecio} onChange={(e) => setCExpellerPrecio(e.target.value)} className={inputCls} /></div>
-                  </div>
-                </div>
-
-                {totalMezclaForm > 0 && (
-                  <div className="rounded-md bg-stone-100 px-3 py-2 text-xs text-stone-600 space-y-0.5">
-                    <div>Mezcla total: <span className="font-medium">{fmt(totalMezclaForm)} tn</span>
-                      {' (' + fmt((Number(cMaizTn)||0)/totalMezclaForm*100, 0) + '% maiz · ' + fmt((Number(cExpellerTn)||0)/totalMezclaForm*100, 0) + '% expeller)'}
+                    <input type="date" value={cFecha} onChange={e => setCFecha(e.target.value)} className={inputCls} /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-3 rounded-md bg-stone-50 p-3">
+                      <p className="text-xs font-semibold text-stone-600 uppercase">Maíz</p>
+                      <div><label className={labelCls}>Toneladas</label>
+                        <input type="number" min={0} step="0.001" value={cMaizTn} onChange={e => setCMaizTn(e.target.value)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Precio (USD/tn)</label>
+                        <input type="number" min={0} step="0.01" value={cMaizPrecio} onChange={e => setCMaizPrecio(e.target.value)} className={inputCls} /></div>
                     </div>
-                    <div>Costo total: <span className="font-medium">USD {fmt(costoTotalForm, 2)}</span></div>
-                    {diasAgotamientoForm && diasAgotamientoForm > 0 && loteSeleccionado.cantidad_cabezas > 0 && (
-                      <div>Consumo estimado: <span className="font-medium">{fmt(totalMezclaForm/diasAgotamientoForm*1000/loteSeleccionado.cantidad_cabezas, 1)} kg/cab/dia</span></div>
-                    )}
+                    <div className="space-y-3 rounded-md bg-stone-50 p-3">
+                      <p className="text-xs font-semibold text-stone-600 uppercase">Núcleo</p>
+                      <div><label className={labelCls}>Toneladas</label>
+                        <input type="number" min={0} step="0.001" value={cNucleoTn} onChange={e => setCNucleoTn(e.target.value)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Precio (USD/tn)</label>
+                        <input type="number" min={0} step="0.01" value={cNucleoPrecio} onChange={e => setCNucleoPrecio(e.target.value)} className={inputCls} /></div>
+                    </div>
                   </div>
-                )}
+                  {/* Expeller (colapsado por defecto) */}
+                  <details className="rounded-md border border-stone-200 p-3">
+                    <summary className="text-xs font-semibold text-stone-500 cursor-pointer">Expeller (opcional)</summary>
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <div><label className={labelCls}>Toneladas</label>
+                        <input type="number" min={0} step="0.001" value={cExpellerTn} onChange={e => setCExpellerTn(e.target.value)} className={inputCls} /></div>
+                      <div><label className={labelCls}>Precio (USD/tn)</label>
+                        <input type="number" min={0} step="0.01" value={cExpellerPrecio} onChange={e => setCExpellerPrecio(e.target.value)} className={inputCls} /></div>
+                    </div>
+                  </details>
+                  {(Number(cMaizTn) > 0 || Number(cNucleoTn) > 0 || Number(cExpellerTn) > 0) && (
+                    <div className="rounded-md bg-stone-100 px-3 py-2 text-xs text-stone-600">
+                      Total mezcla: {fmt((Number(cMaizTn)||0)+(Number(cNucleoTn)||0)+(Number(cExpellerTn)||0), 3)} tn ·
+                      Costo: USD {fmt((Number(cMaizTn)||0)*(Number(cMaizPrecio)||0)+(Number(cNucleoTn)||0)*(Number(cNucleoPrecio)||0)+(Number(cExpellerTn)||0)*(Number(cExpellerPrecio)||0))}
+                    </div>
+                  )}
+                  <div><label className={labelCls}>Observaciones</label>
+                    <textarea value={cObs} onChange={e => setCObs(e.target.value)} rows={2} className={inputCls} /></div>
+                  <button type="submit" disabled={cGuardando} className="w-full rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
+                    {cGuardando ? 'Guardando...' : 'Registrar carga'}
+                  </button>
+                </form>
+              )}
 
-                <div><label className={labelCls}>Observaciones</label>
-                  <textarea value={cObs} onChange={(e) => setCObs(e.target.value)} rows={2} className={inputCls} /></div>
+              {/* Formulario salida */}
+              {showSalida && (
+                <form onSubmit={handleSubmitSalida} className="rounded-lg border border-stone-200 bg-white p-5 space-y-4">
+                  <h3 className="text-base font-semibold text-stone-900">Registrar salida</h3>
+                  <p className="text-sm text-stone-500">Cabezas activas: <span className="font-semibold text-stone-900">{cabActivas}</span></p>
+                  {sError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{sError}</div>}
+                  <div><label className={labelCls}>Fecha de salida</label>
+                    <input type="date" value={sFechaSalida} onChange={e => setSFechaSalida(e.target.value)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Cantidad de cabezas</label>
+                    <input type="number" min={1} max={cabActivas} value={sCabezas} onChange={e => setSCabezas(e.target.value)} className={inputCls} /></div>
+                  <div><label className={labelCls}>Motivo</label>
+                    <select value={sMotivo} onChange={e => setSMotivo(e.target.value)} className={inputCls}>
+                      <option value="venta">Venta</option>
+                      <option value="muerte">Muerte</option>
+                      <option value="otro">Otro</option>
+                    </select></div>
+                  <div><label className={labelCls}>Observaciones</label>
+                    <textarea value={sObs} onChange={e => setSObs(e.target.value)} rows={2} className={inputCls} /></div>
+                  <button type="submit" disabled={sGuardando} className="w-full rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
+                    {sGuardando ? 'Guardando...' : 'Registrar salida'}
+                  </button>
+                </form>
+              )}
 
-                <button type="submit" disabled={cGuardando} className="w-full rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-50">
-                  {cGuardando ? 'Guardando...' : 'Registrar carga'}
-                </button>
-              </form>
-
+              {/* Historial cargas */}
               {cargas.length > 0 && (
                 <div>
-                  <h3 className="mb-3 text-base font-semibold text-stone-900">Historial de cargas</h3>
+                  <h3 className="mb-2 text-sm font-semibold text-stone-900">Cargas de ración</h3>
                   <div className="overflow-hidden rounded-lg border border-stone-200">
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
-                        <th className="px-3 py-2 font-medium">Fecha carga</th>
-                        <th className="px-3 py-2 font-medium">Agotamiento est.</th>
-                        <th className="px-3 py-2 text-right font-medium">Maiz (tn)</th>
+                        <th className="px-3 py-2 font-medium">Fecha</th>
+                        <th className="px-3 py-2 text-right font-medium">Maíz (tn)</th>
+                        <th className="px-3 py-2 text-right font-medium">Núcleo (tn)</th>
                         <th className="px-3 py-2 text-right font-medium">Expeller (tn)</th>
-                        <th className="px-3 py-2 text-right font-medium">Total mezcla</th>
                         <th className="px-3 py-2 text-right font-medium">Costo USD</th>
                         <th className="px-3 py-2" />
                       </tr></thead>
                       <tbody>
-                        {cargas.map((c) => {
-                          const totalMezcla = c.maiz_tn + c.expeller_tn
-                          const costo = c.maiz_tn * c.maiz_precio_usd_tn + c.expeller_tn * c.expeller_precio_usd_tn
-                          const dias = c.fecha_agotamiento_estimada ? diasEntre(c.fecha_carga, c.fecha_agotamiento_estimada) : null
-                          return (
-                            <tr key={c.id} className="border-t border-stone-100">
-                              <td className="px-3 py-2 text-stone-700">{new Date(c.fecha_carga + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                              <td className="px-3 py-2 text-stone-600">
-                                {c.fecha_agotamiento_estimada
-                                  ? new Date(c.fecha_agotamiento_estimada + 'T00:00:00').toLocaleDateString('es-AR') + ' (' + dias + 'd)'
-                                  : '-'}
-                              </td>
-                              <td className="px-3 py-2 text-right text-stone-900">{fmt(c.maiz_tn)}</td>
-                              <td className="px-3 py-2 text-right text-stone-900">{fmt(c.expeller_tn)}</td>
-                              <td className="px-3 py-2 text-right font-medium text-stone-900">{fmt(totalMezcla)}</td>
-                              <td className="px-3 py-2 text-right text-stone-900">USD {fmt(costo, 2)}</td>
-                              <td className="px-3 py-2">
-                                <div className="flex gap-2 justify-end">
-                                  <button onClick={() => abrirEditCarga(c)} className="text-xs text-stone-500 hover:text-stone-900 underline">Editar</button>
-                                  <button onClick={() => handleBorrarCarga(c.id)} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        })}
+                        {cargas.map(c => (
+                          <tr key={c.id} className="border-t border-stone-100">
+                            <td className="px-3 py-2 text-stone-700">{new Date(c.fecha_carga + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                            <td className="px-3 py-2 text-right">{c.maiz_tn > 0 ? fmt(c.maiz_tn, 3) : '—'}</td>
+                            <td className="px-3 py-2 text-right">{c.nucleo_tn > 0 ? fmt(c.nucleo_tn, 3) : '—'}</td>
+                            <td className="px-3 py-2 text-right">{c.expeller_tn > 0 ? fmt(c.expeller_tn, 3) : '—'}</td>
+                            <td className="px-3 py-2 text-right font-medium">USD {fmt(c.maiz_tn*c.maiz_precio_usd_tn + c.nucleo_tn*c.nucleo_precio_usd_tn + c.expeller_tn*c.expeller_precio_usd_tn)}</td>
+                            <td className="px-3 py-2">
+                              <button onClick={() => handleBorrarCarga(c.id)} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Historial salidas */}
+              {salidas.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-stone-900">Salidas</h3>
+                  <div className="overflow-hidden rounded-lg border border-stone-200">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
+                        <th className="px-3 py-2 font-medium">Fecha</th>
+                        <th className="px-3 py-2 text-right font-medium">Cabezas</th>
+                        <th className="px-3 py-2 font-medium">Motivo</th>
+                        <th className="px-3 py-2 font-medium">Observaciones</th>
+                        <th className="px-3 py-2" />
+                      </tr></thead>
+                      <tbody>
+                        {salidas.map(s => (
+                          <tr key={s.id} className="border-t border-stone-100">
+                            <td className="px-3 py-2 text-stone-700">{new Date(s.fecha_salida + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                            <td className="px-3 py-2 text-right font-medium text-stone-900">{s.cantidad_cabezas}</td>
+                            <td className="px-3 py-2 text-stone-600 capitalize">{s.motivo}</td>
+                            <td className="px-3 py-2 text-stone-500 text-xs">{s.observaciones ?? '—'}</td>
+                            <td className="px-3 py-2">
+                              <button onClick={() => handleBorrarSalida(s.id)} className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -554,61 +504,17 @@ export default function FeedlotPage() {
         </div>
       </div>
 
-      {editLote && (
-        <Modal title={'Editar lote ' + editLote.numero_lote} onClose={() => setEditLote(null)}>
-          {elError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{elError}</div>}
+      {/* Modal editar ingreso */}
+      {editIngreso && (
+        <Modal title={`Editar ingreso — ${editIngreso.categorias_hacienda?.nombre}`} onClose={() => setEditIngreso(null)}>
           <div><label className={labelCls}>Cantidad de cabezas</label>
-            <input type="number" min={1} value={elCabezas} onChange={(e) => setElCabezas(e.target.value)} className={inputCls} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={labelCls}>Fecha salida (opc.)</label>
-              <input type="date" value={elFechaSalida} onChange={(e) => setElFechaSalida(e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Peso salida/cab (kg) (opc.)</label>
-              <input type="number" min={0} step="1" value={elPesoSalida} onChange={(e) => setElPesoSalida(e.target.value)} className={inputCls} /></div>
-          </div>
+            <input type="number" min={1} value={eiCabezas} onChange={e => setEiCabezas(e.target.value)} className={inputCls} /></div>
           <div><label className={labelCls}>Observaciones</label>
-            <textarea value={elObs} onChange={(e) => setElObs(e.target.value)} rows={2} className={inputCls} /></div>
+            <textarea value={eiObs} onChange={e => setEiObs(e.target.value)} rows={2} className={inputCls} /></div>
           <div className="flex gap-3 pt-1">
-            <button onClick={() => setEditLote(null)} className="flex-1 rounded-md border border-stone-300 px-4 py-2 text-sm text-stone-700 hover:bg-stone-50">Cancelar</button>
-            <button onClick={handleGuardarEditLote} disabled={elGuardando} className="flex-1 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
-              {elGuardando ? 'Guardando...' : 'Guardar cambios'}
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {editCarga && (
-        <Modal title="Editar carga de silo" onClose={() => setEditCarga(null)}>
-          {ecError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{ecError}</div>}
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className={labelCls}>Fecha de carga</label>
-              <input type="date" value={ecFechaCarga} onChange={(e) => setEcFechaCarga(e.target.value)} className={inputCls} /></div>
-            <div><label className={labelCls}>Fecha agotamiento (opc.)</label>
-              <input type="date" value={ecFechaAgotamiento} onChange={(e) => setEcFechaAgotamiento(e.target.value)} className={inputCls} /></div>
-          </div>
-          <div className="rounded-md border border-stone-100 bg-stone-50 p-3 space-y-3">
-            <p className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Maiz</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className={labelCls}>Toneladas</label>
-                <input type="number" min={0} step="0.001" value={ecMaizTn} onChange={(e) => setEcMaizTn(e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Precio (USD/tn)</label>
-                <input type="number" min={0} step="0.01" value={ecMaizPrecio} onChange={(e) => setEcMaizPrecio(e.target.value)} className={inputCls} /></div>
-            </div>
-          </div>
-          <div className="rounded-md border border-stone-100 bg-stone-50 p-3 space-y-3">
-            <p className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Expeller</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className={labelCls}>Toneladas</label>
-                <input type="number" min={0} step="0.001" value={ecExpellerTn} onChange={(e) => setEcExpellerTn(e.target.value)} className={inputCls} /></div>
-              <div><label className={labelCls}>Precio (USD/tn)</label>
-                <input type="number" min={0} step="0.01" value={ecExpellerPrecio} onChange={(e) => setEcExpellerPrecio(e.target.value)} className={inputCls} /></div>
-            </div>
-          </div>
-          <div><label className={labelCls}>Observaciones</label>
-            <textarea value={ecObs} onChange={(e) => setEcObs(e.target.value)} rows={2} className={inputCls} /></div>
-          <div className="flex gap-3 pt-1">
-            <button onClick={() => setEditCarga(null)} className="flex-1 rounded-md border border-stone-300 px-4 py-2 text-sm text-stone-700 hover:bg-stone-50">Cancelar</button>
-            <button onClick={handleGuardarEditCarga} disabled={ecGuardando} className="flex-1 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
-              {ecGuardando ? 'Guardando...' : 'Guardar cambios'}
+            <button onClick={() => setEditIngreso(null)} className="flex-1 rounded-md border border-stone-300 px-4 py-2 text-sm text-stone-700 hover:bg-stone-50">Cancelar</button>
+            <button onClick={handleGuardarEditIngreso} disabled={eiGuardando} className="flex-1 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
+              {eiGuardando ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </Modal>
