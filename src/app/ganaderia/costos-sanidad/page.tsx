@@ -165,6 +165,26 @@ export default function CostosSanidadPage() {
   const [esGuardando, setEsGuardando] = useState(false)
   const [esError, setEsError] = useState<string | null>(null)
 
+  // Auto-calcular monto total de sanidad (cantidad × dosis × precio unitario)
+  useEffect(() => {
+    const cant = Number(sCantidad)
+    const dosis = Number(sDosis)
+    const precio = Number(sPrecioUnitario)
+    if (cant > 0 && dosis > 0 && precio > 0) {
+      setSMontoUsd(String(Number((cant * dosis * precio).toFixed(2))))
+    }
+  }, [sCantidad, sDosis, sPrecioUnitario])
+
+  // Igual, pero para el modal de edición
+  useEffect(() => {
+    const cant = Number(esCantidad)
+    const dosis = Number(esDosis)
+    const precio = Number(esPrecioUnitario)
+    if (cant > 0 && dosis > 0 && precio > 0) {
+      setEsMontoUsd(String(Number((cant * dosis * precio).toFixed(2))))
+    }
+  }, [esCantidad, esDosis, esPrecioUnitario])
+
   useEffect(() => {
     const cargar = async () => {
       const [{ data: c }, { data: l }, { data: cat }, { data: camp }, { data: lf }, { data: prod }] = await Promise.all([
