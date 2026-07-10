@@ -269,8 +269,11 @@ export default function FichaCicloPage() {
   }
 
   async function handleBorrarAplicacion(aplId: number) {
-    if (!confirm('¿Seguro que querés borrar esta aplicación y todos sus productos?')) return
+    if (!confirm('¿Seguro que querés borrar esta aplicación y todos sus productos? Esto también va a devolver el stock descontado en Agroquímicos.')) return
     setDeletingId(aplId)
+    // Primero liberamos el stock: borramos los movimientos de egreso que
+    // esta aplicación había generado en Agroquímicos.
+    await supabase.from('agroquimicos_movimientos').delete().eq('aplicacion_id', aplId).eq('tipo', 'aplicacion')
     await supabase.from('sa_aplicacion_productos').delete().eq('aplicacion_id', aplId)
     await supabase.from('sa_aplicaciones').delete().eq('id', aplId)
     setDeletingId(null)
@@ -278,12 +281,15 @@ export default function FichaCicloPage() {
   }
 
   async function handleBorrarCiclo() {
-    if (!confirm('¿Seguro que querés borrar este ciclo? Se borrarán también todas sus aplicaciones, siembra, cosecha y costos.')) return
+    if (!confirm('¿Seguro que querés borrar este ciclo? Se borrarán también todas sus aplicaciones, siembra, cosecha, costos, y se devolverá el stock de agroquímicos descontado por sus aplicaciones.')) return
     setDeletingCiclo(true)
     const id = Number(ciclo_id)
     const { data: apls } = await supabase.from('sa_aplicaciones').select('id').eq('ciclo_id', id)
     if (apls && apls.length > 0) {
-      await supabase.from('sa_aplicacion_productos').delete().in('aplicacion_id', apls.map((a: any) => a.id))
+      const aplIds = apls.map((a: any) => a.id)
+      // Liberar el stock de todas las aplicaciones de este ciclo antes de borrarlas.
+      await supabase.from('agroquimicos_movimientos').delete().in('aplicacion_id', aplIds).eq('tipo', 'aplicacion')
+      await supabase.from('sa_aplicacion_productos').delete().in('aplicacion_id', aplIds)
     }
     await supabase.from('sa_aplicaciones').delete().eq('ciclo_id', id)
     await supabase.from('sa_siembras').delete().eq('ciclo_id', id)
