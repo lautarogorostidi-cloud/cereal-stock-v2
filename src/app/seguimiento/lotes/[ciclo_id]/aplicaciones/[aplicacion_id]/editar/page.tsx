@@ -242,6 +242,63 @@ export default function EditarAplicacionPage() {
 
     setSaving(true)
 
+    // ── VALIDACIÓN DE STOCK ──────────────────────────────────────────
+    // Al editar, primero "devolvemos" virtualmente el stock que esta
+    // misma aplicación ya tenía descontado (sus movimientos viejos, que
+    // vamos a borrar y reemplazar), y recién sobre ese stock disponible
+    // corregido validamos si alcanza para las cantidades nuevas.
+    const catalogoPorProducto: Record<string, ProductoCatalogo> = {}
+    const errores: string[] = []
+
+    const { data: movimientosViejos } = await supabase
+      .from('agroquimicos_movimientos')
+      .select('producto_id, cantidad')
+      .eq('aplicacion_id', Number(aplicacion_id))
+      .eq('tipo', 'aplicacion')
+
+    const stockDevueltoPorProducto: Record<number, number> = {}
+    ;(movimientosViejos ?? []).forEach((m: any) => {
+      stockDevueltoPorProducto[m.producto_id] = (stockDevueltoPorProducto[m.producto_id] ?? 0) + Number(m.cantidad)
+    })
+
+    for (const p of productosValidos) {
+      const prodCatalogo = catalogo.find(c => c.nombre === p.producto)
+      if (!prodCatalogo) {
+        errores.push(`"${p.producto}" no está en el catálogo de agroquímicos.`)
+        continue
+      }
+      catalogoPorProducto[p.producto] = prodCatalogo
+
+      const { data: stockData, error: stockErr } = await supabase
+        .from('vw_stock_agroquimicos')
+        .select('stock_actual')
+        .eq('producto_id', prodCatalogo.id)
+        .maybeSingle()
+
+      if (stockErr) {
+        errores.push(`No se pudo verificar el stock de "${p.producto}": ${stockErr.message}`)
+        continue
+      }
+
+      const stockActual = Number(stockData?.stock_actual ?? 0)
+      const stockDevuelto = stockDevueltoPorProducto[prodCatalogo.id] ?? 0
+      const stockDisponible = stockActual + stockDevuelto
+      const cantidadNecesaria = Number(p.dosis_ha) * Number(form.superficie_ha)
+
+      if (stockDisponible < cantidadNecesaria) {
+        errores.push(
+          `Stock insuficiente de "${p.producto}": necesitás ${cantidadNecesaria.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}, disponible: ${stockDisponible.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}.`
+        )
+      }
+    }
+
+    if (errores.length > 0) {
+      setError(errores.join(' · '))
+      setSaving(false)
+      return
+    }
+
+    // ── ACTUALIZAR APLICACIÓN ────────────────────────────────────────
     const { error: aplErr } = await supabase
       .from('sa_aplicaciones')
       .update({
@@ -270,10 +327,61 @@ export default function EditarAplicacionPage() {
 
     const { error: prodErr } = await supabase.from('sa_aplicacion_productos').insert(productosInsert)
 
+    if (prodErr) {
+      setSaving(false)
+      setError(`Error al guardar productos: ${prodErr.message}`)
+      return
+    }
+
+    // ── RECALCULAR STOCK: borrar movimientos viejos de esta aplicación
+    // e insertar los nuevos con las cantidades actualizadas ───────────
+    const { error: delMovErr } = await supabase
+      .from('agroquimicos_movimientos')
+      .delete()
+      .eq('aplicacion_id', Number(aplicacion_id))
+      .eq('tipo', 'aplicacion')
+
+    if (delMovErr) {
+      setSaving(false)
+      setError(`La aplicación se actualizó, pero no se pudo recalcular el stock: ${delMovErr.message}`)
+      return
+    }
+
+    function normalizarCultivo(c: string | null | undefined): string {
+      const n = (c ?? '').trim().toLowerCase()
+      if (n.startsWith('maiz') || n.startsWith('maíz')) return 'maiz'
+      if (n.startsWith('soja')) return 'soja'
+      if (n.startsWith('trigo')) return 'trigo'
+      if (n.startsWith('girasol')) return 'girasol'
+      if (n.startsWith('centeno')) return 'centeno'
+      if (n.startsWith('cebada')) return 'cebada'
+      if (n.startsWith('sorgo')) return 'sorgo'
+      return 'otro'
+    }
+
+    const movimientosNuevos = productosValidos.map(p => {
+      const prodCatalogo = catalogoPorProducto[p.producto]
+      return {
+        producto_id: prodCatalogo.id,
+        tipo: 'aplicacion',
+        fecha: form.fecha || new Date().toISOString().split('T')[0],
+        cantidad: Number(p.dosis_ha) * Number(form.superficie_ha),
+        lote: cicloInfo?.lote ?? null,
+        cultivo: normalizarCultivo(cicloInfo?.cultivo),
+        campaña: cicloInfo?.campana ?? null,
+        ciclo_id: Number(ciclo_id),
+        aplicacion_id: Number(aplicacion_id),
+        precio_unitario: Number(p.costo_unitario),
+        observaciones: `Aplicación ${TIPOS_APLICACION.find(t => t.value === form.tipo)?.label ?? form.tipo} (editada) — ${cicloInfo?.lote} ${cicloInfo?.campana}`,
+      }
+    })
+
+    const { error: movErr } = await supabase.from('agroquimicos_movimientos').insert(movimientosNuevos)
+
     setSaving(false)
 
-    if (prodErr) {
-      setError(`Error al guardar productos: ${prodErr.message}`)
+    if (movErr) {
+      setError(`La aplicación se actualizó, pero el stock NO se recalculó: ${movErr.message}. Revisá Agroquímicos → Movimientos.`)
       return
     }
 

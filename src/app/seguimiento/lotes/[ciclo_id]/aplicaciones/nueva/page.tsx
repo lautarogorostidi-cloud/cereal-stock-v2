@@ -340,6 +340,7 @@ export default function NuevaAplicacionPage() {
         lote: ciclo?.lote ?? null,
         cultivo: normalizarCultivo(ciclo?.cultivo),
         campaña: ciclo?.campana ?? null,
+        aplicacion_id: aplData.id,
         ciclo_id: Number(ciclo_id),
         precio_unitario: Number(p.costo_unitario),
         observaciones: `Aplicación ${TIPOS_APLICACION.find(t => t.value === form.tipo)?.label ?? form.tipo} — ${ciclo?.lote} ${ciclo?.campana}`,
