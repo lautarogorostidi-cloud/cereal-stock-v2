@@ -313,6 +313,23 @@ export default function NuevaAplicacionPage() {
     }
 
     // ── REGISTRAR EGRESOS EN AGROQUÍMICOS (descuenta el stock) ───────
+    // La tabla agroquimicos_movimientos solo acepta cultivos "simples"
+    // (maiz, soja, trigo, girasol, centeno, cebada, sorgo, otro) por un
+    // check constraint. El ciclo agronómico guarda variantes descriptivas
+    // (ej. "Maíz Temprano", "Maíz Tardío"), así que hay que normalizar
+    // antes de insertar o el guardado del egreso falla en silencio.
+    function normalizarCultivo(c: string | null | undefined): string {
+      const n = (c ?? '').trim().toLowerCase()
+      if (n.startsWith('maiz') || n.startsWith('maíz')) return 'maiz'
+      if (n.startsWith('soja')) return 'soja'
+      if (n.startsWith('trigo')) return 'trigo'
+      if (n.startsWith('girasol')) return 'girasol'
+      if (n.startsWith('centeno')) return 'centeno'
+      if (n.startsWith('cebada')) return 'cebada'
+      if (n.startsWith('sorgo')) return 'sorgo'
+      return 'otro'
+    }
+
     const movimientos = productosValidos.map(p => {
       const prodCatalogo = catalogoPorProducto[p.producto]
       return {
@@ -321,7 +338,7 @@ export default function NuevaAplicacionPage() {
         fecha: form.fecha || new Date().toISOString().split('T')[0],
         cantidad: Number(p.dosis_ha) * Number(form.superficie_ha),
         lote: ciclo?.lote ?? null,
-        cultivo: ciclo?.cultivo ?? null,
+        cultivo: normalizarCultivo(ciclo?.cultivo),
         campaña: ciclo?.campana ?? null,
         ciclo_id: Number(ciclo_id),
         precio_unitario: Number(p.costo_unitario),
