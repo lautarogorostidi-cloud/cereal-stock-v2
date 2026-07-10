@@ -232,6 +232,9 @@ export default function NuevaAplicacionPage() {
 
     // ── VALIDACIÓN DE STOCK ──────────────────────────────────────────
     const errores: string[] = []
+    // Guardamos el producto de catálogo ya resuelto para no tener que
+    // volver a buscarlo (por nombre) más abajo al armar los movimientos.
+    const catalogoPorProducto: Record<string, ProductoCatalogo> = {}
 
     for (const p of productosValidos) {
       const prodCatalogo = catalogo.find(c => c.nombre === p.producto)
@@ -241,11 +244,18 @@ export default function NuevaAplicacionPage() {
         continue
       }
 
-      const { data: stockData } = await supabase
+      catalogoPorProducto[p.producto] = prodCatalogo
+
+      const { data: stockData, error: stockErr } = await supabase
         .from('vw_stock_agroquimicos')
         .select('stock_actual')
         .eq('producto_id', prodCatalogo.id)
-        .single()
+        .maybeSingle()
+
+      if (stockErr) {
+        errores.push(`No se pudo verificar el stock de "${p.producto}": ${stockErr.message}`)
+        continue
+      }
 
       const stockActual = Number(stockData?.stock_actual ?? 0)
       const cantidadNecesaria = Number(p.dosis_ha) * Number(form.superficie_ha)
@@ -302,11 +312,11 @@ export default function NuevaAplicacionPage() {
       return
     }
 
-    // ── REGISTRAR EGRESOS EN AGROQUÍMICOS ────────────────────────────
+    // ── REGISTRAR EGRESOS EN AGROQUÍMICOS (descuenta el stock) ───────
     const movimientos = productosValidos.map(p => {
-      const prodCatalogo = catalogo.find(c => c.nombre === p.producto)
+      const prodCatalogo = catalogoPorProducto[p.producto]
       return {
-        producto_id: prodCatalogo!.id,
+        producto_id: prodCatalogo.id,
         tipo: 'aplicacion',
         fecha: form.fecha || new Date().toISOString().split('T')[0],
         cantidad: Number(p.dosis_ha) * Number(form.superficie_ha),
@@ -322,7 +332,9 @@ export default function NuevaAplicacionPage() {
     const { error: movErr } = await supabase.from('agroquimicos_movimientos').insert(movimientos)
     if (movErr) {
       setSaving(false)
-      setError(`Error al registrar egreso en stock: ${movErr.message}`)
+      // No revertimos la aplicación ya guardada: avisamos claro para que se
+      // cargue el egreso de stock a mano desde Agroquímicos → Movimientos.
+      setError(`La aplicación se guardó, pero el stock NO se descontó: ${movErr.message}. Cargá el egreso manualmente en Agroquímicos → Movimientos.`)
       return
     }
 
