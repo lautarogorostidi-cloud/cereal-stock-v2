@@ -36,6 +36,8 @@ type Aplicacion = {
   tipo: string
   fecha: string | null
   superficie_ha: number
+  proveedor: string | null
+  observaciones: string | null
   productos: string[]
 }
 
@@ -91,7 +93,7 @@ export default function LotesCultivosPage() {
         supabase.from('lotes').select('*').eq('activo', true).order('establecimiento').order('nombre'),
         supabase.from('vw_sa_resumen_ciclo').select('*'),
         supabase.from('campanas').select('nombre').order('nombre', { ascending: false }),
-        supabase.from('sa_aplicaciones').select('id, ciclo_id, tipo, fecha, superficie_ha'),
+        supabase.from('sa_aplicaciones').select('id, ciclo_id, tipo, fecha, superficie_ha, proveedor, observaciones'),
         supabase.from('sa_aplicacion_productos').select('aplicacion_id, producto'),
         supabase.from('sa_acondicionamiento').select('ciclo_id, superficie_ha'),
       ])
@@ -343,7 +345,9 @@ export default function LotesCultivosPage() {
                                       <th className="text-left py-1 pr-4 font-medium w-24">Fecha</th>
                                       <th className="text-left py-1 pr-4 font-medium w-36">Tipo</th>
                                       <th className="text-right py-1 pr-4 font-medium w-20">Ha</th>
-                                      <th className="text-left py-1 font-medium">Productos</th>
+                                      <th className="text-left py-1 pr-4 font-medium">Productos</th>
+                                      <th className="text-left py-1 pr-4 font-medium w-32">Proveedor</th>
+                                      <th className="text-left py-1 font-medium w-48">Observaciones</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -352,7 +356,9 @@ export default function LotesCultivosPage() {
                                         <td className="py-1 pr-4 text-campo-500 w-24">{fmtFecha(a.fecha)}</td>
                                         <td className="py-1 pr-4 text-campo-600 w-36">{TIPO_LABELS[a.tipo] ?? a.tipo}</td>
                                         <td className="py-1 pr-4 text-right text-campo-500 w-20">{fmt(a.superficie_ha)}</td>
-                                        <td className="py-1 text-campo-700">{a.productos.join(', ')}</td>
+                                        <td className="py-1 pr-4 text-campo-700">{a.productos.join(', ')}</td>
+                                        <td className="py-1 pr-4 text-campo-600 w-32">{a.proveedor ?? '—'}</td>
+                                        <td className="py-1 text-campo-600 w-48">{a.observaciones ?? '—'}</td>
                                       </tr>
                                     ))}
                                   </tbody>

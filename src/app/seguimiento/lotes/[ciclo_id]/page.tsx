@@ -33,6 +33,8 @@ type Aplicacion = {
   fecha: string | null
   superficie_ha: number
   costo_servicio_usd_ha: number | null
+  proveedor: string | null
+  observaciones: string | null
   productos: Producto[]
 }
 
@@ -61,6 +63,8 @@ type Siembra = {
   fertilizante_2: string | null
   fertilizante_2_kg_ha: number | null
   fertilizante_2_costo_kg: number | null
+  proveedor_servicio: string | null
+  observaciones: string | null
 }
 
 type Fertilizacion = {
@@ -81,6 +85,8 @@ type Cosecha = {
   rinde_kg_ha_cosecha: number | null
   rinde_kg_total: number | null
   costo_cosecha_usd_ha: number | null
+  proveedor_cosecha: string | null
+  observaciones: string | null
 }
 
 type CostoFijo = {
@@ -102,6 +108,8 @@ type Acondicionamiento = {
   tipo_laboreo: string | null
   superficie_ha: number | null
   costo_usd_ha: number | null
+  proveedor: string | null
+  observaciones: string | null
 }
 
 const fmt = (n: number | null | undefined, dec = 1) =>
@@ -393,6 +401,8 @@ export default function FichaCicloPage() {
                   <th className="text-left px-4 py-2 font-semibold text-campo-700">Tipo laboreo</th>
                   <th className="text-right px-4 py-2 font-semibold text-campo-700">Sup. (ha)</th>
                   <th className="text-right px-4 py-2 font-semibold text-campo-700">Costo USD/ha</th>
+                  <th className="text-left px-4 py-2 font-semibold text-campo-700">Proveedor</th>
+                  <th className="text-left px-4 py-2 font-semibold text-campo-700">Observaciones</th>
                   <th className="text-center px-4 py-2 font-semibold text-campo-700">Acciones</th>
                 </tr>
               </thead>
@@ -403,6 +413,8 @@ export default function FichaCicloPage() {
                     <td className="px-4 py-2 text-campo-700">{a.tipo_laboreo ?? '—'}</td>
                     <td className="px-4 py-2 text-right text-campo-700">{fmt(a.superficie_ha)}</td>
                     <td className="px-4 py-2 text-right text-campo-700">{fmtUsd(a.costo_usd_ha)}</td>
+                    <td className="px-4 py-2 text-campo-700">{a.proveedor ?? '—'}</td>
+                    <td className="px-4 py-2 text-campo-600 text-xs max-w-xs">{a.observaciones ?? '—'}</td>
                     <td className="px-4 py-2 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <Link href={`/seguimiento/lotes/${ciclo_id}/acondicionamiento`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
@@ -471,6 +483,13 @@ export default function FichaCicloPage() {
                 </div>
               </div>
             )}
+            <div><span className="text-campo-500">Proveedor</span><div className="font-medium text-campo-900 mt-0.5">{siembra.proveedor_servicio ?? '—'}</div></div>
+            {siembra.observaciones && (
+              <div className="col-span-2 md:col-span-4">
+                <span className="text-campo-500">Observaciones</span>
+                <div className="font-medium text-campo-900 mt-0.5">{siembra.observaciones}</div>
+              </div>
+            )}
           </div>
         )}
       </Section>
@@ -498,6 +517,8 @@ export default function FichaCicloPage() {
                         <th className="text-right px-4 py-2 font-semibold text-campo-700">Serv. USD/ha</th>
                         <th className="text-left px-4 py-2 font-semibold text-campo-700">Productos</th>
                         <th className="text-right px-4 py-2 font-semibold text-campo-700">Total insumos</th>
+                        <th className="text-left px-4 py-2 font-semibold text-campo-700">Proveedor</th>
+                        <th className="text-left px-4 py-2 font-semibold text-campo-700">Observaciones</th>
                         <th className="text-center px-4 py-2 font-semibold text-campo-700">Acciones</th>
                       </tr>
                     </thead>
@@ -522,6 +543,8 @@ export default function FichaCicloPage() {
                               ))}
                             </td>
                             <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(totalInsumos)}</td>
+                            <td className="px-4 py-2 text-campo-700">{a.proveedor ?? '—'}</td>
+                            <td className="px-4 py-2 text-campo-600 text-xs max-w-xs">{a.observaciones ?? '—'}</td>
                             <td className="px-4 py-2 text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <Link href={`/seguimiento/lotes/${ciclo_id}/aplicaciones/${a.id}/editar`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
@@ -589,6 +612,13 @@ export default function FichaCicloPage() {
             <div><span className="text-campo-500">Rinde</span><div className="font-medium text-campo-900 mt-0.5">{fmt(cosecha.rinde_kg_ha_cosecha)} kg/ha</div></div>
             <div><span className="text-campo-500">Total</span><div className="font-medium text-campo-900 mt-0.5">{fmt(cosecha.rinde_kg_total, 0)} kg</div></div>
             <div><span className="text-campo-500">Costo cosecha</span><div className="font-medium text-campo-900 mt-0.5">{fmtUsd((cosecha.costo_cosecha_usd_ha ?? 0) * (cosecha.superficie_ha ?? 0))}</div></div>
+            <div><span className="text-campo-500">Proveedor</span><div className="font-medium text-campo-900 mt-0.5">{cosecha.proveedor_cosecha ?? '—'}</div></div>
+            {cosecha.observaciones && (
+              <div className="col-span-2 md:col-span-4">
+                <span className="text-campo-500">Observaciones</span>
+                <div className="font-medium text-campo-900 mt-0.5">{cosecha.observaciones}</div>
+              </div>
+            )}
           </div>
         )}
       </Section>
