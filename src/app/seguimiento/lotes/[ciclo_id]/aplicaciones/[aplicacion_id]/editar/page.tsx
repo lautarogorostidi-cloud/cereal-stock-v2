@@ -76,6 +76,8 @@ export default function EditarAplicacionPage() {
     fecha: '',
     superficie_ha: '',
     costo_servicio_usd_ha: '',
+    proveedor: '',
+    observaciones: '',
   })
 
   const [productos, setProductos] = useState<Producto[]>([{ ...PRODUCTO_VACIO }])
@@ -134,6 +136,8 @@ export default function EditarAplicacionPage() {
         fecha: aplData.fecha ?? '',
         superficie_ha: aplData.superficie_ha?.toString() ?? '',
         costo_servicio_usd_ha: aplData.costo_servicio_usd_ha?.toString() ?? '',
+        proveedor: aplData.proveedor ?? '',
+        observaciones: aplData.observaciones ?? '',
       })
     }
 
@@ -181,7 +185,7 @@ export default function EditarAplicacionPage() {
     return registros[0].costo_usd_ha
   }
 
-  function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, value } = e.target
     setForm(f => ({ ...f, [name]: value }))
     if (name === 'fecha' && value) {
@@ -306,6 +310,8 @@ export default function EditarAplicacionPage() {
         fecha: form.fecha || null,
         superficie_ha: Number(form.superficie_ha),
         costo_servicio_usd_ha: form.costo_servicio_usd_ha ? Number(form.costo_servicio_usd_ha) : null,
+        proveedor: form.proveedor || null,
+        observaciones: form.observaciones || null,
       })
       .eq('id', Number(aplicacion_id))
 
@@ -446,6 +452,13 @@ export default function EditarAplicacionPage() {
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-campo-700 mb-1">Proveedor</label>
+          <input type="text" name="proveedor" value={form.proveedor} onChange={handleFormChange}
+            placeholder="Ej: Juan Pérez"
+            className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400" />
+        </div>
+
+        <div>
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-medium text-campo-700">Productos aplicados *</label>
             <button onClick={agregarProducto} className="text-xs text-lime-700 hover:text-lime-600 font-medium">
@@ -535,6 +548,13 @@ export default function EditarAplicacionPage() {
               </span>
             </div>
           )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-campo-700 mb-1">Observaciones</label>
+          <textarea name="observaciones" value={form.observaciones} onChange={handleFormChange}
+            rows={2} placeholder="Notas adicionales..."
+            className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 resize-none" />
         </div>
 
         {error && (
