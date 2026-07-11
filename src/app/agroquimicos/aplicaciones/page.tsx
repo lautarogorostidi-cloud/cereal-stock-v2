@@ -80,6 +80,13 @@ export default function AplicacionesAgroquimicosPage() {
           )
         )
       `)
+      // Sin order()/limit() explícitos, Supabase corta en 1000 filas por
+      // defecto y lo hace en silencio (sin error). sa_aplicacion_productos
+      // ya superó esa marca, así que algunas aplicaciones (ej. Preside en
+      // el lote 15T) quedaban afuera sin ningún aviso. Ordenamos y subimos
+      // el límite bien por encima del volumen actual para traer todo.
+      .order('aplicacion_id', { ascending: false })
+      .limit(10000)
 
     if (error) {
       console.error('Error cargando aplicaciones:', error)

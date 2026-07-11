@@ -41,9 +41,9 @@ export default function StockAgroquimicosPage() {
     ] = await Promise.all([
       supabase.from('vw_stock_agroquimicos').select('*').order('tipo').order('producto'),
       // Uso total histórico por producto
-      supabase.from('sa_aplicacion_productos').select('producto, dosis_ha, sa_aplicaciones(superficie_ha)'),
+      supabase.from('sa_aplicacion_productos').select('producto, dosis_ha, sa_aplicaciones(superficie_ha)').limit(10000),
       // Historial mensual: cuánto se usó por producto por mes (para el sistema predictivo)
-      supabase.from('sa_aplicacion_productos').select('producto, dosis_ha, sa_aplicaciones!inner(fecha, superficie_ha)'),
+      supabase.from('sa_aplicacion_productos').select('producto, dosis_ha, sa_aplicaciones!inner(fecha, superficie_ha)').limit(10000),
     ])
 
     // ── Uso total histórico por producto ──

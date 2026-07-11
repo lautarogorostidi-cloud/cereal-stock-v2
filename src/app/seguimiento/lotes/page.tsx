@@ -93,8 +93,8 @@ export default function LotesCultivosPage() {
         supabase.from('lotes').select('*').eq('activo', true).order('establecimiento').order('nombre'),
         supabase.from('vw_sa_resumen_ciclo').select('*'),
         supabase.from('campanas').select('nombre').order('nombre', { ascending: false }),
-        supabase.from('sa_aplicaciones').select('id, ciclo_id, tipo, fecha, superficie_ha, proveedor, observaciones'),
-        supabase.from('sa_aplicacion_productos').select('aplicacion_id, producto'),
+        supabase.from('sa_aplicaciones').select('id, ciclo_id, tipo, fecha, superficie_ha, proveedor, observaciones').limit(10000),
+        supabase.from('sa_aplicacion_productos').select('aplicacion_id, producto').limit(10000),
         supabase.from('sa_acondicionamiento').select('ciclo_id, superficie_ha'),
       ])
 

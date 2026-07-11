@@ -112,10 +112,11 @@ export default function AgroquimicosDashboard() {
       { data: campanasData },
     ] = await Promise.all([
       supabase.from('vw_stock_agroquimicos').select('producto, stock_actual, stock_minimo, activo'),
-      supabase.from('sa_aplicacion_productos').select('producto, dosis_ha, sa_aplicaciones(superficie_ha)'),
+      supabase.from('sa_aplicacion_productos').select('producto, dosis_ha, sa_aplicaciones(superficie_ha)').limit(10000),
       supabase
         .from('sa_aplicacion_productos')
-        .select('aplicacion_id, producto, dosis_ha, costo_unitario, sa_aplicaciones!inner(fecha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre)))'),
+        .select('aplicacion_id, producto, dosis_ha, costo_unitario, sa_aplicaciones!inner(fecha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre)))')
+        .limit(10000),
       supabase
         .from('sa_aplicaciones')
         .select('id, fecha, costo_servicio_usd_ha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre))')

@@ -65,6 +65,7 @@ export default function ReportesAgroquimicosPage() {
     const { data } = await supabase
       .from('sa_aplicacion_productos')
       .select('producto, dosis_ha, costo_unitario, sa_aplicaciones!inner(superficie_ha, costo_servicio_usd_ha, sa_ciclos!inner(campanas!inner(nombre), lotes!inner(nombre, establecimiento), cultivos!inner(nombre)))')
+      .limit(10000)
     const mapa: Record<string, any> = {}
     ;(data ?? []).forEach((ap: any) => {
       const campana = ap.sa_aplicaciones?.sa_ciclos?.campanas?.nombre ?? ''
@@ -85,6 +86,7 @@ export default function ReportesAgroquimicosPage() {
     const { data } = await supabase
       .from('sa_aplicacion_productos')
       .select('dosis_ha, costo_unitario, sa_aplicaciones!inner(superficie_ha, sa_ciclos!inner(campanas!inner(nombre), cultivos!inner(nombre)))')
+      .limit(10000)
     const mapa: Record<string, any> = {}
     ;(data ?? []).forEach((ap: any) => {
       const campana = ap.sa_aplicaciones?.sa_ciclos?.campanas?.nombre ?? ''
@@ -139,6 +141,7 @@ export default function ReportesAgroquimicosPage() {
     const { data } = await supabase
       .from('sa_aplicacion_productos')
       .select('producto, dosis_ha, costo_unitario, unidad, sa_aplicaciones!inner(superficie_ha, sa_ciclos!inner(campanas!inner(nombre)))')
+      .limit(10000)
     const mapa: Record<string, any> = {}
     ;(data ?? []).forEach((ap: any) => {
       const campana = ap.sa_aplicaciones?.sa_ciclos?.campanas?.nombre ?? ''
@@ -160,6 +163,7 @@ export default function ReportesAgroquimicosPage() {
     const { data } = await supabase
       .from('sa_aplicacion_productos')
       .select('dosis_ha, costo_unitario, sa_aplicaciones!inner(superficie_ha, sa_ciclos!inner(campanas!inner(nombre), lotes!inner(nombre, establecimiento)))')
+      .limit(10000)
     const mapa: Record<string, any> = {}
     ;(data ?? []).forEach((ap: any) => {
       const campana = ap.sa_aplicaciones?.sa_ciclos?.campanas?.nombre ?? ''
