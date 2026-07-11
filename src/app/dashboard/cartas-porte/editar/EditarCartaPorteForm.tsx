@@ -93,71 +93,81 @@ export default function EditarCartaPorteForm() {
         if (carta) {
           setCartaId(carta.id)
           const obs = carta.observaciones ?? ''
+          // Preferimos siempre las columnas reales de la carta (lo que se
+          // extrajo/guardó de verdad). El parseo de "observaciones" queda
+          // solo como respaldo para cartas viejas que se guardaron antes de
+          // que estos datos se escribieran en sus propias columnas.
           setForm({
             numero_cpe: carta.numero_cpe ?? '',
             ctg: carta.ctg ?? '',
             fecha_emision: carta.fecha_emision ?? '',
-            fecha_vencimiento: obs.match(/Venc: ([^\|]+)/)?.[1]?.trim() ?? '',
+            fecha_vencimiento: carta.numero_cpe_vencimiento ?? obs.match(/Venc: ([^\|]+)/)?.[1]?.trim() ?? '',
             campania_id: carta.campania_id ?? '',
             cultivo_id: carta.cultivo_id ?? '',
             contrato_id: carta.contrato_id ?? '',
-            cuit_titular: obs.match(/CUIT Titular: ([^\|]+)/)?.[1]?.trim() ?? '30717870944',
+            cuit_titular: carta.cuit_titular ?? obs.match(/CUIT Titular: ([^\|]+)/)?.[1]?.trim() ?? '30717870944',
             razon_social_titular: 'BARATZA S.R.L.',
             cuit_rte_productor: '',
             cuit_mercado_termino: '',
             cuit_flete_pagador: '30717870944',
             remitente_comercial_productor: '',
-            remitente_comercial: obs.match(/Remitente: ([^(]+)/)?.[1]?.trim() ?? '',
-            cuit_remitente: obs.match(/Remitente: [^(]+\(([^)]+)\)/)?.[1]?.trim() ?? '',
-            remitente_venta_secundaria: '', cuit_rte_secundaria: '',
+            remitente_comercial: carta.remitente_comercial ?? obs.match(/Remitente: ([^(]+)/)?.[1]?.trim() ?? '',
+            cuit_remitente: carta.cuit_remitente ?? obs.match(/Remitente: [^(]+\(([^)]+)\)/)?.[1]?.trim() ?? '',
+            remitente_venta_secundaria: carta.remitente_venta_secundaria ?? '',
+            cuit_rte_secundaria: carta.cuit_rte_secundaria ?? '',
             remitente_venta_secundaria2: '', cuit_rte_secundaria2: '',
             mercado_termino: '',
-            corredor_venta_primaria: '', cuit_corredor_primaria: '',
-            corredor_venta_secundaria: '', cuit_corredor_secundaria: '',
-            destinatario: obs.match(/Destinatario: ([^(]+)/)?.[1]?.trim() ?? '',
-            cuit_destinatario: obs.match(/Destinatario: [^(]+\(([^)]+)\)/)?.[1]?.trim() ?? '',
-            destino: '', cuit_destino: '',
-            empresa_transportista: '', cuit_transportista: '',
-            representante_entregador: obs.match(/Rep entregador: ([^(]+)/)?.[1]?.trim() ?? '',
-            cuit_rep_entregador: obs.match(/Rep entregador: [^(]+\(([^)]+)\)/)?.[1]?.trim() ?? '',
-            representante_recibidor: '', cuit_rep_recibidor: '',
+            corredor_venta_primaria: carta.corredor_venta_primaria ?? '',
+            cuit_corredor_primaria: carta.cuit_corredor_primaria ?? '',
+            corredor_venta_secundaria: carta.corredor_venta_secundaria ?? '',
+            cuit_corredor_secundaria: carta.cuit_corredor_secundaria ?? '',
+            destinatario: carta.destinatario ?? obs.match(/Destinatario: ([^(]+)/)?.[1]?.trim() ?? '',
+            cuit_destinatario: carta.cuit_destinatario ?? obs.match(/Destinatario: [^(]+\(([^)]+)\)/)?.[1]?.trim() ?? '',
+            destino: carta.destino_nombre ?? '',
+            cuit_destino: carta.cuit_destino ?? '',
+            empresa_transportista: carta.empresa_transportista ?? '',
+            cuit_transportista: carta.cuit_transportista ?? '',
+            representante_entregador: carta.representante_entregador ?? obs.match(/Rep entregador: ([^(]+)/)?.[1]?.trim() ?? '',
+            cuit_rep_entregador: carta.cuit_rep_entregador ?? obs.match(/Rep entregador: [^(]+\(([^)]+)\)/)?.[1]?.trim() ?? '',
+            representante_recibidor: carta.representante_recibidor ?? '',
+            cuit_rep_recibidor: carta.cuit_rep_recibidor ?? '',
             intermediario_flete: '', cuit_intermediario: '',
-            chofer_nombre: obs.match(/Chofer: ([^C]+)CUIL/)?.[1]?.trim() ?? '',
-            chofer_cuil: obs.match(/CUIL: ([^\|]+)/)?.[1]?.trim() ?? '',
-            flete_pagador: obs.match(/Flete pagador: ([^\|]+)/)?.[1]?.trim() ?? 'BARATZA SRL',
+            chofer_nombre: carta.chofer_nombre ?? obs.match(/Chofer: ([^C]+)CUIL/)?.[1]?.trim() ?? '',
+            chofer_cuil: carta.chofer_cuil ?? obs.match(/CUIL: ([^\|]+)/)?.[1]?.trim() ?? '',
+            flete_pagador: carta.flete_pagador ?? obs.match(/Flete pagador: ([^\|]+)/)?.[1]?.trim() ?? 'BARATZA SRL',
             lote_id: carta.lote_id ?? '',
-            peso_bruto_kg: obs.match(/Peso bruto: (\d+)/)?.[1] ?? '',
-            peso_tara_kg: obs.match(/Tara: (\d+)/)?.[1] ?? '',
+            peso_bruto_kg: carta.peso_bruto_kg ? String(carta.peso_bruto_kg) : (obs.match(/Peso bruto: (\d+)/)?.[1] ?? ''),
+            peso_tara_kg: carta.peso_tara_kg ? String(carta.peso_tara_kg) : (obs.match(/Peso bruto: \d+kg \| Tara: (\d+)/)?.[1] ?? ''),
             toneladas_origen: carta.toneladas_origen ? String(carta.toneladas_origen) : '',
-            declaracion_calidad: obs.match(/Calidad: ([^\|]+)/)?.[1]?.trim() ?? 'conforme',
+            declaracion_calidad: carta.declaracion_calidad ?? obs.match(/Calidad: ([^\|]+)/)?.[1]?.trim() ?? 'conforme',
             humedad_origen: carta.humedad_origen ? String(carta.humedad_origen) : '',
             proteina: carta.proteina ? String(carta.proteina) : '',
             gluten: carta.gluten ? String(carta.gluten) : '',
             peso_hectolitrico: carta.peso_hectolitrico ? String(carta.peso_hectolitrico) : '',
             zaranda: carta.zaranda ? String(carta.zaranda) : '',
-            procedencia_localidad: obs.match(/Procedencia: ([^,]+)/)?.[1]?.trim() ?? 'TRES LOMAS',
-            procedencia_provincia: obs.match(/Procedencia: [^,]+, ([^\|]+)/)?.[1]?.trim() ?? 'BUENOS AIRES',
-            renspa: obs.match(/RENSPA: ([^\|]+)/)?.[1]?.trim() ?? '',
-            descripcion_campo: obs.match(/Campo: ([^\|]+)/)?.[1]?.trim() ?? '',
-            latitud: obs.match(/Coords: ([^/]+)/)?.[1]?.trim() ?? '',
-            longitud: obs.match(/Coords: [^/]+\/ ([^\|]+)/)?.[1]?.trim() ?? '',
+            procedencia_localidad: carta.procedencia_localidad ?? obs.match(/Procedencia: ([^,]+)/)?.[1]?.trim() ?? 'TRES LOMAS',
+            procedencia_provincia: carta.procedencia_provincia ?? obs.match(/Procedencia: [^,]+, ([^\|]+)/)?.[1]?.trim() ?? 'BUENOS AIRES',
+            renspa: carta.renspa ?? obs.match(/RENSPA: ([^\|]+)/)?.[1]?.trim() ?? '',
+            descripcion_campo: carta.descripcion_campo ?? obs.match(/Campo: ([^\|]+)/)?.[1]?.trim() ?? '',
+            latitud: carta.latitud ?? obs.match(/Coords: ([^/]+)/)?.[1]?.trim() ?? '',
+            longitud: carta.longitud ?? obs.match(/Coords: [^/]+\/ ([^\|]+)/)?.[1]?.trim() ?? '',
             origen_acopio_id: carta.origen_acopio_id ?? '',
             destino_acopio_id: carta.destino_acopio_id ?? '',
-            destino_localidad: obs.match(/Destino: ([^,]+)/)?.[1]?.trim() ?? '',
-            destino_provincia: obs.match(/Destino: [^,]+, ([^\|]+)/)?.[1]?.trim() ?? '',
-            nro_planta: obs.match(/N° Planta: ([^\|]+)/)?.[1]?.trim() ?? '',
-            destino_direccion: obs.match(/Dir destino: ([^\|]+)/)?.[1]?.trim() ?? '',
-            patente_camion: obs.match(/Patentes: ([^-]+)/)?.[1]?.trim() ?? '',
-            patente_acoplado: obs.match(/Patentes: [^-]+ - ([^\|]+)/)?.[1]?.trim() ?? '',
+            destino_localidad: carta.destino_localidad ?? obs.match(/Destino: ([^,]+)/)?.[1]?.trim() ?? '',
+            destino_provincia: carta.destino_provincia ?? obs.match(/Destino: [^,]+, ([^\|]+)/)?.[1]?.trim() ?? '',
+            nro_planta: carta.nro_planta ?? obs.match(/N° Planta: ([^\|]+)/)?.[1]?.trim() ?? '',
+            destino_direccion: carta.destino_direccion ?? obs.match(/Dir destino: ([^\|]+)/)?.[1]?.trim() ?? '',
+            patente_camion: carta.patente_camion ?? obs.match(/Patentes: ([^-]+)/)?.[1]?.trim() ?? '',
+            patente_acoplado: carta.patente_acoplado ?? obs.match(/Patentes: [^-]+ - ([^\|]+)/)?.[1]?.trim() ?? '',
             fecha_partida: carta.fecha_partida ?? '',
             hora_partida: carta.hora_partida ?? '',
-            km_recorrer: obs.match(/Km: ([^\|]+)/)?.[1]?.trim() ?? '',
-            tarifa_flete: obs.match(/Tarifa flete: ([^\|]+)/)?.[1]?.trim() ?? '',
-            fecha_arribo: obs.match(/Arribo: ([^\|]+)/)?.[1]?.trim() ?? '',
-            fecha_descarga: obs.match(/Descarga: ([^\|]+)/)?.[1]?.trim() ?? '',
-            nro_turno: obs.match(/N° Turno: ([^\|]+)/)?.[1]?.trim() ?? '',
-            peso_bruto_destino: obs.match(/Peso bruto destino: (\d+)/)?.[1] ?? '',
-            peso_tara_destino: obs.match(/Tara: (\d+)kg\s*\|/)?.[1] ?? '',
+            km_recorrer: carta.km_recorrer ? String(carta.km_recorrer) : (obs.match(/Km: ([^\|]+)/)?.[1]?.trim() ?? ''),
+            tarifa_flete: carta.tarifa_flete ? String(carta.tarifa_flete) : (obs.match(/Tarifa flete: ([^\|]+)/)?.[1]?.trim() ?? ''),
+            fecha_arribo: carta.fecha_arribo ?? obs.match(/Arribo: ([^\|]+)/)?.[1]?.trim() ?? '',
+            fecha_descarga: carta.fecha_descarga ?? obs.match(/Descarga: ([^\|]+)/)?.[1]?.trim() ?? '',
+            nro_turno: carta.nro_turno ?? obs.match(/N° Turno: ([^\|]+)/)?.[1]?.trim() ?? '',
+            peso_bruto_destino: carta.peso_bruto_destino ? String(carta.peso_bruto_destino) : (obs.match(/Peso bruto destino: (\d+)/)?.[1] ?? ''),
+            peso_tara_destino: carta.peso_tara_destino ? String(carta.peso_tara_destino) : (obs.match(/Peso bruto destino: \d+kg \| Tara: (\d+)/)?.[1] ?? ''),
             humedad_destino: carta.humedad_destino ? String(carta.humedad_destino) : '',
             observaciones: '',
             bonificacion_calidad: carta.bonificacion_calidad ? String(carta.bonificacion_calidad) : '',
@@ -235,6 +245,53 @@ export default function EditarCartaPorteForm() {
     if (pesoNetoDestino !== null) payload.toneladas_netas = pesoNetoDestino
     if (form.peso_bruto_destino) payload.toneladas_destino = parseFloat(form.peso_bruto_destino) / 1000
     payload.bonificacion_calidad = form.bonificacion_calidad ? parseFloat(form.bonificacion_calidad) : null
+
+    // Intervinientes, destino y pesos: guardar en sus columnas reales
+    // (antes solo se guardaban dentro de "observaciones" como texto).
+    payload.cuit_titular = form.cuit_titular || null
+    payload.remitente_comercial = form.remitente_comercial || null
+    payload.cuit_remitente = form.cuit_remitente || null
+    payload.remitente_venta_secundaria = form.remitente_venta_secundaria || null
+    payload.cuit_rte_secundaria = form.cuit_rte_secundaria || null
+    payload.corredor_venta_primaria = form.corredor_venta_primaria || null
+    payload.cuit_corredor_primaria = form.cuit_corredor_primaria || null
+    payload.corredor_venta_secundaria = form.corredor_venta_secundaria || null
+    payload.cuit_corredor_secundaria = form.cuit_corredor_secundaria || null
+    payload.destinatario = form.destinatario || null
+    payload.cuit_destinatario = form.cuit_destinatario || null
+    payload.destino_nombre = form.destino || null
+    payload.cuit_destino = form.cuit_destino || null
+    payload.empresa_transportista = form.empresa_transportista || null
+    payload.cuit_transportista = form.cuit_transportista || null
+    payload.representante_entregador = form.representante_entregador || null
+    payload.cuit_rep_entregador = form.cuit_rep_entregador || null
+    payload.representante_recibidor = form.representante_recibidor || null
+    payload.cuit_rep_recibidor = form.cuit_rep_recibidor || null
+    payload.chofer_nombre = form.chofer_nombre || null
+    payload.chofer_cuil = form.chofer_cuil || null
+    payload.flete_pagador = form.flete_pagador || null
+    payload.peso_bruto_kg = form.peso_bruto_kg ? parseFloat(form.peso_bruto_kg) : null
+    payload.peso_tara_kg = form.peso_tara_kg ? parseFloat(form.peso_tara_kg) : null
+    payload.declaracion_calidad = form.declaracion_calidad || null
+    payload.procedencia_localidad = form.procedencia_localidad || null
+    payload.procedencia_provincia = form.procedencia_provincia || null
+    payload.renspa = form.renspa || null
+    payload.descripcion_campo = form.descripcion_campo || null
+    payload.latitud = form.latitud || null
+    payload.longitud = form.longitud || null
+    payload.destino_localidad = form.destino_localidad || null
+    payload.destino_provincia = form.destino_provincia || null
+    payload.nro_planta = form.nro_planta || null
+    payload.destino_direccion = form.destino_direccion || null
+    payload.patente_camion = form.patente_camion || null
+    payload.patente_acoplado = form.patente_acoplado || null
+    payload.km_recorrer = form.km_recorrer ? parseFloat(form.km_recorrer) : null
+    payload.fecha_arribo = form.fecha_arribo || null
+    payload.fecha_descarga = form.fecha_descarga || null
+    payload.nro_turno = form.nro_turno || null
+    payload.peso_bruto_destino = form.peso_bruto_destino ? parseFloat(form.peso_bruto_destino) : null
+    payload.peso_tara_destino = form.peso_tara_destino ? parseFloat(form.peso_tara_destino) : null
+    payload.numero_cpe_vencimiento = form.fecha_vencimiento || null
 
     const { error } = await supabase.from('cartas_porte').update(payload).eq('id', cartaId)
     if (error) { setError(error.message); setSaving(false) }
