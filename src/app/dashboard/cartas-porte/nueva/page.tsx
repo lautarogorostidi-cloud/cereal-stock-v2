@@ -459,37 +459,4 @@ export default function NuevaCartaPortePage() {
           {seccion('F', 'Transporte')}
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Patente camión</label><input value={form.patente_camion} onChange={e => set('patente_camion', e.target.value.toUpperCase())} placeholder="AF456OU" className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Patente acoplado</label><input value={form.patente_acoplado} onChange={e => set('patente_acoplado', e.target.value.toUpperCase())} placeholder="AF456OT" className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Fecha de partida</label><input type="date" value={form.fecha_partida} onChange={e => set('fecha_partida', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Hora de partida</label><input type="time" value={form.hora_partida} onChange={e => set('hora_partida', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Km a recorrer</label><input type="number" value={form.km_recorrer} onChange={e => set('km_recorrer', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Tarifa flete ($/tn)</label><input type="number" step="0.01" value={form.tarifa_flete} onChange={e => set('tarifa_flete', e.target.value)} className="input-field" /></div>
-          </div>
-        </div>
-
-        <div className="card">
-          {seccion('G', 'Descarga')}
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Fecha arribo</label><input type="date" value={form.fecha_arribo} onChange={e => set('fecha_arribo', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Fecha descarga</label><input type="date" value={form.fecha_descarga} onChange={e => set('fecha_descarga', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">N° Turno</label><input value={form.nro_turno} onChange={e => set('nro_turno', e.target.value)} className="input-field font-mono" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Humedad destino (%)</label><input type="number" step="0.01" value={form.humedad_destino} onChange={e => set('humedad_destino', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Peso Bruto destino (kg)</label><input type="number" value={form.peso_bruto_destino} onChange={e => set('peso_bruto_destino', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Peso Tara destino (kg)</label><input type="number" value={form.peso_tara_destino} onChange={e => set('peso_tara_destino', e.target.value)} className="input-field" /></div>
-            {pesoNetoDestino !== null && <div className="col-span-2"><div className="rounded-lg bg-campo-50 border border-campo-200 px-4 py-2 text-sm"><span className="text-campo-500">Peso Neto destino calculado: </span><span className="font-bold text-campo-800">{pesoNetoDestino.toFixed(3)} tn</span></div></div>}
-          </div>
-        </div>
-
-        <div className="card">
-          <label className="block text-sm font-medium text-campo-700 mb-1">Observaciones</label>
-          <textarea value={form.observaciones} onChange={e => set('observaciones', e.target.value)} rows={3} placeholder="por el tipo de cambio de hoy [Nro SIO-GRANOS:]" className="input-field resize-none" />
-        </div>
-
-        <div className="flex gap-3 justify-end">
-          <button type="button" onClick={() => router.back()} className="btn-secondary">Cancelar</button>
-          <button type="submit" disabled={loading} className="btn-primary px-8">{loading ? 'Guardando...' : 'Guardar carta de porte'}</button>
-        </div>
-      </form>
-    </div>
-  )
-}
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Patente acoplado</label><input value={form.patente_acoplado} onChange={e =

@@ -266,11 +266,4 @@ export default function ReportesAgroquimicosPage() {
                 disabled={cargando}
                 className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-700 text-white hover:bg-emerald-800 transition-colors disabled:opacity-50">
                 {cargando ? '⏳' : '⬇️ CSV'}
-              </button>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
+              </b

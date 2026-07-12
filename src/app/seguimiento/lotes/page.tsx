@@ -445,25 +445,4 @@ export default function LotesCultivosPage() {
                                     <td className="py-1 pr-4 text-right text-campo-600 w-24">{c.rinde_kg_ha ? fmt(c.rinde_kg_ha) : '—'}</td>
                                     <td className="py-1 text-center w-20">
                                       <Link href={`/seguimiento/lotes/${c.ciclo_id}`}
-                                        className="text-lime-700 hover:text-lime-600 font-medium">
-                                        Ver ficha →
-                                      </Link>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
+                                        className="text-lime-700 hover:text-lime-600 fon

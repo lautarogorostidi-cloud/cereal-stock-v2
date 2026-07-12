@@ -464,8 +464,4 @@ export default function AgroquimicosDashboard() {
               </tr>
             </tbody>
           </table>
-        </div>
-      </div>
-    </div>
-  )
-}
+        </

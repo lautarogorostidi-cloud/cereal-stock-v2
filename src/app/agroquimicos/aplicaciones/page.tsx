@@ -299,15 +299,4 @@ export default function AplicacionesAgroquimicosPage() {
                   <td className="px-4 py-3 text-right text-campo-700">{fmt(a.superficie_ha)}</td>
                   <td className="px-4 py-3 text-right text-campo-700">{fmt(a.dosis_ha)} <span className="text-xs text-campo-400">{a.unidad ?? 'L'}</span></td>
                   <td className="px-4 py-3 text-right text-campo-700">{fmt(a.total_litros_kg)} <span className="text-xs text-campo-400">{a.unidad ?? 'L'}</span></td>
-                  <td className="px-4 py-3 text-right text-campo-700">{fmtUsd(a.costo_insumos_usd)}</td>
-                  <td className="px-4 py-3 text-right text-campo-700">{fmtUsd(a.costo_servicio_usd)}</td>
-                  <td className="px-4 py-3 text-right font-medium text-campo-900">{fmtUsd(a.costo_total_usd)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  )
-}
+  
