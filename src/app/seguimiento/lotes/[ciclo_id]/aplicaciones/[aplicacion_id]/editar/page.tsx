@@ -251,6 +251,19 @@ export default function EditarAplicacionPage() {
     // misma aplicación ya tenía descontado (sus movimientos viejos, que
     // vamos a borrar y reemplazar), y recién sobre ese stock disponible
     // corregido validamos si alcanza para las cantidades nuevas.
+    //
+    // Ojo: las aplicaciones cargadas antes de que existiera el descuento
+    // automático de stock (aprox. antes del 9/7/2026) NUNCA generaron un
+    // movimiento en agroquímicos — ese consumo ya pasó en la realidad,
+    // pero el sistema no tiene ningún registro que "devolver". Si a esas
+    // igual les exigiéramos el stock completo de nuevo, cualquier edición
+    // (aunque sea solo cambiar el proveedor o las hectáreas) quedaría
+    // bloqueada por "stock insuficiente" de forma incorrecta. Por eso, si
+    // la aplicación no tiene ningún movimiento propio, la tratamos como
+    // "legacy": se guardan los datos normalmente, sin validar ni tocar
+    // stock. Si sí tiene movimientos (las cargadas/editadas desde el
+    // 9/7 en adelante), seguimos validando y recalculando el stock como
+    // corresponde.
     const catalogoPorProducto: Record<string, ProductoCatalogo> = {}
     const errores: string[] = []
 
@@ -260,46 +273,50 @@ export default function EditarAplicacionPage() {
       .eq('aplicacion_id', Number(aplicacion_id))
       .eq('tipo', 'aplicacion')
 
+    const esAplicacionLegacy = (movimientosViejos ?? []).length === 0
+
     const stockDevueltoPorProducto: Record<number, number> = {}
     ;(movimientosViejos ?? []).forEach((m: any) => {
       stockDevueltoPorProducto[m.producto_id] = (stockDevueltoPorProducto[m.producto_id] ?? 0) + Number(m.cantidad)
     })
 
-    for (const p of productosValidos) {
-      const prodCatalogo = catalogo.find(c => c.nombre === p.producto)
-      if (!prodCatalogo) {
-        errores.push(`"${p.producto}" no está en el catálogo de agroquímicos.`)
-        continue
+    if (!esAplicacionLegacy) {
+      for (const p of productosValidos) {
+        const prodCatalogo = catalogo.find(c => c.nombre === p.producto)
+        if (!prodCatalogo) {
+          errores.push(`"${p.producto}" no está en el catálogo de agroquímicos.`)
+          continue
+        }
+        catalogoPorProducto[p.producto] = prodCatalogo
+
+        const { data: stockData, error: stockErr } = await supabase
+          .from('vw_stock_agroquimicos')
+          .select('stock_actual')
+          .eq('producto_id', prodCatalogo.id)
+          .maybeSingle()
+
+        if (stockErr) {
+          errores.push(`No se pudo verificar el stock de "${p.producto}": ${stockErr.message}`)
+          continue
+        }
+
+        const stockActual = Number(stockData?.stock_actual ?? 0)
+        const stockDevuelto = stockDevueltoPorProducto[prodCatalogo.id] ?? 0
+        const stockDisponible = stockActual + stockDevuelto
+        const cantidadNecesaria = Number(p.dosis_ha) * Number(form.superficie_ha)
+
+        if (stockDisponible < cantidadNecesaria) {
+          errores.push(
+            `Stock insuficiente de "${p.producto}": necesitás ${cantidadNecesaria.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}, disponible: ${stockDisponible.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}.`
+          )
+        }
       }
-      catalogoPorProducto[p.producto] = prodCatalogo
 
-      const { data: stockData, error: stockErr } = await supabase
-        .from('vw_stock_agroquimicos')
-        .select('stock_actual')
-        .eq('producto_id', prodCatalogo.id)
-        .maybeSingle()
-
-      if (stockErr) {
-        errores.push(`No se pudo verificar el stock de "${p.producto}": ${stockErr.message}`)
-        continue
+      if (errores.length > 0) {
+        setError(errores.join(' · '))
+        setSaving(false)
+        return
       }
-
-      const stockActual = Number(stockData?.stock_actual ?? 0)
-      const stockDevuelto = stockDevueltoPorProducto[prodCatalogo.id] ?? 0
-      const stockDisponible = stockActual + stockDevuelto
-      const cantidadNecesaria = Number(p.dosis_ha) * Number(form.superficie_ha)
-
-      if (stockDisponible < cantidadNecesaria) {
-        errores.push(
-          `Stock insuficiente de "${p.producto}": necesitás ${cantidadNecesaria.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}, disponible: ${stockDisponible.toLocaleString('es-AR', { maximumFractionDigits: 2 })} ${p.unidad}.`
-        )
-      }
-    }
-
-    if (errores.length > 0) {
-      setError(errores.join(' · '))
-      setSaving(false)
-      return
     }
 
     // ── ACTUALIZAR APLICACIÓN ────────────────────────────────────────
@@ -341,6 +358,15 @@ export default function EditarAplicacionPage() {
 
     // ── RECALCULAR STOCK: borrar movimientos viejos de esta aplicación
     // e insertar los nuevos con las cantidades actualizadas ───────────
+    // Si es una aplicación "legacy" (nunca tuvo movimiento propio), no
+    // tocamos agroquímicos en absoluto: ese consumo ya ocurrió en la
+    // realidad y no hay que descontarlo recién ahora.
+    if (esAplicacionLegacy) {
+      setSaving(false)
+      router.push(`/seguimiento/lotes/${ciclo_id}`)
+      return
+    }
+
     const { error: delMovErr } = await supabase
       .from('agroquimicos_movimientos')
       .delete()
