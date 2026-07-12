@@ -648,4 +648,42 @@ export default function FichaCicloPage() {
                       <span className="ml-2 text-xs text-campo-400">(distribuido)</span>
                     </td>
                     <td className="px-4 py-2 text-right text-campo-700">{fmt(d.costo_ha, 4)}</td>
-                    <td className="px-4 py-2 text-ri
+                    <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(d.costo_ciclo)}</td>
+                    <td className="px-4 py-2 text-center text-campo-400 text-xs">—</td>
+                  </tr>
+                ))}
+                {/* Costos del sistema viejo (seguro, indemnización) */}
+                {costosFijos.map(f => (
+                  <tr key={f.id} className="border-b border-campo-50 hover:bg-campo-50/50">
+                    <td className="px-4 py-2 text-campo-700">{TIPO_FIJO_LABELS[f.tipo] ?? f.tipo}</td>
+                    <td className="px-4 py-2 text-right text-campo-700">{fmt(f.costo_usd_ha, 2)}</td>
+                    <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(f.costo_total_usd)}</td>
+                    <td className="px-4 py-2 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <Link href={`/seguimiento/lotes/${ciclo_id}/costos-fijos`} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                          Editar
+                        </Link>
+                        <button onClick={() => handleBorrarCostoFijo(f.id)} disabled={deletingId === f.id}
+                          className="text-xs text-red-400 hover:text-red-600 font-medium disabled:opacity-50">
+                          {deletingId === f.id ? '...' : 'Borrar'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {totalFijos > 0 && (
+                  <tr className="bg-campo-50">
+                    <td colSpan={3} className="px-4 py-2 font-semibold text-campo-700">Total fijos</td>
+                    <td className="px-4 py-2 text-right font-bold text-campo-900">{fmtUsd(totalFijos)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+
+    </div>
+  )
+}

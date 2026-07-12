@@ -279,4 +279,7 @@ export default function StockAgroquimicosPage() {
             </tbody>
           </table>
         </div>
-    
+      </div>
+    </div>
+  )
+}

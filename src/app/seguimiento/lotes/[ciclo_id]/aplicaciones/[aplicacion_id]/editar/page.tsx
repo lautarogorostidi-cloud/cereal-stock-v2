@@ -625,4 +625,30 @@ function ProductoSelector({ tipo, value, catalogo, onChange }: {
         type="text"
         value={value || busqueda}
         onChange={e => { setBusqueda(e.target.value); setAbierto(true); if (!e.target.value) onChange('') }}
-        onFocus={() => { setBusqueda(''); setAbiert
+        onFocus={() => { setBusqueda(''); setAbierto(true) }}
+        onBlur={() => setTimeout(() => setAbierto(false), 200)}
+        placeholder="Buscar producto..."
+        className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400"
+      />
+      {abierto && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-campo-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {productosFiltrados.map(p => (
+            <button key={p.id} onMouseDown={() => { onChange(p.nombre); setBusqueda(''); setAbierto(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800 flex justify-between items-center">
+              <span>{p.nombre}</span>
+              {(p.ultimo_precio ?? p.precio_tarifario) && (
+                <span className="text-xs text-campo-400 ml-2">
+                  USD {(p.ultimo_precio ?? p.precio_tarifario)}/{p.unidad}
+                  {!p.ultimo_precio && p.precio_tarifario && <span className="text-amber-500 ml-1">(tarifario)</span>}
+                </span>
+              )}
+            </button>
+          ))}
+          {productosFiltrados.length === 0 && (
+            <div className="px-3 py-2 text-sm text-campo-400">Sin resultados</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
