@@ -203,8 +203,8 @@ export default function NuevaCartaPortePage() {
       }))
 
       setPdfLoaded(true)
-    } catch (err) {
-      setError('No se pudo extraer el PDF. Completá los campos manualmente.')
+    } catch (err: any) {
+      setError(`No se pudo extraer el PDF: ${err?.message ?? 'error desconocido'}. Completá los campos manualmente.`)
     } finally {
       setExtracting(false)
     }
