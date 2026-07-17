@@ -71,9 +71,9 @@ export const MODULOS: Modulo[] = [
     href: '/combustible',
     icon: '⛽',
     titulo: 'Combustible',
-    descripcion: 'Próximamente disponible',
-    activo: false,
-    color: 'border-campo-800 opacity-50 cursor-not-allowed',
-    badgeColor: 'bg-campo-800 text-campo-400',
+    descripcion: 'Stock de tanques, cargas a maquinaria y consumo por vehículo',
+    activo: true,
+    color: 'border-lime-400 bg-lime-500/20 hover:bg-lime-500/30',
+    badgeColor: 'bg-lime-400 text-lime-950 font-semibold',
   },
 ]
