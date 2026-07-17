@@ -15,14 +15,17 @@ type Movimiento = {
   tanque_id: number
   maquina_id: number | null
   proveedor_id: number | null
+  campania_id: number | null
   combustible_tanques: { nombre: string; combustible: string } | null
   combustible_maquinas: { nombre: string } | null
   proveedores: { nombre: string } | null
+  campanas: { nombre: string } | null
 }
 
 type Tanque = { id: number; nombre: string; combustible: string; activo: boolean }
 type Maquina = { id: number; nombre: string; tipo: string; activo: boolean }
 type Proveedor = { id: number; nombre: string }
+type Campana = { id: number; nombre: string }
 
 const TIPOS = ['ingreso', 'consumo', 'ajuste']
 
@@ -32,12 +35,14 @@ export default function MovimientosCombustiblePage() {
   const [tanques, setTanques] = useState<Tanque[]>([])
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
+  const [campanas, setCampanas] = useState<Campana[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editandoId, setEditandoId] = useState<number | null>(null)
   const [filtroTipo, setFiltroTipo] = useState('')
+  const [filtroCampana, setFiltroCampana] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
   const vacio = {
@@ -48,6 +53,7 @@ export default function MovimientosCombustiblePage() {
     litros: '',
     precio_unitario: '',
     proveedor_id: '',
+    campania_id: '',
     numero_remito: '',
     numero_factura: '',
     observaciones: '',
@@ -58,7 +64,7 @@ export default function MovimientosCombustiblePage() {
     setLoading(true)
     const { data, error } = await supabase
       .from('combustible_movimientos')
-      .select('*, combustible_tanques(nombre, combustible), combustible_maquinas(nombre), proveedores(nombre)')
+      .select('*, combustible_tanques(nombre, combustible), combustible_maquinas(nombre), proveedores(nombre), campanas(nombre)')
       .order('fecha', { ascending: false })
       .order('id', { ascending: false })
     if (error) console.error('Error cargando movimientos:', error)
@@ -67,14 +73,17 @@ export default function MovimientosCombustiblePage() {
   }
 
   async function cargarMaestros() {
-    const [{ data: ts }, { data: ms }, { data: ps }] = await Promise.all([
+    const [{ data: ts }, { data: ms }, { data: ps }, { data: caps }] = await Promise.all([
       supabase.from('combustible_tanques').select('id, nombre, combustible, activo').eq('activo', true).order('nombre'),
       supabase.from('combustible_maquinas').select('id, nombre, tipo, activo').eq('activo', true).order('nombre'),
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
+      supabase.from('campanas').select('id, nombre').eq('activo', true).order('nombre', { ascending: false }),
     ])
     setTanques(ts ?? [])
     setMaquinas(ms ?? [])
     setProveedores(ps ?? [])
+    setCampanas(caps ?? [])
+    if (caps && caps.length > 0) setForm(f => ({ ...f, campania_id: String(caps[0].id) }))
   }
 
   useEffect(() => { cargar(); cargarMaestros() }, [])
@@ -167,6 +176,7 @@ export default function MovimientosCombustiblePage() {
     if (form.tipo === 'ingreso') {
       payload.precio_unitario = form.precio_unitario ? Number(form.precio_unitario) : null
       payload.proveedor_id = form.proveedor_id ? Number(form.proveedor_id) : null
+      payload.campania_id = form.campania_id ? Number(form.campania_id) : null
       payload.numero_remito = form.numero_remito || null
       payload.numero_factura = form.numero_factura || null
     }
@@ -194,6 +204,7 @@ export default function MovimientosCombustiblePage() {
       litros: m.litros.toString(),
       precio_unitario: m.precio_unitario?.toString() ?? '',
       proveedor_id: m.proveedor_id ? String(m.proveedor_id) : '',
+      campania_id: m.campania_id ? String(m.campania_id) : '',
       numero_remito: m.numero_remito ?? '',
       numero_factura: m.numero_factura ?? '',
       observaciones: m.observaciones ?? '',
@@ -210,6 +221,7 @@ export default function MovimientosCombustiblePage() {
 
   const movFiltrados = movimientos
     .filter(m => filtroTipo ? m.tipo === filtroTipo : true)
+    .filter(m => filtroCampana ? m.campanas?.nombre === filtroCampana : true)
     .filter(m => {
       if (!busqueda) return true
       const q = busqueda.toLowerCase()
@@ -217,6 +229,7 @@ export default function MovimientosCombustiblePage() {
         m.combustible_tanques?.nombre?.toLowerCase().includes(q) ||
         m.combustible_maquinas?.nombre?.toLowerCase().includes(q) ||
         m.proveedores?.nombre?.toLowerCase().includes(q) ||
+        m.campanas?.nombre?.toLowerCase().includes(q) ||
         m.numero_remito?.toLowerCase().includes(q) ||
         m.numero_factura?.toLowerCase().includes(q)
       )
@@ -405,6 +418,14 @@ export default function MovimientosCombustiblePage() {
                   )}
                 </div>
                 <div>
+                  <label className="block text-xs font-medium text-campo-700 mb-1">Campaña</label>
+                  <select value={form.campania_id} onChange={e => setForm(f => ({ ...f, campania_id: e.target.value }))}
+                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                    <option value="">Sin campaña</option>
+                    {campanas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-campo-700 mb-1">N° Remito</label>
                   <input type="text" value={form.numero_remito}
                     onChange={e => setForm(f => ({ ...f, numero_remito: e.target.value }))}
@@ -447,6 +468,14 @@ export default function MovimientosCombustiblePage() {
 
       {/* Filtros */}
       <div className="flex gap-3 items-center flex-wrap">
+        <select
+          value={filtroCampana}
+          onChange={e => setFiltroCampana(e.target.value)}
+          className="rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+        >
+          <option value="">Todas las campañas</option>
+          {campanas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+        </select>
         <div className="flex-1">
           <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por tanque, máquina, proveedor, remito..."
@@ -479,13 +508,14 @@ export default function MovimientosCombustiblePage() {
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Litros</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Precio/L</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Proveedor</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Observaciones</th>
                 <th className="text-center px-4 py-3 font-semibold text-campo-700">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={9} className="px-5 py-10 text-center text-campo-400">Cargando...</td></tr>}
-              {!loading && movFiltrados.length === 0 && <tr><td colSpan={9} className="px-5 py-10 text-center text-campo-400">No hay movimientos registrados</td></tr>}
+              {loading && <tr><td colSpan={10} className="px-5 py-10 text-center text-campo-400">Cargando...</td></tr>}
+              {!loading && movFiltrados.length === 0 && <tr><td colSpan={10} className="px-5 py-10 text-center text-campo-400">No hay movimientos registrados</td></tr>}
               {movFiltrados.map(m => (
                 <tr key={m.id} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-4 py-3 text-campo-600">{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
@@ -501,6 +531,7 @@ export default function MovimientosCombustiblePage() {
                     {m.precio_unitario ? `USD ${Number(m.precio_unitario).toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '—'}
                   </td>
                   <td className="px-4 py-3 text-campo-600">{m.proveedores?.nombre ?? '—'}</td>
+                  <td className="px-4 py-3 text-campo-600">{m.campanas?.nombre ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-500 text-xs">{m.observaciones ?? '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex gap-2 justify-center">
