@@ -172,11 +172,11 @@ export default function MovimientosCombustiblePage() {
       litros: Number(form.litros),
       observaciones: form.observaciones || null,
       maquina_id: form.tipo === 'consumo' && form.maquina_id ? Number(form.maquina_id) : null,
+      campania_id: form.campania_id ? Number(form.campania_id) : null,
     }
     if (form.tipo === 'ingreso') {
       payload.precio_unitario = form.precio_unitario ? Number(form.precio_unitario) : null
       payload.proveedor_id = form.proveedor_id ? Number(form.proveedor_id) : null
-      payload.campania_id = form.campania_id ? Number(form.campania_id) : null
       payload.numero_remito = form.numero_remito || null
       payload.numero_factura = form.numero_factura || null
     }
@@ -368,6 +368,16 @@ export default function MovimientosCombustiblePage() {
               </div>
             )}
 
+            {/* Campaña — aplica a todos los tipos, para poder segmentar ingresos y consumos */}
+            <div>
+              <label className="block text-xs font-medium text-campo-700 mb-1">Campaña</label>
+              <select value={form.campania_id} onChange={e => setForm(f => ({ ...f, campania_id: e.target.value }))}
+                className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                <option value="">Sin campaña</option>
+                {campanas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </div>
+
             {/* Campos específicos de INGRESO */}
             {form.tipo === 'ingreso' && (
               <>
@@ -416,14 +426,6 @@ export default function MovimientosCombustiblePage() {
                       </div>
                     </div>
                   )}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-campo-700 mb-1">Campaña</label>
-                  <select value={form.campania_id} onChange={e => setForm(f => ({ ...f, campania_id: e.target.value }))}
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                    <option value="">Sin campaña</option>
-                    {campanas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-campo-700 mb-1">N° Remito</label>

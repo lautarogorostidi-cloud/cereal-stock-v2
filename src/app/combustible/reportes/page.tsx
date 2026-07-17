@@ -20,8 +20,14 @@ type ConsumoMaquina = {
 type MovimientoConsumo = {
   fecha: string
   litros: number
+  campania_id: number | null
   combustible_maquinas: { nombre: string; tipo: string } | null
+  campanas: { nombre: string } | null
 }
+
+type Campana = { id: number; nombre: string }
+
+const SIN_CAMPANA = 'Sin campaña'
 
 type IngresoCampana = {
   campania_id: number
@@ -47,32 +53,42 @@ export default function ReportesCombustiblePage() {
   const [consumoMaquinas, setConsumoMaquinas] = useState<ConsumoMaquina[]>([])
   const [movimientos, setMovimientos] = useState<MovimientoConsumo[]>([])
   const [ingresosCampana, setIngresosCampana] = useState<IngresoCampana[]>([])
+  const [campanas, setCampanas] = useState<Campana[]>([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
+  const [filtroCampana, setFiltroCampana] = useState('')
 
   useEffect(() => { cargar() }, [])
 
   async function cargar() {
     setLoading(true)
-    const [{ data: cm }, { data: movs }, { data: ic }] = await Promise.all([
+    const [{ data: cm }, { data: movs }, { data: ic }, { data: caps }] = await Promise.all([
       supabase.from('vw_consumo_combustible_maquinas').select('*').order('litros_totales', { ascending: false }),
-      supabase.from('combustible_movimientos').select('fecha, litros, combustible_maquinas(nombre, tipo)').eq('tipo', 'consumo'),
+      supabase.from('combustible_movimientos').select('fecha, litros, campania_id, combustible_maquinas(nombre, tipo), campanas(nombre)').eq('tipo', 'consumo'),
       supabase.from('vw_combustible_ingresos_campania').select('*'),
+      supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false }),
     ])
     setConsumoMaquinas((cm ?? []).filter((m: any) => m.activo))
     setMovimientos((movs ?? []) as any)
     setIngresosCampana((ic ?? []) as any)
+    setCampanas(caps ?? [])
     setLoading(false)
   }
 
   const fmt = (n: number) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 })
   const fmtUsd = (n: number) => `USD ${Number(n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
 
+  // Consumo filtrado por campaña (para el gráfico mensual y la tabla cruzada)
+  const consumoFiltrado = useMemo(() => {
+    if (!filtroCampana) return movimientos
+    return movimientos.filter(m => (m.campanas?.nombre ?? SIN_CAMPANA) === filtroCampana)
+  }, [movimientos, filtroCampana])
+
   // Consumo mensual, desglosado por tipo de máquina (para ver dónde más se gasta)
   const { datosMensuales, tiposEnDatos } = useMemo(() => {
     const porMes: Record<string, Record<string, number>> = {}
     const tipos = new Set<string>()
-    movimientos.forEach(m => {
+    consumoFiltrado.forEach(m => {
       const d = new Date(m.fecha + 'T00:00:00')
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       const tipo = m.combustible_maquinas?.tipo ?? 'otro'
@@ -91,7 +107,29 @@ export default function ReportesCombustiblePage() {
         return fila
       })
     return { datosMensuales: datos, tiposEnDatos: tiposOrdenados }
-  }, [movimientos])
+  }, [consumoFiltrado])
+
+  // Tabla cruzada: consumo (litros) por campaña x tipo de máquina, sin aplicar el filtro de campaña
+  const { crossTab, crossTabTipos, crossTabCampanas } = useMemo(() => {
+    const porCampana: Record<string, Record<string, number>> = {}
+    const tipos = new Set<string>()
+    const ordenCampanas: string[] = []
+    movimientos.forEach(m => {
+      const campana = m.campanas?.nombre ?? SIN_CAMPANA
+      const tipo = m.combustible_maquinas?.tipo ?? 'otro'
+      tipos.add(tipo)
+      if (!porCampana[campana]) { porCampana[campana] = {}; ordenCampanas.push(campana) }
+      porCampana[campana][tipo] = (porCampana[campana][tipo] ?? 0) + Number(m.litros ?? 0)
+    })
+    const tiposOrdenados = TIPOS_MAQUINA_ORDEN.filter(t => tipos.has(t))
+    // Campañas conocidas primero (más reciente primero), luego "Sin campaña" al final
+    const campanasConocidas = campanas.map(c => c.nombre).filter(n => ordenCampanas.includes(n))
+    const campanasOrdenadas = [
+      ...campanasConocidas,
+      ...(ordenCampanas.includes(SIN_CAMPANA) ? [SIN_CAMPANA] : []),
+    ]
+    return { crossTab: porCampana, crossTabTipos: tiposOrdenados, crossTabCampanas: campanasOrdenadas }
+  }, [movimientos, campanas])
 
   const totalConsumido = consumoMaquinas.reduce((acc, m) => acc + Number(m.litros_totales ?? 0), 0)
   const totalCargas = consumoMaquinas.reduce((acc, m) => acc + Number(m.cargas ?? 0), 0)
@@ -127,7 +165,7 @@ export default function ReportesCombustiblePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-campo-900">Reportes de Combustible</h1>
-        <p className="text-campo-500 text-sm mt-0.5">Consumo por máquina, evolución mensual e ingresos por campaña</p>
+        <p className="text-campo-500 text-sm mt-0.5">Consumo y compras segmentados por campaña y tipo de máquina</p>
       </div>
 
       {/* KPIs */}
@@ -149,8 +187,20 @@ export default function ReportesCombustiblePage() {
 
       {/* Gráfico mensual, apilado por tipo de máquina */}
       <div className="card p-6">
-        <h2 className="font-semibold text-campo-900 mb-1">Consumo mensual por tipo de máquina</h2>
-        <p className="text-xs text-campo-400 mb-4">Para ver dónde se gasta más combustible cada mes</p>
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-1">
+          <div>
+            <h2 className="font-semibold text-campo-900 mb-1">Consumo mensual por tipo de máquina</h2>
+            <p className="text-xs text-campo-400">Para ver dónde se gasta más combustible cada mes</p>
+          </div>
+          <select
+            value={filtroCampana}
+            onChange={e => setFiltroCampana(e.target.value)}
+            className="rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          >
+            <option value="">Todas las campañas</option>
+            {crossTabCampanas.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
         {datosMensuales.length === 0 ? (
           <div className="text-center text-campo-400 py-10">Sin consumos registrados todavía</div>
         ) : (
@@ -168,6 +218,59 @@ export default function ReportesCombustiblePage() {
             </BarChart>
           </ResponsiveContainer>
         )}
+      </div>
+
+      {/* Consumo por campaña x tipo de máquina */}
+      <div className="card overflow-hidden p-0">
+        <div className="px-5 py-4 border-b border-campo-100">
+          <h2 className="font-semibold text-campo-900">Consumo por campaña y tipo de máquina</h2>
+          <p className="text-xs text-campo-400 mt-0.5">Litros consumidos, cruzando campaña y tipo de máquina (no depende del filtro de arriba)</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-campo-100 bg-campo-50">
+                <th className="text-left px-5 py-3 font-semibold text-campo-700">Campaña</th>
+                {crossTabTipos.map(t => (
+                  <th key={t} className="text-right px-5 py-3 font-semibold text-campo-700 capitalize">{t}</th>
+                ))}
+                <th className="text-right px-5 py-3 font-semibold text-campo-700">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {crossTabCampanas.length === 0 && (
+                <tr><td colSpan={crossTabTipos.length + 2} className="px-5 py-10 text-center text-campo-400">No hay consumos registrados todavía</td></tr>
+              )}
+              {crossTabCampanas.map(campana => {
+                const fila = crossTab[campana] ?? {}
+                const totalFila = crossTabTipos.reduce((acc, t) => acc + Number(fila[t] ?? 0), 0)
+                return (
+                  <tr key={campana} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
+                    <td className="px-5 py-3 font-medium text-campo-900">{campana}</td>
+                    {crossTabTipos.map(t => (
+                      <td key={t} className="px-5 py-3 text-right text-campo-600">
+                        {fila[t] ? `${fmt(fila[t])} L` : '—'}
+                      </td>
+                    ))}
+                    <td className="px-5 py-3 text-right font-semibold text-campo-900">{fmt(totalFila)} L</td>
+                  </tr>
+                )
+              })}
+              {crossTabCampanas.length > 0 && (
+                <tr className="border-t-2 border-campo-200 font-semibold">
+                  <td className="px-5 py-3 text-campo-900">Total</td>
+                  {crossTabTipos.map(t => {
+                    const totalCol = crossTabCampanas.reduce((acc, c) => acc + Number((crossTab[c] ?? {})[t] ?? 0), 0)
+                    return <td key={t} className="px-5 py-3 text-right text-campo-900">{fmt(totalCol)} L</td>
+                  })}
+                  <td className="px-5 py-3 text-right text-campo-900">
+                    {fmt(crossTabCampanas.reduce((acc, c) => acc + crossTabTipos.reduce((a2, t) => a2 + Number((crossTab[c] ?? {})[t] ?? 0), 0), 0))} L
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Ingresos por campaña */}
