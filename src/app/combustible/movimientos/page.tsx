@@ -122,12 +122,37 @@ export default function MovimientosCombustiblePage() {
     setSavingMaquina(false)
   }
 
+  // ── Alta rápida de proveedor ──
+  const [nuevoProveedorMode, setNuevoProveedorMode] = useState(false)
+  const [nuevoProveedor, setNuevoProveedor] = useState({ nombre: '', cuit: '', telefono: '', email: '' })
+  const [savingProveedor, setSavingProveedor] = useState(false)
+
+  async function handleGuardarNuevoProveedor() {
+    if (!nuevoProveedor.nombre) return
+    setSavingProveedor(true)
+    const { data, error } = await supabase.from('proveedores').insert({
+      nombre: nuevoProveedor.nombre,
+      cuit: nuevoProveedor.cuit || null,
+      telefono: nuevoProveedor.telefono || null,
+      email: nuevoProveedor.email || null,
+      activo: true,
+    }).select('id, nombre').single()
+    if (!error && data) {
+      const { data: ps } = await supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre')
+      setProveedores(ps ?? [])
+      setForm(f => ({ ...f, proveedor_id: String(data.id) }))
+      setNuevoProveedorMode(false)
+      setNuevoProveedor({ nombre: '', cuit: '', telefono: '', email: '' })
+    }
+    setSavingProveedor(false)
+  }
+
   const costoTotal = Number(form.litros || 0) * Number(form.precio_unitario || 0)
   const fmtUsd = (n: number) => n > 0 ? `USD ${n.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : ''
 
   async function handleGuardar() {
     setError(null)
-    if (nuevoTanqueMode || nuevaMaquinaMode) { setError('Primero guardá o cancelá el alta rápida.'); return }
+    if (nuevoTanqueMode || nuevaMaquinaMode || nuevoProveedorMode) { setError('Primero guardá o cancelá el alta rápida.'); return }
     if (!form.tanque_id || !form.litros || !form.fecha) { setError('Completá tanque, fecha y litros'); return }
     if (form.tipo === 'consumo' && !form.maquina_id) { setError('Seleccioná la máquina que recibe el combustible'); return }
     setSaving(true)
@@ -343,11 +368,41 @@ export default function MovimientosCombustiblePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-campo-700 mb-1">Proveedor</label>
-                  <select value={form.proveedor_id} onChange={e => setForm(f => ({ ...f, proveedor_id: e.target.value }))}
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                    <option value="">Sin proveedor</option>
-                    {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                  </select>
+                  {!nuevoProveedorMode ? (
+                    <select value={form.proveedor_id} onChange={e => {
+                      if (e.target.value === '__nuevo_prov__') { setNuevoProveedorMode(true); return }
+                      setForm(f => ({ ...f, proveedor_id: e.target.value }))
+                    }}
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="">Sin proveedor</option>
+                      {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                      <option value="__nuevo_prov__">➕ Agregar nuevo proveedor...</option>
+                    </select>
+                  ) : (
+                    <div className="space-y-2 p-3 rounded-lg border border-emerald-200 bg-emerald-50">
+                      <div className="text-xs font-medium text-emerald-700 mb-2">Nuevo proveedor</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="text" value={nuevoProveedor.nombre} onChange={e => setNuevoProveedor(p => ({ ...p, nombre: e.target.value }))}
+                          placeholder="Nombre *" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                        <input type="text" value={nuevoProveedor.cuit} onChange={e => setNuevoProveedor(p => ({ ...p, cuit: e.target.value }))}
+                          placeholder="CUIT" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                        <input type="text" value={nuevoProveedor.telefono} onChange={e => setNuevoProveedor(p => ({ ...p, telefono: e.target.value }))}
+                          placeholder="Teléfono" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                        <input type="text" value={nuevoProveedor.email} onChange={e => setNuevoProveedor(p => ({ ...p, email: e.target.value }))}
+                          placeholder="Email" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button type="button" onClick={handleGuardarNuevoProveedor} disabled={savingProveedor || !nuevoProveedor.nombre}
+                          className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
+                          {savingProveedor ? 'Guardando...' : 'Guardar proveedor'}
+                        </button>
+                        <button type="button" onClick={() => { setNuevoProveedorMode(false); setNuevoProveedor({ nombre: '', cuit: '', telefono: '', email: '' }) }}
+                          className="text-xs text-campo-500 hover:text-campo-700 px-3 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-campo-700 mb-1">N° Remito</label>
