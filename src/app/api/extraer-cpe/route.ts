@@ -1,37 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function POST(request: NextRequest) {
-  try {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ ok: false, error: 'API key no configurada' }, { status: 500 })
-    }
-
-    const { base64, mediaType } = await request.json()
-    if (!base64) {
-      return NextResponse.json({ ok: false, error: 'No se recibió el PDF' }, { status: 400 })
-    }
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-5',
-        max_tokens: 4096,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: mediaType ?? 'application/pdf', data: base64 }
-            },
-            {
-              type: 'text',
-              text: `Sos un experto en Cartas de Porte Electrónicas (CPE) argentinas del sistema ARCA/AFIP.
+const PROMPT_EXTRACCION = `Sos un experto en Cartas de Porte Electrónicas (CPE) argentinas del sistema ARCA/AFIP.
 Extraé TODOS los datos de este documento con máxima precisión. Si un campo está vacío en el documento dejalo "".
 
 SECCIÓN A - INTERVINIENTES:
@@ -105,7 +74,7 @@ IMPORTANTE: Esta sección tiene los labels en una columna y los valores numéric
 El layout típico es:
   Labels:          Valores:
   Peso Bruto (kg): 50540
-  Peso Neto (kg):  31520  
+  Peso Neto (kg):  31520
   Peso Tara (kg):  19020
 Los valores de esta sección son DISTINTOS a los de sección B.
 - fecha_arribo: fecha en "Fecha Arribo:" formato YYYY-MM-DD
@@ -115,7 +84,7 @@ Los valores de esta sección son DISTINTOS a los de sección B.
 - peso_tara_destino: número asociado a "Peso Tara (kg):" en sección G ÚNICAMENTE. Es el peso del camión vacío en destino. NO usar valores de sección B.
 - humedad_destino: humedad en destino si aparece
 
-Devolvé ÚNICAMENTE el JSON sin markdown:
+Devolvé ÚNICAMENTE el objeto JSON de una sola vez, completo, sin markdown, sin texto antes ni después, y sin explicaciones:
 {
   "numero_cpe": "",
   "ctg": "",
@@ -178,48 +147,96 @@ Devolvé ÚNICAMENTE el JSON sin markdown:
   "peso_tara_destino": "",
   "humedad_destino": ""
 }`
-            }
-          ]
-        }]
-      })
+
+type Resultado = { ok: true; data: any } | { ok: false; error: string; reintentable: boolean }
+
+async function intentarExtraccion(apiKey: string, base64: string, mediaType: string): Promise<Resultado> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: 8192,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: { type: 'base64', media_type: mediaType ?? 'application/pdf', data: base64 }
+          },
+          { type: 'text', text: PROMPT_EXTRACCION }
+        ]
+      }]
     })
+  })
 
-    if (!response.ok) {
-      const errBody = await response.text()
-      return NextResponse.json({ ok: false, error: `Error API: ${response.status} - ${errBody}` }, { status: 500 })
+  if (!response.ok) {
+    const errBody = await response.text()
+    // Errores del servidor de Anthropic (5xx) o de rate limit (429) vale la pena reintentarlos
+    const reintentable = response.status === 429 || response.status >= 500
+    return { ok: false, error: `Error API: ${response.status} - ${errBody}`, reintentable }
+  }
+
+  const data = await response.json()
+
+  if (data.stop_reason === 'max_tokens') {
+    console.error('extraer-cpe: respuesta truncada por max_tokens', JSON.stringify(data).slice(0, 500))
+    return { ok: false, error: 'La respuesta del modelo se cortó por longitud.', reintentable: true }
+  }
+
+  const text = data.content?.[0]?.text ?? ''
+  let clean = text.replace(/```json|```/g, '').trim()
+
+  // Si vino texto extra antes/después del JSON, nos quedamos solo con el bloque { ... }
+  const inicio = clean.indexOf('{')
+  const fin = clean.lastIndexOf('}')
+  if (inicio !== -1 && fin !== -1 && fin > inicio) {
+    clean = clean.slice(inicio, fin + 1)
+  }
+
+  if (!clean) {
+    console.error('extraer-cpe: respuesta vacía del modelo', JSON.stringify(data).slice(0, 500))
+    return { ok: false, error: 'El modelo no devolvió datos.', reintentable: true }
+  }
+
+  try {
+    const extracted = JSON.parse(clean)
+    return { ok: true, data: extracted }
+  } catch (parseErr: any) {
+    console.error('extraer-cpe: JSON inválido:', clean.slice(0, 1000))
+    return { ok: false, error: `No se pudo interpretar la respuesta del modelo (${parseErr.message}).`, reintentable: true }
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      return NextResponse.json({ ok: false, error: 'API key no configurada' }, { status: 500 })
     }
 
-    const data = await response.json()
-
-    if (data.stop_reason === 'max_tokens') {
-      console.error('extraer-cpe: respuesta truncada por max_tokens', JSON.stringify(data).slice(0, 500))
-      return NextResponse.json({ ok: false, error: 'La respuesta del modelo se cortó (demasiado larga). Probá de nuevo o completá los campos manualmente.' }, { status: 500 })
+    const { base64, mediaType } = await request.json()
+    if (!base64) {
+      return NextResponse.json({ ok: false, error: 'No se recibió el PDF' }, { status: 400 })
     }
 
-    const text = data.content?.[0]?.text ?? ''
-    let clean = text.replace(/```json|```/g, '').trim()
+    let resultado = await intentarExtraccion(apiKey, base64, mediaType)
 
-    // Si vino texto extra antes/después del JSON, nos quedamos solo con el bloque { ... }
-    const inicio = clean.indexOf('{')
-    const fin = clean.lastIndexOf('}')
-    if (inicio !== -1 && fin !== -1 && fin > inicio) {
-      clean = clean.slice(inicio, fin + 1)
+    // Si falló por algo transitorio (truncamiento, JSON incompleto, 429/5xx), reintentamos automáticamente una vez
+    if (!resultado.ok && resultado.reintentable) {
+      console.warn('extraer-cpe: primer intento falló, reintentando —', resultado.error)
+      resultado = await intentarExtraccion(apiKey, base64, mediaType)
     }
 
-    if (!clean) {
-      console.error('extraer-cpe: respuesta vacía del modelo', JSON.stringify(data).slice(0, 500))
-      return NextResponse.json({ ok: false, error: 'El modelo no devolvió datos. Completá los campos manualmente.' }, { status: 500 })
+    if (!resultado.ok) {
+      return NextResponse.json({ ok: false, error: `${resultado.error} Completá los campos manualmente.` }, { status: 500 })
     }
 
-    let extracted: any
-    try {
-      extracted = JSON.parse(clean)
-    } catch (parseErr: any) {
-      console.error('extraer-cpe: JSON inválido:', clean.slice(0, 1000))
-      return NextResponse.json({ ok: false, error: `No se pudo interpretar la respuesta del modelo (${parseErr.message}). Completá los campos manualmente.` }, { status: 500 })
-    }
-
-    return NextResponse.json({ ok: true, data: extracted })
+    return NextResponse.json({ ok: true, data: resultado.data })
   } catch (err: any) {
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 })
   }
