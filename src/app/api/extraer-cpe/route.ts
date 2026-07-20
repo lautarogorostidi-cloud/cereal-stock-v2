@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 2000,
+        max_tokens: 4096,
         messages: [{
           role: 'user',
           content: [
@@ -190,9 +190,34 @@ Devolvé ÚNICAMENTE el JSON sin markdown:
     }
 
     const data = await response.json()
+
+    if (data.stop_reason === 'max_tokens') {
+      console.error('extraer-cpe: respuesta truncada por max_tokens', JSON.stringify(data).slice(0, 500))
+      return NextResponse.json({ ok: false, error: 'La respuesta del modelo se cortó (demasiado larga). Probá de nuevo o completá los campos manualmente.' }, { status: 500 })
+    }
+
     const text = data.content?.[0]?.text ?? ''
-    const clean = text.replace(/```json|```/g, '').trim()
-    const extracted = JSON.parse(clean)
+    let clean = text.replace(/```json|```/g, '').trim()
+
+    // Si vino texto extra antes/después del JSON, nos quedamos solo con el bloque { ... }
+    const inicio = clean.indexOf('{')
+    const fin = clean.lastIndexOf('}')
+    if (inicio !== -1 && fin !== -1 && fin > inicio) {
+      clean = clean.slice(inicio, fin + 1)
+    }
+
+    if (!clean) {
+      console.error('extraer-cpe: respuesta vacía del modelo', JSON.stringify(data).slice(0, 500))
+      return NextResponse.json({ ok: false, error: 'El modelo no devolvió datos. Completá los campos manualmente.' }, { status: 500 })
+    }
+
+    let extracted: any
+    try {
+      extracted = JSON.parse(clean)
+    } catch (parseErr: any) {
+      console.error('extraer-cpe: JSON inválido:', clean.slice(0, 1000))
+      return NextResponse.json({ ok: false, error: `No se pudo interpretar la respuesta del modelo (${parseErr.message}). Completá los campos manualmente.` }, { status: 500 })
+    }
 
     return NextResponse.json({ ok: true, data: extracted })
   } catch (err: any) {
