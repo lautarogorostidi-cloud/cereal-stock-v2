@@ -200,7 +200,9 @@ async function intentarExtraccion(apiKey: string, base64: string, mediaType: str
     return { ok: false, error: 'El modelo no pudo procesar este documento.', reintentable: true }
   }
 
-  const text = data.content?.[0]?.text ?? ''
+  // El modelo puede devolver un bloque "thinking" antes del bloque "text" (razonamiento extendido).
+  // Buscamos específicamente el bloque de tipo "text", no asumimos que sea el primero.
+  const text = data.content?.find((b: any) => b.type === 'text')?.text ?? ''
   let clean = text.replace(/```json|```/g, '').trim()
 
   // Si vino texto extra antes/después del JSON, nos quedamos solo con el bloque { ... }
