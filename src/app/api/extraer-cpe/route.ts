@@ -183,9 +183,21 @@ async function intentarExtraccion(apiKey: string, base64: string, mediaType: str
 
   const data = await response.json()
 
+  // La API respondió 200 pero con un payload de error (poco común, pero posible)
+  if (data.type === 'error') {
+    const msg = data.error?.message ?? JSON.stringify(data.error ?? data)
+    console.error('extraer-cpe: la API devolvió un error con status 200:', msg)
+    return { ok: false, error: `Error de la API: ${msg}`, reintentable: true }
+  }
+
   if (data.stop_reason === 'max_tokens') {
     console.error('extraer-cpe: respuesta truncada por max_tokens', JSON.stringify(data).slice(0, 500))
     return { ok: false, error: 'La respuesta del modelo se cortó por longitud.', reintentable: true }
+  }
+
+  if (data.stop_reason === 'refusal') {
+    console.error('extraer-cpe: el modelo rechazó procesar el documento', JSON.stringify(data).slice(0, 500))
+    return { ok: false, error: 'El modelo no pudo procesar este documento.', reintentable: true }
   }
 
   const text = data.content?.[0]?.text ?? ''
@@ -199,8 +211,12 @@ async function intentarExtraccion(apiKey: string, base64: string, mediaType: str
   }
 
   if (!clean) {
-    console.error('extraer-cpe: respuesta vacía del modelo', JSON.stringify(data).slice(0, 500))
-    return { ok: false, error: 'El modelo no devolvió datos.', reintentable: true }
+    // Diagnóstico temporal: mostramos en el propio error qué devolvió realmente la API,
+    // para poder ver la causa real sin necesitar acceso a los logs de Vercel.
+    const tiposBloques = Array.isArray(data.content) ? data.content.map((b: any) => b.type).join(',') : typeof data.content
+    const diagnostico = `stop_reason=${data.stop_reason ?? 'N/A'} bloques=[${tiposBloques}] usage=${JSON.stringify(data.usage ?? {})}`
+    console.error('extraer-cpe: respuesta vacía del modelo —', diagnostico, JSON.stringify(data).slice(0, 800))
+    return { ok: false, error: `El modelo no devolvió datos (${diagnostico}).`, reintentable: true }
   }
 
   try {
@@ -233,7 +249,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!resultado.ok) {
-      return NextResponse.json({ ok: false, error: `${resultado.error} Completá los campos manualmente.` }, { status: 500 })
+      return NextResponse.json({ ok: false, error: resultado.error }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true, data: resultado.data })
