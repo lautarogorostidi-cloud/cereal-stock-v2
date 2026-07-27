@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import CartasPorteClient from './CartasPorteClient'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function CartasPortePage() {
   const supabase = createClient()
   const [{ data: cartas }, { data: contratos }] = await Promise.all([

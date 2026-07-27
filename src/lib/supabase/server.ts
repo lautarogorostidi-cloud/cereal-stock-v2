@@ -20,6 +20,13 @@ export function createClient() {
           } catch {}
         },
       },
+      global: {
+        // Next.js cachea por defecto cualquier fetch hecho desde un Server Component,
+        // incluyendo los que hace supabase-js internamente. Sin esto, las páginas que
+        // leen datos en el servidor (Dashboard, etc.) pueden mostrar datos viejos
+        // (contratos, stock) hasta el próximo deploy en vez de la info actual.
+        fetch: (url, options = {}) => fetch(url, { ...options, cache: 'no-store' }),
+      },
     }
   )
 }

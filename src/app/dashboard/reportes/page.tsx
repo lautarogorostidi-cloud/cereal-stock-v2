@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import ReportesClient from './ReportesClient'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function ReportesPage() {
   const supabase = createClient()
   const { data: resultados } = await supabase

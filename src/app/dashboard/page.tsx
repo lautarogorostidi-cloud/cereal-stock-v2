@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import DashboardClient from '@/components/charts/DashboardClient'
 
+// Siempre traer datos frescos (contratos, stock) en cada visita, nunca una version cacheada
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function DashboardPage() {
   const supabase = createClient()
 

@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import VentasClient from './VentasClient'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function VentasPage() {
   const supabase = createClient()
 
