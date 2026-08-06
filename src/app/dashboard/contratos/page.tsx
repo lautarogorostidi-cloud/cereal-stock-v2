@@ -49,6 +49,15 @@ export default function ContratosPage() {
     }
   }
 
+  async function borrarContrato(numero: string) {
+    if (!confirm(`¿Borrar el contrato Nº ${numero}? Esta acción no se puede deshacer.`)) return
+    const { data: contrato } = await supabase.from('contratos').select('id').eq('numero', numero).single()
+    if (contrato) {
+      await supabase.from('contratos').delete().eq('id', contrato.id)
+      await load()
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -132,6 +141,12 @@ export default function ContratosPage() {
                           {cerrando === c.numero ? '...' : 'Cerrar'}
                         </button>
                       ) : null}
+                      <button
+                        onClick={() => borrarContrato(c.numero)}
+                        className="text-xs text-red-400 hover:text-red-600 underline"
+                      >
+                        Borrar
+                      </button>
                     </div>
                   </td>
                 </tr>
