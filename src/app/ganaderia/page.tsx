@@ -7,6 +7,7 @@ type Campo = { id: number; nombre: string }
 type CategoriaHacienda = { id: string; nombre: string; orden: number }
 type StockRow = { campo_id: number; campo_nombre: string; categoria_id: string; categoria_nombre: string; categoria_orden: number; stock_actual: number }
 type StockPorCampo = { campo_nombre: string; filas: StockRow[]; total: number }
+type FeedlotStock = { categoria: string; cabezas_activas: number }
 type MovimientoRow = {
   id: string; campo_id: number; categoria_id: string; cantidad: number
   tipo_movimiento: string; fecha: string; precio_cabeza_usd: number | null
@@ -63,6 +64,7 @@ export default function GanaderiaMovimientosPage() {
   const [movimientos, setMovimientos] = useState<MovimientoRow[]>([])
   const [cargandoMov, setCargandoMov] = useState(true)
   const [stock, setStock] = useState<StockPorCampo[]>([])
+  const [feedlotStock, setFeedlotStock] = useState<FeedlotStock[]>([])
   const [cargandoStock, setCargandoStock] = useState(true)
   const [errorStock, setErrorStock] = useState<string | null>(null)
   const [editMov, setEditMov] = useState<MovimientoRow | null>(null)
@@ -87,6 +89,22 @@ export default function GanaderiaMovimientosPage() {
 
   const cargarStock = async () => {
     setCargandoStock(true); setErrorStock(null)
+    // Cargar feedlot stock
+    const { data: ingresosF } = await supabase.from('feedlot_ingresos').select('id, cantidad_cabezas, categorias_hacienda(nombre)')
+    const { data: salidasF } = await supabase.from('feedlot_salidas').select('ingreso_id, cantidad_cabezas')
+    const feedlotMap = new Map<string, number>()
+    if (ingresosF) {
+      for (const ing of ingresosF) {
+        const salidas = (salidasF ?? []).filter((s: any) => s.ingreso_id === ing.id).reduce((s: number, x: any) => s + x.cantidad_cabezas, 0)
+        const activas = ing.cantidad_cabezas - salidas
+        if (activas > 0) {
+          const cat = (ing as any).categorias_hacienda?.nombre ?? 'Sin categoría'
+          feedlotMap.set(cat, (feedlotMap.get(cat) ?? 0) + activas)
+        }
+      }
+    }
+    setFeedlotStock(Array.from(feedlotMap.entries()).map(([categoria, cabezas_activas]) => ({ categoria, cabezas_activas })).sort((a, b) => a.categoria.localeCompare(b.categoria)))
+
     const { data, error: eq } = await supabase.from('vw_stock_hacienda').select('*').order('campo_nombre').order('categoria_orden')
     if (eq) { setErrorStock(eq.message); setCargandoStock(false); return }
     const filas = (data ?? []) as StockRow[]
@@ -236,29 +254,61 @@ export default function GanaderiaMovimientosPage() {
             <h2 className="mb-3 text-base font-semibold text-stone-900">Stock actual</h2>
             {cargandoStock && <p className="text-sm text-stone-500">Cargando...</p>}
             {!cargandoStock && errorStock && <p className="text-sm text-red-600">{errorStock}</p>}
-            {!cargandoStock && !errorStock && stock.length === 0 && <p className="text-sm text-stone-500">Sin cabezas registradas.</p>}
-            {!cargandoStock && stock.length > 0 && (
-              <div className="space-y-4">
-                {stock.map((grupo) => (
-                  <div key={grupo.campo_nombre} className="overflow-hidden rounded-lg border border-stone-200">
-                    <div className="flex items-center justify-between bg-stone-50 px-4 py-2">
-                      <span className="text-sm font-semibold text-stone-900">{grupo.campo_nombre}</span>
-                      <span className="text-sm text-stone-500">{grupo.total.toLocaleString('es-AR')} cabezas</span>
+            {!cargandoStock && !errorStock && stock.length === 0 && feedlotStock.length === 0 && <p className="text-sm text-stone-500">Sin cabezas registradas.</p>}
+            {!cargandoStock && (stock.length > 0 || feedlotStock.length > 0) && (() => {
+              const totalCampos = stock.reduce((s, g) => s + g.total, 0)
+              const totalFeedlot = feedlotStock.reduce((s, f) => s + f.cabezas_activas, 0)
+              const totalGlobal = totalCampos + totalFeedlot
+              return (
+                <div className="space-y-4">
+                  {/* Por campo */}
+                  {stock.map((grupo) => (
+                    <div key={grupo.campo_nombre} className="overflow-hidden rounded-lg border border-stone-200">
+                      <div className="flex items-center justify-between bg-stone-50 px-4 py-2">
+                        <span className="text-sm font-semibold text-stone-900">{grupo.campo_nombre}</span>
+                        <span className="text-sm text-stone-500">{grupo.total.toLocaleString('es-AR')} cabezas</span>
+                      </div>
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {grupo.filas.map((f) => (
+                            <tr key={f.categoria_id} className="border-t border-stone-100">
+                              <td className="px-4 py-1.5 text-stone-700">{f.categoria_nombre}</td>
+                              <td className="px-4 py-1.5 text-right font-medium text-stone-900">{f.stock_actual.toLocaleString('es-AR')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    <table className="w-full text-sm">
-                      <tbody>
-                        {grupo.filas.map((f) => (
-                          <tr key={f.categoria_id} className="border-t border-stone-100">
-                            <td className="px-4 py-1.5 text-stone-700">{f.categoria_nombre}</td>
-                            <td className="px-4 py-1.5 text-right font-medium text-stone-900">{f.stock_actual.toLocaleString('es-AR')}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  ))}
+
+                  {/* Feedlot */}
+                  {feedlotStock.length > 0 && (
+                    <div className="overflow-hidden rounded-lg border border-amber-200">
+                      <div className="flex items-center justify-between bg-amber-50 px-4 py-2">
+                        <span className="text-sm font-semibold text-amber-900">🐮 Feedlot</span>
+                        <span className="text-sm text-amber-700">{totalFeedlot.toLocaleString('es-AR')} cabezas</span>
+                      </div>
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {feedlotStock.map((f) => (
+                            <tr key={f.categoria} className="border-t border-amber-100">
+                              <td className="px-4 py-1.5 text-stone-700">{f.categoria}</td>
+                              <td className="px-4 py-1.5 text-right font-medium text-stone-900">{f.cabezas_activas.toLocaleString('es-AR')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Total global */}
+                  <div className="flex items-center justify-between rounded-lg border-2 border-stone-300 bg-stone-900 px-4 py-3">
+                    <span className="text-sm font-bold text-white">Total global</span>
+                    <span className="text-lg font-bold text-white">{totalGlobal.toLocaleString('es-AR')} cabezas</span>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              )
+            })()}
           </div>
 
           <div>
