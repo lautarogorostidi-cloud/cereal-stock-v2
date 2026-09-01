@@ -12,6 +12,8 @@ interface StockRow {
   ton_entregadas: number
   stock_disponible: number
   ton_comprometidas: number
+  stock_campo: number
+  stock_acopio: number
 }
 
 interface ComprRow {
@@ -80,13 +82,15 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
   const datosAgrupados = useMemo(() => {
     const map: Record<string, { disponible: number; entregado: number; comprometido: number; cosechado: number }> = {}
     datosFiltrados.forEach(r => {
-      if (!map[r.cultivo]) map[r.cultivo] = { disponible: 0, entregado: 0, comprometido: 0, cosechado: 0 }
+      if (!map[r.cultivo]) map[r.cultivo] = { disponible: 0, entregado: 0, comprometido: 0, cosechado: 0, campo: 0, acopio: 0 }
       map[r.cultivo].disponible += Number(r.stock_disponible)
+      map[r.cultivo].campo += Number(r.stock_campo ?? 0)
+      map[r.cultivo].acopio += Number(r.stock_acopio ?? 0)
       map[r.cultivo].entregado += Number(r.ton_entregadas)
       map[r.cultivo].cosechado += Number(r.ton_cosechadas)
     })
     comprometidoFiltrado.forEach(r => {
-      if (!map[r.cultivo]) map[r.cultivo] = { disponible: 0, entregado: 0, comprometido: 0, cosechado: 0 }
+      if (!map[r.cultivo]) map[r.cultivo] = { disponible: 0, entregado: 0, comprometido: 0, cosechado: 0, campo: 0, acopio: 0 }
       map[r.cultivo].comprometido += Number(r.ton_comprometidas)
     })
     return map
@@ -95,11 +99,13 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
   const kpis = useMemo(() => {
     const vals = Object.values(datosAgrupados)
     const disponible = vals.reduce((s, r) => s + r.disponible, 0)
+    const campo = vals.reduce((s, r) => s + (r.campo ?? 0), 0)
+    const acopio = vals.reduce((s, r) => s + (r.acopio ?? 0), 0)
     const entregado = vals.reduce((s, r) => s + r.entregado, 0)
     const comprometido = vals.reduce((s, r) => s + r.comprometido, 0)
     const cosechado = vals.reduce((s, r) => s + r.cosechado, 0)
     const margen = disponible - comprometido
-    return { disponible, entregado, comprometido, margen, cosechado }
+    return { disponible, entregado, comprometido, margen, cosechado, campo, acopio }
   }, [datosAgrupados])
 
   const chartData = useMemo(() => {
@@ -201,8 +207,9 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Stock Campo y Acopio', value: kpis.disponible, sub: 'Entradas - Salidas', pct: pctDisponible, color: COLORS.disponible, bg: 'bg-campo-50', border: 'border-campo-200', textColor: 'text-campo-800', subColor: 'text-campo-500' },
-          { label: 'Entregado', value: kpis.entregado, sub: 'Descargas de CPE', pct: pctVendido, color: COLORS.entregado, bg: 'bg-blue-50', border: 'border-blue-200', textColor: 'text-blue-800', subColor: 'text-blue-500' },
+          { label: 'Stock en campo', value: kpis.campo, sub: 'Embolsado / silo propio', pct: kpis.cosechado > 0 ? kpis.campo / kpis.cosechado * 100 : 0, color: COLORS.disponible, bg: 'bg-campo-50', border: 'border-campo-200', textColor: 'text-campo-800', subColor: 'text-campo-500' },
+          { label: 'Stock en acopio', value: kpis.acopio, sub: 'Almacenado en terceros', pct: kpis.cosechado > 0 ? kpis.acopio / kpis.cosechado * 100 : 0, color: '#2563eb', bg: 'bg-blue-50', border: 'border-blue-200', textColor: 'text-blue-800', subColor: 'text-blue-500' },
+          { label: 'Entregado', value: kpis.entregado, sub: 'Descargas de CPE', pct: pctVendido, color: COLORS.entregado, bg: 'bg-sky-50', border: 'border-sky-200', textColor: 'text-sky-800', subColor: 'text-sky-500' },
           { label: 'Pendiente de Entrega', value: kpis.comprometido, sub: 'Contratos pendientes', pct: pctComprometido, color: COLORS.comprometido, bg: 'bg-orange-50', border: 'border-orange-200', textColor: 'text-orange-800', subColor: 'text-orange-500' },
           { label: 'Margen para vender', value: kpis.margen, sub: 'Disponible - Comprometido', pct: pctMargen, color: kpis.margen >= 0 ? COLORS.margen : '#ef4444', bg: kpis.margen >= 0 ? 'bg-green-50' : 'bg-red-50', border: kpis.margen >= 0 ? 'border-green-200' : 'border-red-200', textColor: kpis.margen >= 0 ? 'text-green-800' : 'text-red-700', subColor: kpis.margen >= 0 ? 'text-green-500' : 'text-red-500' },
         ].map(kpi => (
