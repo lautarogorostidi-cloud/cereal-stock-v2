@@ -80,7 +80,7 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
   }, [comprometidoData, campaniasSel, cultivosSel])
 
   const datosAgrupados = useMemo(() => {
-    const map: Record<string, { disponible: number; entregado: number; comprometido: number; cosechado: number }> = {}
+    const map: Record<string, { disponible: number; entregado: number; comprometido: number; cosechado: number; campo: number; acopio: number }> = {}
     datosFiltrados.forEach(r => {
       if (!map[r.cultivo]) map[r.cultivo] = { disponible: 0, entregado: 0, comprometido: 0, cosechado: 0, campo: 0, acopio: 0 }
       map[r.cultivo].disponible += Number(r.stock_disponible)
