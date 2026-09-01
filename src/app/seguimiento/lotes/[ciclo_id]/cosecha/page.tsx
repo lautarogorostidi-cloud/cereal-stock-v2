@@ -31,6 +31,13 @@ export default function NuevaCosechaPage() {
   const [error, setError] = useState<string | null>(null)
   const [esEdicion, setEsEdicion] = useState(false)
   const [cosechaId, setCosechaId] = useState<number | null>(null)
+  const [ubicacion, setUbicacion] = useState<'campo' | 'acopio'>('campo')
+  const [acopioClienteId, setAcopioClienteId] = useState<string>('')
+  const [clientes, setClientes] = useState<{id: string; razon_social: string}[]>([])
+  const [showNuevoAcopio, setShowNuevoAcopio] = useState(false)
+  const [nuevoAcopioNombre, setNuevoAcopioNombre] = useState('')
+  const [nuevoAcopioCuit, setNuevoAcopioCuit] = useState('')
+  const [guardandoAcopio, setGuardandoAcopio] = useState(false)
   const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
 
   const [form, setForm] = useState({
@@ -55,7 +62,7 @@ export default function NuevaCosechaPage() {
   async function cargar() {
     setLoading(true)
     const id = Number(ciclo_id)
-    const [{ data: cicloData }, { data: cosechaData }, { data: servicios }, { data: cicloRaw }] = await Promise.all([
+    const [{ data: cicloData }, { data: cosechaData }, { data: servicios }, { data: cicloRaw }, { data: clientesData }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', id).single(),
       supabase.from('sa_cosechas').select('*').eq('ciclo_id', id).maybeSingle(),
       supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
@@ -73,6 +80,9 @@ export default function NuevaCosechaPage() {
 
     const supDefault = cicloData?.sup_sembrada ?? cicloData?.hectareas ?? 0
 
+    setClientes(clientesData ?? [])
+
+    // Cargar ubicación si existe cosecha previa
     if (cosechaData) {
       setEsEdicion(true)
       setCosechaId(cosechaData.id)
@@ -169,7 +179,9 @@ export default function NuevaCosechaPage() {
       humedad: form.humedad_pct ? Number(form.humedad_pct) : null,
       ciclo_id: Number(ciclo_id),
       usuario_id: usuarioId,
-      descripcion_movimiento: `Cosecha desde seguimiento — ${ciclo?.lote} ${ciclo?.cultivo} ${ciclo?.campana}`,
+      ubicacion: ubicacion,
+      acopio_cliente_id: ubicacion === 'acopio' && acopioClienteId ? acopioClienteId : null,
+      descripcion_movimiento: `Cosecha desde seguimiento — ${ciclo?.lote} ${ciclo?.cultivo} ${ciclo?.campana}${ubicacion === 'acopio' ? ' → Acopio' : ''}`,
     })
   }
 
@@ -210,6 +222,25 @@ export default function NuevaCosechaPage() {
 
     setSaving(false)
     window.close()
+  }
+
+  async function handleCrearAcopio() {
+    if (!nuevoAcopioNombre.trim()) return
+    setGuardandoAcopio(true)
+    const { data, error } = await supabase.from('clientes').insert({
+      razon_social: nuevoAcopioNombre.trim(),
+      cuit: nuevoAcopioCuit.trim() || null,
+      tipo: 'acopio',
+      activo: true,
+    }).select('id, razon_social').single()
+    if (!error && data) {
+      setClientes(prev => [...prev, data].sort((a, b) => a.razon_social.localeCompare(b.razon_social)))
+      setAcopioClienteId(data.id)
+      setShowNuevoAcopio(false)
+      setNuevoAcopioNombre('')
+      setNuevoAcopioCuit('')
+    }
+    setGuardandoAcopio(false)
   }
 
   const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -308,6 +339,60 @@ export default function NuevaCosechaPage() {
               className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400" />
           </div>
         </div>
+
+        {/* Destino de la cosecha */}
+        {toneladas > 0 && (
+          <div className="rounded-lg border border-campo-200 bg-campo-50 p-4 space-y-3">
+            <div className="text-sm font-medium text-campo-700">Destino del cereal cosechado</div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setUbicacion('campo'); setAcopioClienteId('') }}
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${ubicacion === 'campo' ? 'border-campo-700 bg-campo-700 text-white' : 'border-campo-200 text-campo-700 hover:bg-campo-100'}`}>
+                🌾 En campo / bolsa
+              </button>
+              <button type="button" onClick={() => setUbicacion('acopio')}
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${ubicacion === 'acopio' ? 'border-blue-600 bg-blue-600 text-white' : 'border-campo-200 text-campo-700 hover:bg-campo-100'}`}>
+                🏭 Va a acopio
+              </button>
+            </div>
+
+            {ubicacion === 'acopio' && (
+              <div className="space-y-2">
+                {!showNuevoAcopio ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-campo-600">Acopio</label>
+                      <button type="button" onClick={() => setShowNuevoAcopio(true)}
+                        className="text-xs text-blue-600 underline hover:text-blue-800">+ Nuevo acopio</button>
+                    </div>
+                    <select value={acopioClienteId} onChange={e => setAcopioClienteId(e.target.value)}
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400">
+                      <option value="">Seleccionar acopio...</option>
+                      {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <div className="text-xs font-semibold text-blue-700">Nuevo acopio</div>
+                    <input placeholder="Razón social *" value={nuevoAcopioNombre}
+                      onChange={e => setNuevoAcopioNombre(e.target.value)}
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                    <input placeholder="CUIT (opcional)" value={nuevoAcopioCuit}
+                      onChange={e => setNuevoAcopioCuit(e.target.value)}
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setShowNuevoAcopio(false)}
+                        className="flex-1 rounded-lg border border-campo-200 px-3 py-1.5 text-xs text-campo-600 hover:bg-campo-100">Cancelar</button>
+                      <button type="button" onClick={handleCrearAcopio} disabled={guardandoAcopio || !nuevoAcopioNombre.trim()}
+                        className="flex-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                        {guardandoAcopio ? 'Guardando...' : 'Crear y seleccionar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-campo-700 mb-1">Observaciones</label>

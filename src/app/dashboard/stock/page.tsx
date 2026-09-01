@@ -18,12 +18,16 @@ export default async function StockPage() {
     const ton_comprometidas_real = Number(comp?.ton_comprometidas ?? 0)
     const stock_fisico = Number(r.ton_ingresadas ?? 0) - Number(r.ton_salidas ?? 0)
     const margen = stock_fisico - ton_comprometidas_real
+    const stock_campo = Number(r.stock_campo ?? 0)
+    const stock_acopio = Number(r.stock_acopio ?? 0)
 
     return {
       ...r,
       ton_comprometidas_real,
       stock_fisico,
       margen,
+      stock_campo,
+      stock_acopio,
     }
   })
 
@@ -31,6 +35,11 @@ export default async function StockPage() {
     const num = Number(n ?? 0)
     return isNaN(num) ? '0,0' : num.toLocaleString('es-AR', { minimumFractionDigits: 1 })
   }
+
+  // Totales para el resumen
+  const totalCampo = stockConComprometido.reduce((s, r) => s + r.stock_campo, 0)
+  const totalAcopio = stockConComprometido.reduce((s, r) => s + r.stock_acopio, 0)
+  const totalFisico = stockConComprometido.reduce((s, r) => s + r.stock_fisico, 0)
 
   return (
     <div className="space-y-6">
@@ -41,6 +50,27 @@ export default async function StockPage() {
         </div>
       </div>
 
+      {/* Resumen de ubicación */}
+      {(totalCampo > 0 || totalAcopio > 0) && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="card p-4 text-center">
+            <p className="text-xs font-semibold text-campo-500 uppercase tracking-wide mb-1">En campo</p>
+            <p className="text-2xl font-bold text-campo-900">{fmt(totalCampo)} tn</p>
+            <p className="text-xs text-campo-400 mt-0.5">Embolsado / silo propio</p>
+          </div>
+          <div className="card p-4 text-center">
+            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">En acopio</p>
+            <p className="text-2xl font-bold text-blue-700">{fmt(totalAcopio)} tn</p>
+            <p className="text-xs text-campo-400 mt-0.5">Almacenado en terceros</p>
+          </div>
+          <div className="card p-4 text-center border-2 border-campo-200">
+            <p className="text-xs font-semibold text-campo-700 uppercase tracking-wide mb-1">Total físico</p>
+            <p className="text-2xl font-bold text-campo-900">{fmt(totalFisico)} tn</p>
+            <p className="text-xs text-campo-400 mt-0.5">Campo + Acopio</p>
+          </div>
+        </div>
+      )}
+
       <div className="card overflow-hidden p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -50,6 +80,8 @@ export default async function StockPage() {
                 <th className="text-left px-5 py-3 font-semibold text-campo-700">Cultivo</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Ingreso</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Stock Físico</th>
+                <th className="text-right px-5 py-3 font-semibold text-campo-700">En campo</th>
+                <th className="text-right px-5 py-3 font-semibold text-blue-600">En acopio</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Entregado</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Comprometido</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Margen para Vender</th>
@@ -65,6 +97,12 @@ export default async function StockPage() {
                   </td>
                   <td className="px-5 py-3 text-right text-campo-700">{fmt(r.ton_cosechadas)}</td>
                   <td className="px-5 py-3 text-right text-campo-700">{fmt(r.stock_fisico)}</td>
+                  <td className="px-5 py-3 text-right text-campo-700">
+                    {r.stock_campo > 0 ? fmt(r.stock_campo) : <span className="text-campo-300">—</span>}
+                  </td>
+                  <td className="px-5 py-3 text-right text-blue-600 font-medium">
+                    {r.stock_acopio > 0 ? fmt(r.stock_acopio) : <span className="text-campo-300">—</span>}
+                  </td>
                   <td className="px-5 py-3 text-right text-campo-700">{fmt(r.ton_entregadas)}</td>
                   <td className="px-5 py-3 text-right text-orange-600 font-medium">{fmt(r.ton_comprometidas_real)}</td>
                   <td className="px-5 py-3 text-right">
@@ -76,7 +114,7 @@ export default async function StockPage() {
               ))}
               {stockConComprometido.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-campo-400">
+                  <td colSpan={9} className="px-5 py-10 text-center text-campo-400">
                     No hay stock registrado todavía
                   </td>
                 </tr>
