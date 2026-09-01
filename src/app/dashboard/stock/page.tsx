@@ -6,10 +6,10 @@ export const revalidate = 0
 export default async function StockPage() {
   const supabase = createClient()
 
-  const [{ data: stock }, { data: comprometido }, { data: porDestino }] = await Promise.all([
+  const [{ data: stock }, { data: comprometido }, { data: silos }] = await Promise.all([
     supabase.from('vw_stock_actual').select('*'),
     supabase.from('vw_comprometido').select('*'),
-    supabase.from('vw_stock_por_destino').select('*'),
+    supabase.from('vw_stock_silos').select('*'),
   ])
 
   const stockConComprometido = (stock ?? []).map(r => {
@@ -22,12 +22,14 @@ export default async function StockPage() {
     const stock_campo = Number(r.stock_campo ?? 0)
     const stock_acopio = Number(r.stock_acopio ?? 0)
 
-    // Destinos de acopio con nombre para esta fila
-    const acopios = (porDestino ?? []).filter(
-      d => d.campania === r.campania && d.cultivo === r.cultivo && d.ubicacion === 'acopio'
+    // Silos de esta fila
+    const silosRow = (silos ?? []).filter(
+      s => s.campania === r.campania && s.cultivo === r.cultivo
     )
+    const silosCampo = silosRow.filter(s => s.ubicacion === 'campo')
+    const silosAcopio = silosRow.filter(s => s.ubicacion === 'acopio')
 
-    return { ...r, ton_comprometidas_real, stock_fisico, margen, stock_campo, stock_acopio, acopios }
+    return { ...r, ton_comprometidas_real, stock_fisico, margen, stock_campo, stock_acopio, silosCampo, silosAcopio }
   })
 
   const fmt = (n: number | null | undefined) => {
@@ -78,11 +80,11 @@ export default async function StockPage() {
                 <th className="text-left px-5 py-3 font-semibold text-campo-700">Cultivo</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Ingreso</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Stock Físico</th>
-                <th className="text-right px-5 py-3 font-semibold text-campo-700">En campo</th>
+                <th className="text-left px-5 py-3 font-semibold text-campo-700">En campo / silos</th>
                 <th className="text-left px-5 py-3 font-semibold text-blue-600">En acopio</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Entregado</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Comprometido</th>
-                <th className="text-right px-5 py-3 font-semibold text-campo-700">Margen para Vender</th>
+                <th className="text-right px-5 py-3 font-semibold text-campo-700">Margen</th>
               </tr>
             </thead>
             <tbody>
@@ -94,29 +96,56 @@ export default async function StockPage() {
                     <span className="ml-2 text-xs text-campo-400">{r.cultivo_codigo}</span>
                   </td>
                   <td className="px-5 py-3 text-right text-campo-700">{fmt(r.ton_cosechadas)}</td>
-                  <td className="px-5 py-3 text-right text-campo-700">{fmt(r.stock_fisico)}</td>
-                  <td className="px-5 py-3 text-right text-campo-700">
-                    {r.stock_campo > 0 ? fmt(r.stock_campo) : <span className="text-campo-300">—</span>}
-                  </td>
+                  <td className="px-5 py-3 text-right font-medium text-campo-900">{fmt(r.stock_fisico)}</td>
+
+                  {/* Silos en campo */}
                   <td className="px-5 py-3">
-                    {r.acopios.length === 0 ? (
-                      <span className="text-campo-300">—</span>
+                    {r.silosCampo.length === 0 ? (
+                      r.stock_campo > 0
+                        ? <span className="text-campo-700">{fmt(r.stock_campo)}</span>
+                        : <span className="text-campo-300">—</span>
                     ) : (
                       <div className="space-y-0.5">
-                        {r.acopios.map((a: any, j: number) => (
-                          <div key={j} className="flex items-center gap-2">
-                            <span className="text-blue-600 font-medium">{fmt(Number(a.stock_actual))}</span>
-                            <span className="text-xs text-blue-500">{a.acopio_nombre ?? 'Acopio s/n'}</span>
+                        {r.silosCampo.map((s: any, j: number) => (
+                          <div key={j} className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-campo-500">{s.silo_nombre || 'Campo'}</span>
+                            <span className="font-medium text-campo-900">{fmt(Number(s.stock_actual))}</span>
                           </div>
                         ))}
-                        {r.acopios.length > 1 && (
-                          <div className="text-xs text-campo-400 border-t border-campo-100 pt-0.5">
-                            Total: {fmt(r.stock_acopio)}
+                        {r.silosCampo.length > 1 && (
+                          <div className="flex items-center justify-between border-t border-campo-100 pt-0.5">
+                            <span className="text-xs text-campo-400">Total campo</span>
+                            <span className="text-xs font-semibold text-campo-700">{fmt(r.stock_campo)}</span>
                           </div>
                         )}
                       </div>
                     )}
                   </td>
+
+                  {/* Acopios */}
+                  <td className="px-5 py-3">
+                    {r.silosAcopio.length === 0 ? (
+                      r.stock_acopio > 0
+                        ? <span className="text-blue-600">{fmt(r.stock_acopio)}</span>
+                        : <span className="text-campo-300">—</span>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {r.silosAcopio.map((s: any, j: number) => (
+                          <div key={j} className="flex items-center gap-2">
+                            <span className="font-medium text-blue-600">{fmt(Number(s.stock_actual))}</span>
+                            <span className="text-xs text-blue-500">{s.acopio_nombre ?? 'Acopio'}</span>
+                          </div>
+                        ))}
+                        {r.silosAcopio.length > 1 && (
+                          <div className="flex items-center justify-between border-t border-blue-100 pt-0.5">
+                            <span className="text-xs text-campo-400">Total acopio</span>
+                            <span className="text-xs font-semibold text-blue-700">{fmt(r.stock_acopio)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </td>
+
                   <td className="px-5 py-3 text-right text-campo-700">{fmt(r.ton_entregadas)}</td>
                   <td className="px-5 py-3 text-right text-orange-600 font-medium">{fmt(r.ton_comprometidas_real)}</td>
                   <td className="px-5 py-3 text-right">
