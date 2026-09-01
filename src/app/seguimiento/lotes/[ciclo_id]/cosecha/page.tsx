@@ -67,6 +67,7 @@ export default function NuevaCosechaPage() {
       supabase.from('sa_cosechas').select('*').eq('ciclo_id', id).maybeSingle(),
       supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
       supabase.from('sa_ciclos').select('lote_id, cultivo_id, campana_id').eq('id', id).single(),
+      supabase.from('clientes').select('id, razon_social').eq('activo', true).order('razon_social'),
     ])
     setCiclo(cicloData ?? null)
     setTarifarioServicios(servicios ?? [])
