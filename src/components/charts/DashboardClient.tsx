@@ -207,9 +207,9 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Stock en campo', value: kpis.campo, sub: 'Embolsado / silo propio', pct: kpis.cosechado > 0 ? kpis.campo / kpis.cosechado * 100 : 0, color: COLORS.disponible, bg: 'bg-campo-50', border: 'border-campo-200', textColor: 'text-campo-800', subColor: 'text-campo-500' },
-          { label: 'Stock en acopio', value: kpis.acopio, sub: 'Almacenado en terceros', pct: kpis.cosechado > 0 ? kpis.acopio / kpis.cosechado * 100 : 0, color: '#2563eb', bg: 'bg-blue-50', border: 'border-blue-200', textColor: 'text-blue-800', subColor: 'text-blue-500' },
-          { label: 'Entregado', value: kpis.entregado, sub: 'Descargas de CPE', pct: pctVendido, color: COLORS.entregado, bg: 'bg-sky-50', border: 'border-sky-200', textColor: 'text-sky-800', subColor: 'text-sky-500' },
+          { label: 'Stock en campo', value: kpis.campo, sub: (kpis.campo + kpis.acopio + kpis.entregado) > 0 ? ((kpis.campo / (kpis.campo + kpis.acopio + kpis.entregado)) * 100).toFixed(1) + '% del total' : 'Embolsado / silo propio', pct: (kpis.campo + kpis.acopio + kpis.entregado) > 0 ? kpis.campo / (kpis.campo + kpis.acopio + kpis.entregado) * 100 : 0, color: COLORS.disponible, bg: 'bg-campo-50', border: 'border-campo-200', textColor: 'text-campo-800', subColor: 'text-campo-500' },
+          { label: 'Stock en acopio', value: kpis.acopio, sub: (kpis.campo + kpis.acopio + kpis.entregado) > 0 ? ((kpis.acopio / (kpis.campo + kpis.acopio + kpis.entregado)) * 100).toFixed(1) + '% del total' : 'Almacenado en terceros', pct: (kpis.campo + kpis.acopio + kpis.entregado) > 0 ? kpis.acopio / (kpis.campo + kpis.acopio + kpis.entregado) * 100 : 0, color: '#2563eb', bg: 'bg-blue-50', border: 'border-blue-200', textColor: 'text-blue-800', subColor: 'text-blue-500' },
+          { label: 'Entregado', value: kpis.entregado, sub: (kpis.campo + kpis.acopio + kpis.entregado) > 0 ? ((kpis.entregado / (kpis.campo + kpis.acopio + kpis.entregado)) * 100).toFixed(1) + '% del total' : 'Descargas de CPE', pct: (kpis.campo + kpis.acopio + kpis.entregado) > 0 ? kpis.entregado / (kpis.campo + kpis.acopio + kpis.entregado) * 100 : 0, color: COLORS.entregado, bg: 'bg-sky-50', border: 'border-sky-200', textColor: 'text-sky-800', subColor: 'text-sky-500' },
           { label: 'Pendiente de Entrega', value: kpis.comprometido, sub: 'Contratos pendientes', pct: pctComprometido, color: COLORS.comprometido, bg: 'bg-orange-50', border: 'border-orange-200', textColor: 'text-orange-800', subColor: 'text-orange-500' },
           { label: 'Margen para vender', value: kpis.margen, sub: 'Disponible - Comprometido', pct: pctMargen, color: kpis.margen >= 0 ? COLORS.margen : '#ef4444', bg: kpis.margen >= 0 ? 'bg-green-50' : 'bg-red-50', border: kpis.margen >= 0 ? 'border-green-200' : 'border-red-200', textColor: kpis.margen >= 0 ? 'text-green-800' : 'text-red-700', subColor: kpis.margen >= 0 ? 'text-green-500' : 'text-red-500' },
         ].map(kpi => (
@@ -218,7 +218,7 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
             <Gauge pct={kpi.pct} color={kpi.color} size={90} />
             <div className={`text-xl font-bold mt-1 ${kpi.textColor}`}>{fmt(kpi.value)} tn</div>
             <div className={`text-xs mt-0.5 ${kpi.subColor}`}>{kpi.sub}</div>
-            <div className={`text-xs font-semibold mt-1 ${kpi.subColor}`}>{kpi.pct.toFixed(1)}% del cosechado</div>
+            <div className={`text-xs font-semibold mt-1 ${kpi.subColor}`}>{kpi.sub}</div>
           </div>
         ))}
       </div>
