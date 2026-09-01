@@ -32,8 +32,8 @@ export default function NuevaCosechaPage() {
   const [esEdicion, setEsEdicion] = useState(false)
   const [cosechaId, setCosechaId] = useState<number | null>(null)
   const [clientes, setClientes] = useState<{id: string; razon_social: string}[]>([])
-  const [destinos, setDestinos] = useState<{id: string; ubicacion: 'campo'|'acopio'; acopio_cliente_id: string; toneladas: string}[]>([
-    {id: '1', ubicacion: 'campo', acopio_cliente_id: '', toneladas: ''}
+  const [destinos, setDestinos] = useState<{id: string; ubicacion: 'campo'|'acopio'; acopio_cliente_id: string; toneladas: string; nombre: string}[]>([
+    {id: '1', ubicacion: 'campo', acopio_cliente_id: '', toneladas: '', nombre: ''}
   ])
   const [showNuevoAcopio, setShowNuevoAcopio] = useState<string | null>(null)
   const [nuevoAcopioNombre, setNuevoAcopioNombre] = useState('')
@@ -104,6 +104,22 @@ export default function NuevaCosechaPage() {
     } else {
       setForm(f => ({ ...f, superficie_ha: supDefault.toString() }))
     }
+    // Cargar destinos guardados de cosecha_destinos
+    const { data: destinosGuardados } = await supabase
+      .from('cosecha_destinos')
+      .select('id, ubicacion, acopio_cliente_id, toneladas, nombre')
+      .eq('ciclo_id', id)
+      .order('created_at')
+    if (destinosGuardados && destinosGuardados.length > 0) {
+      setDestinos(destinosGuardados.map((d: any) => ({
+        id: d.id,
+        ubicacion: d.ubicacion as 'campo'|'acopio',
+        acopio_cliente_id: d.acopio_cliente_id ?? '',
+        toneladas: String(d.toneladas),
+        nombre: d.nombre ?? '',
+      })))
+    }
+
     setLoading(false)
   }
 
@@ -196,6 +212,7 @@ export default function NuevaCosechaPage() {
           ubicacion: d.ubicacion,
           acopio_cliente_id: d.ubicacion === 'acopio' && d.acopio_cliente_id ? d.acopio_cliente_id : null,
           toneladas: Number(d.toneladas),
+          nombre: d.nombre || null,
           usuario_id: usuarioId,
         }))
       )
@@ -277,7 +294,7 @@ export default function NuevaCosechaPage() {
   }
 
   function agregarDestino() {
-    setDestinos(prev => [...prev, {id: Date.now().toString(), ubicacion: 'campo', acopio_cliente_id: '', toneladas: ''}])
+    setDestinos(prev => [...prev, {id: Date.now().toString(), ubicacion: 'campo', acopio_cliente_id: '', toneladas: '', nombre: ''}])
   }
 
   function quitarDestino(id: string) {
@@ -414,6 +431,16 @@ export default function NuevaCosechaPage() {
                     🏭 Acopio
                   </button>
                 </div>
+                {dest.ubicacion === 'campo' && (
+                  <div>
+                    <label className="text-xs text-campo-500 mb-1 block">Nombre (ej: Silo bolsa 1)</label>
+                    <input type="text"
+                      value={dest.nombre}
+                      onChange={e => actualizarDestino(dest.id, 'nombre', e.target.value)}
+                      placeholder="Silo bolsa 1, Silo cajón..."
+                      className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400" />
+                  </div>
+                )}
                 <div>
                   <label className="text-xs text-campo-500 mb-1 block">Toneladas</label>
                   <input type="number" min={0} step="0.001"
