@@ -6,9 +6,10 @@ export const revalidate = 0
 export default async function StockPage() {
   const supabase = createClient()
 
-  const [{ data: stock }, { data: comprometido }] = await Promise.all([
+  const [{ data: stock }, { data: comprometido }, { data: porDestino }] = await Promise.all([
     supabase.from('vw_stock_actual').select('*'),
     supabase.from('vw_comprometido').select('*'),
+    supabase.from('vw_stock_por_destino').select('*'),
   ])
 
   const stockConComprometido = (stock ?? []).map(r => {
@@ -21,14 +22,12 @@ export default async function StockPage() {
     const stock_campo = Number(r.stock_campo ?? 0)
     const stock_acopio = Number(r.stock_acopio ?? 0)
 
-    return {
-      ...r,
-      ton_comprometidas_real,
-      stock_fisico,
-      margen,
-      stock_campo,
-      stock_acopio,
-    }
+    // Destinos de acopio con nombre para esta fila
+    const acopios = (porDestino ?? []).filter(
+      d => d.campania === r.campania && d.cultivo === r.cultivo && d.ubicacion === 'acopio'
+    )
+
+    return { ...r, ton_comprometidas_real, stock_fisico, margen, stock_campo, stock_acopio, acopios }
   })
 
   const fmt = (n: number | null | undefined) => {
@@ -36,7 +35,6 @@ export default async function StockPage() {
     return isNaN(num) ? '0,0' : num.toLocaleString('es-AR', { minimumFractionDigits: 1 })
   }
 
-  // Totales para el resumen
   const totalCampo = stockConComprometido.reduce((s, r) => s + r.stock_campo, 0)
   const totalAcopio = stockConComprometido.reduce((s, r) => s + r.stock_acopio, 0)
   const totalFisico = stockConComprometido.reduce((s, r) => s + r.stock_fisico, 0)
@@ -81,7 +79,7 @@ export default async function StockPage() {
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Ingreso</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Stock Físico</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">En campo</th>
-                <th className="text-right px-5 py-3 font-semibold text-blue-600">En acopio</th>
+                <th className="text-left px-5 py-3 font-semibold text-blue-600">En acopio</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Entregado</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Comprometido</th>
                 <th className="text-right px-5 py-3 font-semibold text-campo-700">Margen para Vender</th>
@@ -100,8 +98,24 @@ export default async function StockPage() {
                   <td className="px-5 py-3 text-right text-campo-700">
                     {r.stock_campo > 0 ? fmt(r.stock_campo) : <span className="text-campo-300">—</span>}
                   </td>
-                  <td className="px-5 py-3 text-right text-blue-600 font-medium">
-                    {r.stock_acopio > 0 ? fmt(r.stock_acopio) : <span className="text-campo-300">—</span>}
+                  <td className="px-5 py-3">
+                    {r.acopios.length === 0 ? (
+                      <span className="text-campo-300">—</span>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {r.acopios.map((a: any, j: number) => (
+                          <div key={j} className="flex items-center gap-2">
+                            <span className="text-blue-600 font-medium">{fmt(Number(a.stock_actual))}</span>
+                            <span className="text-xs text-blue-500">{a.acopio_nombre ?? 'Acopio s/n'}</span>
+                          </div>
+                        ))}
+                        {r.acopios.length > 1 && (
+                          <div className="text-xs text-campo-400 border-t border-campo-100 pt-0.5">
+                            Total: {fmt(r.stock_acopio)}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-right text-campo-700">{fmt(r.ton_entregadas)}</td>
                   <td className="px-5 py-3 text-right text-orange-600 font-medium">{fmt(r.ton_comprometidas_real)}</td>
