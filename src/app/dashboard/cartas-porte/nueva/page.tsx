@@ -14,6 +14,7 @@ export default function NuevaCartaPortePage() {
   const [lotes, setLotes] = useState<any[]>([])
   const [acopios, setAcopios] = useState<any[]>([])
   const [silosCampo, setSilosCampo] = useState<any[]>([])
+  const [acopiosCosecha, setAcopiosCosecha] = useState<any[]>([])
   const [origenSilos, setOrigenSilos] = useState<{id: string; silo_nombre: string; toneladas: string}[]>([])
   const [contratos, setContratos] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -85,20 +86,20 @@ export default function NuevaCartaPortePage() {
     load()
   }, [])
 
-  // Cargar silos cuando cambia campaña o cultivo
+  // Cargar silos y acopios cuando cambia campaña o cultivo
   useEffect(() => {
-    if (!form.campania_id || !form.cultivo_id) { setSilosCampo([]); return }
+    if (!form.campania_id || !form.cultivo_id) { setSilosCampo([]); setAcopiosCosecha([]); return }
     const campaniaNombre = campanias.find((c:any) => c.id === form.campania_id)?.nombre ?? ''
     const cultivoNombre = cultivos.find((c:any) => c.id === form.cultivo_id)?.nombre ?? ''
     if (!campaniaNombre || !cultivoNombre) return
     const cargarSilos = async () => {
       const { data } = await supabase
         .from('vw_stock_silos')
-        .select('destino_id, silo_nombre, toneladas_ingresadas, ubicacion')
+        .select('destino_id, silo_nombre, toneladas_ingresadas, ubicacion, acopio_nombre')
         .eq('campania', campaniaNombre)
         .eq('cultivo', cultivoNombre)
-        .eq('ubicacion', 'campo')
-      setSilosCampo(data ?? [])
+      setSilosCampo((data ?? []).filter((s:any) => s.ubicacion === 'campo'))
+      setAcopiosCosecha((data ?? []).filter((s:any) => s.ubicacion === 'acopio'))
     }
     cargarSilos()
   }, [form.campania_id, form.cultivo_id, campanias, cultivos])
@@ -472,10 +473,10 @@ export default function NuevaCartaPortePage() {
           {seccion('E', 'Destino')}
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Acopio origen</label><select value={form.origen_acopio_id} onChange={e => set('origen_acopio_id', e.target.value)} className="input-field"><option value="">Sin acopio</option>{acopios.map(a => <option key={a.id} value={a.id}>{a.nombre} — {a.localidad}</option>)}</select></div>
-            {silosCampo.length > 0 && (
+            {(silosCampo.length > 0 || acopiosCosecha.length > 0) && (
               <div className="col-span-2">
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-campo-700">Silos de campo origen</label>
+                  <label className="block text-sm font-medium text-campo-700">Origen del cereal</label>
                   <button type="button"
                     onClick={() => setOrigenSilos(prev => [...prev, {id: Date.now().toString(), silo_nombre: '', toneladas: ''}])}
                     className="text-xs text-campo-500 underline hover:text-campo-700">+ Agregar silo</button>
@@ -492,11 +493,20 @@ export default function NuevaCartaPortePage() {
                           onChange={e => setOrigenSilos(prev => prev.map((o,i) => i===idx ? {...o, silo_nombre: e.target.value} : o))}
                           className="input-field">
                           <option value="">Seleccionar silo...</option>
-                          {silosCampo.map((s:any) => (
-                            <option key={s.destino_id} value={s.silo_nombre ?? 'Campo'}>
-                              {s.silo_nombre ?? 'Campo'} — {Number(s.toneladas_ingresadas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
-                            </option>
-                          ))}
+                          {silosCampo.length > 0 && <optgroup label="🌾 Silos de campo">
+                            {silosCampo.map((s:any) => (
+                              <option key={s.destino_id} value={s.silo_nombre ?? 'Campo'}>
+                                {s.silo_nombre ?? 'Campo'} — {Number(s.toneladas_ingresadas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                              </option>
+                            ))}
+                          </optgroup>}
+                          {acopiosCosecha.length > 0 && <optgroup label="🏭 Acopios">
+                            {acopiosCosecha.map((s:any) => (
+                              <option key={s.destino_id} value={s.acopio_nombre ?? 'Acopio'}>
+                                {s.acopio_nombre ?? 'Acopio'} — {Number(s.toneladas_ingresadas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                              </option>
+                            ))}
+                          </optgroup>}
                         </select>
                       </div>
                       <div className="w-36">
