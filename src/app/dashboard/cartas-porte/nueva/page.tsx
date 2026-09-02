@@ -405,6 +405,64 @@ export default function NuevaCartaPortePage() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Campaña *</label><select value={form.campania_id} onChange={e => set('campania_id', e.target.value)} required className="input-field"><option value="">Seleccioná</option>{campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Cultivo *</label><select value={form.cultivo_id} onChange={e => set('cultivo_id', e.target.value)} required className="input-field"><option value="">Seleccioná</option>{cultivos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
             <div className="col-span-2"><label className="block text-sm font-medium text-campo-700 mb-1">Contrato vinculado</label><select value={form.contrato_id} onChange={e => set('contrato_id', e.target.value)} className="input-field"><option value="">Sin contrato</option>{contratos.map(c => <option key={c.id} value={c.id}>{c.numero} — {(c.cultivos as any)?.nombre} — {(c.clientes as any)?.razon_social}</option>)}</select></div>
+          {/* Origen del cereal — aparece cuando hay silos o acopios cargados para este cultivo/campaña */}
+          {(silosCampo.length > 0 || acopiosCosecha.length > 0) && (
+            <div className="col-span-2 rounded-lg border border-campo-200 bg-campo-50 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-campo-700">Origen del cereal</label>
+                <button type="button"
+                  onClick={() => setOrigenSilos(prev => [...prev, {id: Date.now().toString(), silo_nombre: '', toneladas: ''}])}
+                  className="text-xs text-campo-500 underline hover:text-campo-700">+ Agregar silo</button>
+              </div>
+              {origenSilos.length === 0 && (
+                <p className="text-xs text-campo-400 italic">Sin origen seleccionado — hacé clic en + Agregar silo</p>
+              )}
+              <div className="space-y-2">
+                {origenSilos.map((orig, idx) => (
+                  <div key={orig.id} className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="text-xs text-campo-500 mb-1 block">Silo / Acopio</label>
+                      <select value={orig.silo_nombre}
+                        onChange={e => setOrigenSilos(prev => prev.map((o,i) => i===idx ? {...o, silo_nombre: e.target.value} : o))}
+                        className="input-field">
+                        <option value="">Seleccionar origen...</option>
+                        {silosCampo.length > 0 && <optgroup label="🌾 Silos de campo">
+                          {silosCampo.map((s:any) => (
+                            <option key={s.destino_id} value={s.silo_nombre ?? 'Campo'}>
+                              {s.silo_nombre ?? 'Campo'} — {Number(s.toneladas_ingresadas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                            </option>
+                          ))}
+                        </optgroup>}
+                        {acopiosCosecha.length > 0 && <optgroup label="🏭 Acopios">
+                          {acopiosCosecha.map((s:any) => (
+                            <option key={s.destino_id} value={s.acopio_nombre ?? 'Acopio'}>
+                              {s.acopio_nombre ?? 'Acopio'} — {Number(s.toneladas_ingresadas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                            </option>
+                          ))}
+                        </optgroup>}
+                      </select>
+                    </div>
+                    <div className="w-36">
+                      <label className="text-xs text-campo-500 mb-1 block">Toneladas</label>
+                      <input type="number" min={0} step="0.001"
+                        value={orig.toneladas}
+                        onChange={e => setOrigenSilos(prev => prev.map((o,i) => i===idx ? {...o, toneladas: e.target.value} : o))}
+                        placeholder="0.000"
+                        className="input-field" />
+                    </div>
+                    <button type="button"
+                      onClick={() => setOrigenSilos(prev => prev.filter((_,i) => i!==idx))}
+                      className="text-red-400 hover:text-red-600 text-lg leading-none mb-1">×</button>
+                  </div>
+                ))}
+                {origenSilos.filter(s => s.toneladas).length > 1 && (
+                  <div className="text-xs text-campo-500 text-right font-medium">
+                    Total: {origenSilos.reduce((s,o) => s + (Number(o.toneladas)||0), 0).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           </div>
         </div>
 
@@ -473,63 +531,7 @@ export default function NuevaCartaPortePage() {
           {seccion('E', 'Destino')}
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Acopio origen</label><select value={form.origen_acopio_id} onChange={e => set('origen_acopio_id', e.target.value)} className="input-field"><option value="">Sin acopio</option>{acopios.map(a => <option key={a.id} value={a.id}>{a.nombre} — {a.localidad}</option>)}</select></div>
-            {(silosCampo.length > 0 || acopiosCosecha.length > 0) && (
-              <div className="col-span-2">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-campo-700">Origen del cereal</label>
-                  <button type="button"
-                    onClick={() => setOrigenSilos(prev => [...prev, {id: Date.now().toString(), silo_nombre: '', toneladas: ''}])}
-                    className="text-xs text-campo-500 underline hover:text-campo-700">+ Agregar silo</button>
-                </div>
-                {origenSilos.length === 0 && (
-                  <p className="text-xs text-campo-400 italic">Sin silos seleccionados — hacé clic en Agregar silo</p>
-                )}
-                <div className="space-y-2">
-                  {origenSilos.map((orig, idx) => (
-                    <div key={orig.id} className="flex items-end gap-2 rounded-lg border border-campo-200 bg-campo-50 p-3">
-                      <div className="flex-1">
-                        <label className="text-xs text-campo-500 mb-1 block">Silo</label>
-                        <select value={orig.silo_nombre}
-                          onChange={e => setOrigenSilos(prev => prev.map((o,i) => i===idx ? {...o, silo_nombre: e.target.value} : o))}
-                          className="input-field">
-                          <option value="">Seleccionar silo...</option>
-                          {silosCampo.length > 0 && <optgroup label="🌾 Silos de campo">
-                            {silosCampo.map((s:any) => (
-                              <option key={s.destino_id} value={s.silo_nombre ?? 'Campo'}>
-                                {s.silo_nombre ?? 'Campo'} — {Number(s.toneladas_ingresadas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
-                              </option>
-                            ))}
-                          </optgroup>}
-                          {acopiosCosecha.length > 0 && <optgroup label="🏭 Acopios">
-                            {acopiosCosecha.map((s:any) => (
-                              <option key={s.destino_id} value={s.acopio_nombre ?? 'Acopio'}>
-                                {s.acopio_nombre ?? 'Acopio'} — {Number(s.toneladas_ingresadas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
-                              </option>
-                            ))}
-                          </optgroup>}
-                        </select>
-                      </div>
-                      <div className="w-36">
-                        <label className="text-xs text-campo-500 mb-1 block">Toneladas</label>
-                        <input type="number" min={0} step="0.001"
-                          value={orig.toneladas}
-                          onChange={e => setOrigenSilos(prev => prev.map((o,i) => i===idx ? {...o, toneladas: e.target.value} : o))}
-                          placeholder="0.000"
-                          className="input-field" />
-                      </div>
-                      <button type="button"
-                        onClick={() => setOrigenSilos(prev => prev.filter((_,i) => i!==idx))}
-                        className="text-red-400 hover:text-red-600 text-lg leading-none mb-1">×</button>
-                    </div>
-                  ))}
-                  {origenSilos.filter(s => s.toneladas).length > 1 && (
-                    <div className="text-xs text-campo-500 text-right">
-                      Total: {origenSilos.reduce((s,o) => s + (Number(o.toneladas)||0), 0).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Acopio destino</label><select value={form.destino_acopio_id} onChange={e => set('destino_acopio_id', e.target.value)} className="input-field"><option value="">Sin acopio</option>{acopios.map(a => <option key={a.id} value={a.id}>{a.nombre} — {a.localidad}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Localidad destino</label><input value={form.destino_localidad} onChange={e => set('destino_localidad', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Provincia destino</label><input value={form.destino_provincia} onChange={e => set('destino_provincia', e.target.value)} className="input-field" /></div>
