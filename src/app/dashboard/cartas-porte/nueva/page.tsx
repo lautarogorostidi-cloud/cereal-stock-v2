@@ -85,6 +85,24 @@ export default function NuevaCartaPortePage() {
     load()
   }, [])
 
+  // Cargar silos cuando cambia campaña o cultivo
+  useEffect(() => {
+    if (!form.campania_id || !form.cultivo_id) { setSilosCampo([]); return }
+    const campaniaNombre = campanias.find((c:any) => c.id === form.campania_id)?.nombre ?? ''
+    const cultivoNombre = cultivos.find((c:any) => c.id === form.cultivo_id)?.nombre ?? ''
+    if (!campaniaNombre || !cultivoNombre) return
+    const cargarSilos = async () => {
+      const { data } = await supabase
+        .from('vw_stock_silos')
+        .select('destino_id, silo_nombre, toneladas_ingresadas, ubicacion')
+        .eq('campania', campaniaNombre)
+        .eq('cultivo', cultivoNombre)
+        .eq('ubicacion', 'campo')
+      setSilosCampo(data ?? [])
+    }
+    cargarSilos()
+  }, [form.campania_id, form.cultivo_id, campanias, cultivos])
+
   function set(key: string, value: string) { setForm(f => ({ ...f, [key]: value })) }
 
   const pesoNeto = form.peso_bruto_kg && form.peso_tara_kg
