@@ -15,7 +15,8 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
       e.campania?.toLowerCase().includes(q) ||
       e.cliente?.toLowerCase().includes(q) ||
       e.contrato?.toLowerCase().includes(q) ||
-      e.descripcion_movimiento?.toLowerCase().includes(q)
+      e.descripcion_movimiento?.toLowerCase().includes(q) ||
+      e.observaciones?.toLowerCase().includes(q)
     )
   }, [entregas, busqueda])
 
@@ -71,7 +72,7 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
                       : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">Manual</span>
                     }
                   </td>
-                  <td className="px-4 py-3 text-xs text-campo-400">{e.descripcion_movimiento ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs text-campo-400">{e.descripcion_movimiento || e.observaciones || '—'}</td>
                 </tr>
               ))}
               {filtradas.length === 0 && (

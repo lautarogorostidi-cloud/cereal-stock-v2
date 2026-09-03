@@ -33,6 +33,7 @@ export default async function EntregasPage() {
     cliente: clienteMap[(e.contratos as any)?.cliente_id] ?? null,
     contrato: (e.contratos as any)?.numero ?? null,
     descripcion_movimiento: e.descripcion_movimiento,
+    observaciones: e.observaciones,
   }))
 
   return (

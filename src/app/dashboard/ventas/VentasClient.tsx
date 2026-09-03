@@ -25,7 +25,9 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
       e.cultivo?.toLowerCase().includes(q) ||
       e.campania?.toLowerCase().includes(q) ||
       e.cliente?.toLowerCase().includes(q) ||
-      String(e.contrato ?? '').toLowerCase().includes(q)
+      String(e.contrato ?? '').toLowerCase().includes(q) ||
+      e.descripcion_movimiento?.toLowerCase().includes(q) ||
+      e.observaciones?.toLowerCase().includes(q)
     )
   }, [ventas, busqueda])
 
@@ -183,6 +185,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Flete/tn</th>
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Total/tn</th>
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Total USD</th>
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Descripción</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -212,6 +215,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                     <td className="px-4 py-3 text-right text-red-500">{e.tarifa_flete ? `USD ${fmtUSD(e.tarifa_flete)}` : '—'}</td>
                     <td className="px-4 py-3 text-right font-medium text-campo-800">{e.total_tn ? `USD ${fmtUSD(e.total_tn)}` : '—'}</td>
                     <td className="px-4 py-3 text-right font-semibold text-campo-900">{e.total_usd ? `USD ${fmtUSD(e.total_usd)}` : '—'}</td>
+                    <td className="px-4 py-3 text-xs text-campo-400">{e.descripcion_movimiento || e.observaciones || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <button onClick={() => abrirModalContrato(e)} className="text-xs text-campo-500 hover:text-campo-700 underline">
@@ -229,7 +233,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                   </tr>
                 ))}
                 {filtradas.length === 0 && (
-                  <tr><td colSpan={16} className="px-4 py-10 text-center text-campo-400">Sin movimientos registrados</td></tr>
+                  <tr><td colSpan={17} className="px-4 py-10 text-center text-campo-400">Sin movimientos registrados</td></tr>
                 )}
               </tbody>
               {filtradas.length > 0 && (
@@ -242,6 +246,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                       <div>Ventas: USD {fmtUSD(totalVentasUSD)}</div>
                       {comprasFiltradas.length > 0 && <div className="text-blue-700">Compras: USD {fmtUSD(totalComprasUSD)}</div>}
                     </td>
+                    <td />
                     <td />
                   </tr>
                 </tfoot>

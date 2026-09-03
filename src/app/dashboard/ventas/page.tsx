@@ -57,6 +57,8 @@ export default async function VentasPage() {
       cultivo: (e.cultivos as any)?.nombre ?? null,
       campania: (e.campanias as any)?.nombre ?? null,
       toneladas: e.toneladas,
+      descripcion_movimiento: e.descripcion_movimiento,
+      observaciones: e.observaciones,
       cliente: clienteMap[(e.contratos as any)?.cliente_id] ?? clienteMap[e.cliente_id] ?? null,
       contrato: (e.contratos as any)?.numero ?? null,
       precio_base: precio_base || null,
