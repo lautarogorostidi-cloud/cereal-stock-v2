@@ -11,7 +11,7 @@ export default async function VentasPage() {
     supabase
       .from('movimientos_cereal')
       .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id, precio_unitario, precio_plus, comision_corredor, bonificacion_calidad), cartas_porte(ctg, bonificacion_calidad, tarifa_flete)`)
-      .eq('tipo', 'entrega')
+      .in('tipo', ['entrega', 'compra'])
       .order('fecha', { ascending: false })
       .limit(200),
     supabase
@@ -20,7 +20,7 @@ export default async function VentasPage() {
       .order('numero', { ascending: false })
   ])
 
-  const clienteIds = Array.from(new Set((movimientos ?? []).map(e => (e.contratos as any)?.cliente_id).filter(Boolean)))
+  const clienteIds = Array.from(new Set((movimientos ?? []).flatMap(e => [(e.contratos as any)?.cliente_id, e.cliente_id]).filter(Boolean)))
   const { data: clientes } = clienteIds.length > 0
     ? await supabase.from('clientes').select('id, razon_social').in('id', clienteIds)
     : { data: [] }
@@ -28,7 +28,9 @@ export default async function VentasPage() {
   const clienteMap = Object.fromEntries((clientes ?? []).map(c => [c.id, c.razon_social]))
 
   const ventas = (movimientos ?? []).map(e => {
-    const precio_base = Number((e.contratos as any)?.precio_unitario ?? 0)
+    // Precio: primero el del contrato (ventas con contrato), si no el que se
+    // haya cargado directo en el movimiento (típico en compras, sin contrato).
+    const precio_base = Number((e.contratos as any)?.precio_unitario ?? e.precio_unitario ?? 0)
     const precio_plus = Number((e.contratos as any)?.precio_plus ?? 0)
     const comision_pct = Number((e.contratos as any)?.comision_corredor ?? 0)
     const tarifa_flete = Number((e.cartas_porte as any)?.tarifa_flete ?? 0)
@@ -47,6 +49,7 @@ export default async function VentasPage() {
 
     return {
       id: e.id,
+      tipo: e.tipo,
       contrato_id: e.contrato_id,
       fecha: e.fecha,
       ctg: (e.cartas_porte as any)?.ctg ?? null,
@@ -54,7 +57,7 @@ export default async function VentasPage() {
       cultivo: (e.cultivos as any)?.nombre ?? null,
       campania: (e.campanias as any)?.nombre ?? null,
       toneladas: e.toneladas,
-      cliente: clienteMap[(e.contratos as any)?.cliente_id] ?? null,
+      cliente: clienteMap[(e.contratos as any)?.cliente_id] ?? clienteMap[e.cliente_id] ?? null,
       contrato: (e.contratos as any)?.numero ?? null,
       precio_base: precio_base || null,
       precio_plus: precio_plus || null,
@@ -72,7 +75,7 @@ export default async function VentasPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-campo-900">Ventas</h1>
-          <p className="text-campo-500 text-sm mt-0.5">Liquidación por entrega</p>
+          <p className="text-campo-500 text-sm mt-0.5">Ventas (entregas) y compras</p>
         </div>
         <a href="/dashboard/ventas/nuevo" className="btn-primary">+ Nuevo movimiento</a>
       </div>

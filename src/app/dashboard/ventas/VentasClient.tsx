@@ -13,6 +13,8 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
   const [contratoSel, setContratoSel] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null)
+  const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
 
   const filtradas = useMemo(() => {
     if (!busqueda.trim()) return ventas
@@ -27,8 +29,11 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
     )
   }, [ventas, busqueda])
 
+  const ventasFiltradas = filtradas.filter(e => e.tipo !== 'compra')
+  const comprasFiltradas = filtradas.filter(e => e.tipo === 'compra')
   const totalTon = filtradas.reduce((s, e) => s + Number(e.toneladas ?? 0), 0)
-  const totalUSD = filtradas.reduce((s, e) => s + Number(e.total_usd ?? 0), 0)
+  const totalVentasUSD = ventasFiltradas.reduce((s, e) => s + Number(e.total_usd ?? 0), 0)
+  const totalComprasUSD = comprasFiltradas.reduce((s, e) => s + Number(e.total_usd ?? 0), 0)
 
   const fmt = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
   const fmtUSD = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -97,6 +102,27 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
     cerrarModalBonif()
   }
 
+  async function eliminarMovimiento(e: any) {
+    const etiqueta = e.ctg ? `CTG ${e.ctg}` : `${e.cultivo ?? 'movimiento'} — ${fmt(Number(e.toneladas ?? 0))} tn`
+    let mensaje = `¿Eliminar este ${e.tipo === 'compra' ? 'movimiento de compra' : 'movimiento de venta'} (${etiqueta})? Esta acción no se puede deshacer.`
+    if (e.carta_porte_id) {
+      mensaje += '\n\nOjo: este movimiento se generó automáticamente desde una Carta de Porte. Si esa carta se vuelve a guardar, puede volver a crearse.'
+    }
+    if (!confirm(mensaje)) return
+
+    setErrorEliminar(null)
+    setEliminandoId(e.id)
+    const { data, error } = await supabase.from('movimientos_cereal').delete().eq('id', e.id).select('id')
+    setEliminandoId(null)
+
+    if (error) { setErrorEliminar(error.message); return }
+    if (!data || data.length === 0) {
+      setErrorEliminar('No se pudo eliminar: no tenés permisos suficientes (solo un administrador puede borrar movimientos).')
+      return
+    }
+    setVentas(prev => prev.filter(v => v.id !== e.id))
+  }
+
   async function guardarContrato() {
     if (!vinculando) return
     setSaving(true)
@@ -127,13 +153,14 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
   return (
     <>
       <div className="space-y-4">
-        <div className="card p-4">
+        <div className="card p-4 space-y-2">
           <input
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por fecha, CTG, cultivo, campaña, cliente, contrato..."
             className="input-field"
           />
+          {errorEliminar && <p className="text-red-500 text-sm">❌ {errorEliminar}</p>}
         </div>
 
         <div className="card overflow-hidden p-0">
@@ -141,6 +168,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-campo-100 bg-campo-50">
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Tipo</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">CTG</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
@@ -161,6 +189,11 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
               <tbody>
                 {filtradas.map((e, i) => (
                   <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${e.tipo === 'compra' ? 'bg-blue-100 text-blue-700' : 'bg-campo-100 text-campo-700'}`}>
+                        {e.tipo === 'compra' ? 'Compra' : 'Venta'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-campo-600">{e.fecha ? new Date(e.fecha).toLocaleDateString('es-AR') : '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs text-campo-500">{e.ctg ?? '—'}</td>
                     <td className="px-4 py-3 font-medium text-campo-900">{e.cultivo ?? '—'}</td>
@@ -187,21 +220,28 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                         <button onClick={() => abrirModalBonif(e)} className="text-xs text-campo-500 hover:text-campo-700 underline">
                           bonif.
                         </button>
+                        <button onClick={() => eliminarMovimiento(e)} disabled={eliminandoId === e.id}
+                          className="text-xs text-red-500 hover:text-red-700 underline disabled:opacity-50">
+                          {eliminandoId === e.id ? 'borrando...' : 'eliminar'}
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {filtradas.length === 0 && (
-                  <tr><td colSpan={15} className="px-4 py-10 text-center text-campo-400">Sin ventas registradas</td></tr>
+                  <tr><td colSpan={16} className="px-4 py-10 text-center text-campo-400">Sin movimientos registrados</td></tr>
                 )}
               </tbody>
               {filtradas.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-campo-200 bg-campo-50">
-                    <td colSpan={4} className="px-4 py-3 font-bold text-campo-800 text-sm">Total</td>
+                    <td colSpan={5} className="px-4 py-3 font-bold text-campo-800 text-sm">Total</td>
                     <td className="px-4 py-3 text-right font-bold text-campo-800">{fmt(totalTon)}</td>
                     <td colSpan={8} />
-                    <td className="px-4 py-3 text-right font-bold text-campo-900">USD {fmtUSD(totalUSD)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-campo-900">
+                      <div>Ventas: USD {fmtUSD(totalVentasUSD)}</div>
+                      {comprasFiltradas.length > 0 && <div className="text-blue-700">Compras: USD {fmtUSD(totalComprasUSD)}</div>}
+                    </td>
                     <td />
                   </tr>
                 </tfoot>
