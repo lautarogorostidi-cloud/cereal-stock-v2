@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { cargarSilosDisponibles, guardarOrigenesCPE, vincularOrigenesAMovimiento, etiquetaSilo, origenesValidos, totalOrigenes, type OrigenSeleccionado, type SiloDisponible } from '@/lib/stockOrigenes'
 
 export default function NuevaCartaPortePage() {
   const router = useRouter()
@@ -13,9 +14,9 @@ export default function NuevaCartaPortePage() {
   const [cultivos, setCultivos] = useState<any[]>([])
   const [lotes, setLotes] = useState<any[]>([])
   const [acopios, setAcopios] = useState<any[]>([])
-  const [silosCampo, setSilosCampo] = useState<any[]>([])
-  const [acopiosCosecha, setAcopiosCosecha] = useState<any[]>([])
-  const [origenSilos, setOrigenSilos] = useState<{id: string; silo_nombre: string; toneladas: string}[]>([])
+  const [silosCampo, setSilosCampo] = useState<SiloDisponible[]>([])
+  const [acopiosCosecha, setAcopiosCosecha] = useState<SiloDisponible[]>([])
+  const [origenSilos, setOrigenSilos] = useState<OrigenSeleccionado[]>([])
   const [contratos, setContratos] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [extracting, setExtracting] = useState(false)
@@ -86,20 +87,16 @@ export default function NuevaCartaPortePage() {
     load()
   }, [])
 
-  // Cargar silos y acopios cuando cambia campaña o cultivo
+  // Cargar silos y acopios (con su stock disponible real) cuando cambia campaña o cultivo
   useEffect(() => {
     if (!form.campania_id || !form.cultivo_id) { setSilosCampo([]); setAcopiosCosecha([]); return }
     const campaniaNombre = campanias.find((c:any) => c.id === form.campania_id)?.nombre ?? ''
     const cultivoNombre = cultivos.find((c:any) => c.id === form.cultivo_id)?.nombre ?? ''
     if (!campaniaNombre || !cultivoNombre) return
     const cargarSilos = async () => {
-      const { data } = await supabase
-        .from('vw_stock_silos')
-        .select('destino_id, silo_nombre, toneladas_ingresadas, ubicacion, acopio_nombre')
-        .eq('campania', campaniaNombre)
-        .eq('cultivo', cultivoNombre)
-      setSilosCampo((data ?? []).filter((s:any) => s.ubicacion === 'campo'))
-      setAcopiosCosecha((data ?? []).filter((s:any) => s.ubicacion === 'acopio'))
+      const data = await cargarSilosDisponibles(supabase, campaniaNombre, cultivoNombre)
+      setSilosCampo(data.filter(s => s.ubicacion === 'campo'))
+      setAcopiosCosecha(data.filter(s => s.ubicacion === 'acopio'))
     }
     cargarSilos()
   }, [form.campania_id, form.cultivo_id, campanias, cultivos])
@@ -286,10 +283,10 @@ export default function NuevaCartaPortePage() {
     if (form.peso_hectolitrico) payload.peso_hectolitrico = parseFloat(form.peso_hectolitrico)
     if (form.zaranda) payload.zaranda = parseFloat(form.zaranda)
     if (form.origen_acopio_id) payload.origen_acopio_id = form.origen_acopio_id
-    // Guardar silos origen como JSON en origen_silo_nombre
-    const silosValidos = origenSilos.filter(s => s.silo_nombre && Number(s.toneladas) > 0)
+    // Guardar silos origen como texto legible en origen_silo_nombre (para impresión/lectura)
+    const silosValidos = origenesValidos(origenSilos)
     if (silosValidos.length > 0) {
-      payload.origen_silo_nombre = silosValidos.map(s => `${s.silo_nombre}: ${Number(s.toneladas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn`).join(' | ')
+      payload.origen_silo_nombre = silosValidos.map(s => `${s.etiqueta}: ${Number(s.toneladas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn`).join(' | ')
     }
     if (form.destino_acopio_id) payload.destino_acopio_id = form.destino_acopio_id
     if (form.tarifa_flete) payload.tarifa_flete = parseFloat(form.tarifa_flete)
@@ -343,9 +340,34 @@ export default function NuevaCartaPortePage() {
     if (form.peso_tara_destino) payload.peso_tara_destino = parseFloat(form.peso_tara_destino)
     if (form.fecha_vencimiento) payload.numero_cpe_vencimiento = form.fecha_vencimiento
 
-    const { error } = await supabase.from('cartas_porte').insert(payload)
-    if (error) { setError(error.message); setLoading(false) }
-    else { setSuccess(true); setTimeout(() => router.push('/dashboard/cartas-porte'), 1500) }
+    const { data: cpe, error } = await supabase.from('cartas_porte').insert(payload).select('id').single()
+    if (error) { setError(error.message); setLoading(false); return }
+
+    // Guardamos el origen elegido siempre, aunque el peso de descarga todavía
+    // no esté cargado: la base recién crea el movimiento de stock (trigger
+    // fn_movimiento_desde_cpe) cuando se conoce el peso neto de destino, que
+    // normalmente se completa después, al editar la CPE. Si el movimiento ya
+    // existe (por ejemplo porque se cargó el peso de descarga en esta misma
+    // carga), lo vinculamos de una vez.
+    if (origenesValidos(origenSilos).length > 0) {
+      const { error: errorOrigen } = await guardarOrigenesCPE(supabase, cpe.id, origenSilos)
+      if (errorOrigen) {
+        setError(`Carta de porte guardada, pero no se pudo guardar el origen: ${errorOrigen}`)
+        setLoading(false)
+        return
+      }
+      const { data: mov } = await supabase.from('movimientos_cereal').select('id').eq('carta_porte_id', cpe.id).maybeSingle()
+      if (mov) {
+        const { error: errorVinculo } = await vincularOrigenesAMovimiento(supabase, mov.id, origenSilos)
+        if (errorVinculo) {
+          setError(`Carta de porte guardada, pero no se pudo vincular el origen al stock: ${errorVinculo}`)
+          setLoading(false)
+          return
+        }
+      }
+    }
+
+    setSuccess(true); setTimeout(() => router.push('/dashboard/cartas-porte'), 1500)
   }
 
   const seccion = (letra: string, titulo: string) => (
@@ -411,53 +433,71 @@ export default function NuevaCartaPortePage() {
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium text-campo-700">Origen del cereal</label>
                 <button type="button"
-                  onClick={() => setOrigenSilos(prev => [...prev, {id: Date.now().toString(), silo_nombre: '', toneladas: ''}])}
+                  onClick={() => setOrigenSilos(prev => [...prev, {id: Date.now().toString(), destino_id: '', ubicacion: 'campo', etiqueta: '', acopio_cliente_id: null, disponible: 0, toneladas: ''}])}
                   className="text-xs text-campo-500 underline hover:text-campo-700">+ Agregar silo</button>
               </div>
               {origenSilos.length === 0 && (
                 <p className="text-xs text-campo-400 italic">Sin origen seleccionado — hacé clic en + Agregar silo</p>
               )}
               <div className="space-y-2">
-                {origenSilos.map((orig, idx) => (
-                  <div key={orig.id} className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <label className="text-xs text-campo-500 mb-1 block">Silo / Acopio</label>
-                      <select value={orig.silo_nombre}
-                        onChange={e => setOrigenSilos(prev => prev.map((o,i) => i===idx ? {...o, silo_nombre: e.target.value} : o))}
-                        className="input-field">
-                        <option value="">Seleccionar origen...</option>
-                        {silosCampo.length > 0 && <optgroup label="🌾 Silos de campo">
-                          {silosCampo.map((s:any) => (
-                            <option key={s.destino_id} value={s.silo_nombre ?? 'Campo'}>
-                              {s.silo_nombre ?? 'Campo'} — {Number(s.toneladas_ingresadas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
-                            </option>
-                          ))}
-                        </optgroup>}
-                        {acopiosCosecha.length > 0 && <optgroup label="🏭 Acopios">
-                          {acopiosCosecha.map((s:any) => (
-                            <option key={s.destino_id} value={s.acopio_nombre ?? 'Acopio'}>
-                              {s.acopio_nombre ?? 'Acopio'} — {Number(s.toneladas_ingresadas).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
-                            </option>
-                          ))}
-                        </optgroup>}
-                      </select>
+                {origenSilos.map((orig, idx) => {
+                  const excede = Number(orig.toneladas) > 0 && Number(orig.toneladas) > orig.disponible
+                  return (
+                  <div key={orig.id}>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <label className="text-xs text-campo-500 mb-1 block">Silo / Acopio</label>
+                        <select value={orig.destino_id}
+                          onChange={e => {
+                            const destinoId = e.target.value
+                            const s = [...silosCampo, ...acopiosCosecha].find(x => x.destino_id === destinoId)
+                            setOrigenSilos(prev => prev.map((o,i) => i===idx ? {
+                              ...o,
+                              destino_id: destinoId,
+                              ubicacion: s?.ubicacion ?? 'campo',
+                              etiqueta: s ? etiquetaSilo(s) : '',
+                              acopio_cliente_id: s?.acopio_cliente_id ?? null,
+                              disponible: s?.stock_actual ?? 0,
+                            } : o))
+                          }}
+                          className="input-field">
+                          <option value="">Seleccionar origen...</option>
+                          {silosCampo.length > 0 && <optgroup label="🌾 Silos de campo">
+                            {silosCampo.map(s => (
+                              <option key={s.destino_id} value={s.destino_id}>
+                                {etiquetaSilo(s)} — disponible {Number(s.stock_actual).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                              </option>
+                            ))}
+                          </optgroup>}
+                          {acopiosCosecha.length > 0 && <optgroup label="🏭 Acopios">
+                            {acopiosCosecha.map(s => (
+                              <option key={s.destino_id} value={s.destino_id}>
+                                {etiquetaSilo(s)} — disponible {Number(s.stock_actual).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                              </option>
+                            ))}
+                          </optgroup>}
+                        </select>
+                      </div>
+                      <div className="w-36">
+                        <label className="text-xs text-campo-500 mb-1 block">Toneladas</label>
+                        <input type="number" min={0} step="0.001"
+                          value={orig.toneladas}
+                          onChange={e => setOrigenSilos(prev => prev.map((o,i) => i===idx ? {...o, toneladas: e.target.value} : o))}
+                          placeholder="0.000"
+                          className={`input-field ${excede ? 'border-amber-400' : ''}`} />
+                      </div>
+                      <button type="button"
+                        onClick={() => setOrigenSilos(prev => prev.filter((_,i) => i!==idx))}
+                        className="text-red-400 hover:text-red-600 text-lg leading-none mb-1">×</button>
                     </div>
-                    <div className="w-36">
-                      <label className="text-xs text-campo-500 mb-1 block">Toneladas</label>
-                      <input type="number" min={0} step="0.001"
-                        value={orig.toneladas}
-                        onChange={e => setOrigenSilos(prev => prev.map((o,i) => i===idx ? {...o, toneladas: e.target.value} : o))}
-                        placeholder="0.000"
-                        className="input-field" />
-                    </div>
-                    <button type="button"
-                      onClick={() => setOrigenSilos(prev => prev.filter((_,i) => i!==idx))}
-                      className="text-red-400 hover:text-red-600 text-lg leading-none mb-1">×</button>
+                    {excede && (
+                      <p className="text-xs text-amber-600 mt-1">⚠ Supera el disponible ({orig.disponible.toLocaleString('es-AR', {maximumFractionDigits:3})} tn) — se guarda igual, revisá el stock del silo.</p>
+                    )}
                   </div>
-                ))}
-                {origenSilos.filter(s => s.toneladas).length > 1 && (
+                )})}
+                {totalOrigenes(origenSilos) > 0 && (
                   <div className="text-xs text-campo-500 text-right font-medium">
-                    Total: {origenSilos.reduce((s,o) => s + (Number(o.toneladas)||0), 0).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                    Total: {totalOrigenes(origenSilos).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
                   </div>
                 )}
               </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { cargarSilosDisponibles, cargarOrigenesCPE, guardarOrigenesCPE, vincularOrigenesAMovimiento, etiquetaSilo, origenesValidos, totalOrigenes, type OrigenSeleccionado, type SiloDisponible } from '@/lib/stockOrigenes'
 
 export default function EditarCartaPorteForm() {
   const router = useRouter()
@@ -16,6 +17,9 @@ export default function EditarCartaPorteForm() {
   const [lotes, setLotes] = useState<any[]>([])
   const [acopios, setAcopios] = useState<any[]>([])
   const [contratos, setContratos] = useState<any[]>([])
+  const [silosCampo, setSilosCampo] = useState<SiloDisponible[]>([])
+  const [acopiosCosecha, setAcopiosCosecha] = useState<SiloDisponible[]>([])
+  const [origenSilos, setOrigenSilos] = useState<OrigenSeleccionado[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,6 +96,7 @@ export default function EditarCartaPorteForm() {
 
         if (carta) {
           setCartaId(carta.id)
+          cargarOrigenesCPE(supabase, carta.id).then(setOrigenSilos)
           const obs = carta.observaciones ?? ''
           // Preferimos siempre las columnas reales de la carta (lo que se
           // extrajo/guardó de verdad). El parseo de "observaciones" queda
@@ -179,6 +184,20 @@ export default function EditarCartaPorteForm() {
     }
     load()
   }, [numeroCpe])
+
+  // Cargar silos/acopios con stock disponible cuando cambia campaña o cultivo
+  useEffect(() => {
+    if (!form.campania_id || !form.cultivo_id) { setSilosCampo([]); setAcopiosCosecha([]); return }
+    const campaniaNombre = campanias.find((c:any) => c.id === form.campania_id)?.nombre ?? ''
+    const cultivoNombre = cultivos.find((c:any) => c.id === form.cultivo_id)?.nombre ?? ''
+    if (!campaniaNombre || !cultivoNombre) return
+    const cargarSilos = async () => {
+      const data = await cargarSilosDisponibles(supabase, campaniaNombre, cultivoNombre)
+      setSilosCampo(data.filter(s => s.ubicacion === 'campo'))
+      setAcopiosCosecha(data.filter(s => s.ubicacion === 'acopio'))
+    }
+    cargarSilos()
+  }, [form.campania_id, form.cultivo_id, campanias, cultivos])
 
   function set(key: string, value: string) { setForm(f => ({ ...f, [key]: value })) }
 
@@ -293,9 +312,26 @@ export default function EditarCartaPorteForm() {
     payload.peso_tara_destino = form.peso_tara_destino ? parseFloat(form.peso_tara_destino) : null
     payload.numero_cpe_vencimiento = form.fecha_vencimiento || null
 
+    if (!cartaId) { setError('No se encontró la carta de porte'); setSaving(false); return }
+
+    // Guardamos el origen ANTES de actualizar la CPE: si recién ahora se carga
+    // el peso de descarga, el trigger que crea el movimiento de stock corre
+    // como parte de este mismo update y ya encuentra el origen guardado.
+    const { error: errorOrigen } = await guardarOrigenesCPE(supabase, cartaId, origenSilos)
+    if (errorOrigen) { setError(`No se pudo guardar el origen: ${errorOrigen}`); setSaving(false); return }
+
     const { error } = await supabase.from('cartas_porte').update(payload).eq('id', cartaId)
-    if (error) { setError(error.message); setSaving(false) }
-    else { setSuccess(true); setTimeout(() => router.push('/dashboard/cartas-porte'), 1500) }
+    if (error) { setError(error.message); setSaving(false); return }
+
+    // Si el movimiento de stock ya existe (peso de descarga cargado), lo
+    // vinculamos/actualizamos con el origen recién guardado.
+    const { data: mov } = await supabase.from('movimientos_cereal').select('id').eq('carta_porte_id', cartaId).maybeSingle()
+    if (mov) {
+      const { error: errorVinculo } = await vincularOrigenesAMovimiento(supabase, mov.id, origenSilos)
+      if (errorVinculo) { setError(`Carta de porte actualizada, pero no se pudo vincular el origen al stock: ${errorVinculo}`); setSaving(false); return }
+    }
+
+    setSuccess(true); setTimeout(() => router.push('/dashboard/cartas-porte'), 1500)
   }
 
   const seccion = (letra: string, titulo: string) => (
@@ -333,6 +369,82 @@ export default function EditarCartaPorteForm() {
             <div className="col-span-2"><label className="block text-sm font-medium text-campo-700 mb-1">Contrato vinculado</label><select value={form.contrato_id} onChange={e => set('contrato_id', e.target.value)} className="input-field"><option value="">Sin contrato</option>{contratos.map(c => <option key={c.id} value={c.id}>{c.numero} — {(c.cultivos as any)?.nombre} — {(c.clientes as any)?.razon_social}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Estado</label><select value={form.estado} onChange={e => set('estado', e.target.value)} className="input-field"><option value="emitida">Emitida</option><option value="en_transito">En tránsito</option><option value="descargada">Descargada</option><option value="anulada">Anulada</option></select></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Bonificación calidad (%)</label><input type="number" step="0.01" value={form.bonificacion_calidad} onChange={e => set('bonificacion_calidad', e.target.value)} placeholder="2.00" className="input-field" /></div>
+          {/* Origen del cereal — aparece cuando hay silos o acopios cargados para este cultivo/campaña */}
+          {(silosCampo.length > 0 || acopiosCosecha.length > 0) && (
+            <div className="col-span-2 rounded-lg border border-campo-200 bg-campo-50 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-campo-700">Origen del cereal</label>
+                <button type="button"
+                  onClick={() => setOrigenSilos(prev => [...prev, {id: Date.now().toString(), destino_id: '', ubicacion: 'campo', etiqueta: '', acopio_cliente_id: null, disponible: 0, toneladas: ''}])}
+                  className="text-xs text-campo-500 underline hover:text-campo-700">+ Agregar silo</button>
+              </div>
+              {origenSilos.length === 0 && (
+                <p className="text-xs text-campo-400 italic">Sin origen seleccionado — hacé clic en + Agregar silo</p>
+              )}
+              <div className="space-y-2">
+                {origenSilos.map((orig, idx) => {
+                  const excede = Number(orig.toneladas) > 0 && Number(orig.toneladas) > orig.disponible
+                  return (
+                  <div key={orig.id}>
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <label className="text-xs text-campo-500 mb-1 block">Silo / Acopio</label>
+                        <select value={orig.destino_id}
+                          onChange={e => {
+                            const destinoId = e.target.value
+                            const s = [...silosCampo, ...acopiosCosecha].find(x => x.destino_id === destinoId)
+                            setOrigenSilos(prev => prev.map((o,i) => i===idx ? {
+                              ...o,
+                              destino_id: destinoId,
+                              ubicacion: s?.ubicacion ?? 'campo',
+                              etiqueta: s ? etiquetaSilo(s) : '',
+                              acopio_cliente_id: s?.acopio_cliente_id ?? null,
+                              disponible: s?.stock_actual ?? 0,
+                            } : o))
+                          }}
+                          className="input-field">
+                          <option value="">Seleccionar origen...</option>
+                          {silosCampo.length > 0 && <optgroup label="🌾 Silos de campo">
+                            {silosCampo.map(s => (
+                              <option key={s.destino_id} value={s.destino_id}>
+                                {etiquetaSilo(s)} — disponible {Number(s.stock_actual).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                              </option>
+                            ))}
+                          </optgroup>}
+                          {acopiosCosecha.length > 0 && <optgroup label="🏭 Acopios">
+                            {acopiosCosecha.map(s => (
+                              <option key={s.destino_id} value={s.destino_id}>
+                                {etiquetaSilo(s)} — disponible {Number(s.stock_actual).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                              </option>
+                            ))}
+                          </optgroup>}
+                        </select>
+                      </div>
+                      <div className="w-36">
+                        <label className="text-xs text-campo-500 mb-1 block">Toneladas</label>
+                        <input type="number" min={0} step="0.001"
+                          value={orig.toneladas}
+                          onChange={e => setOrigenSilos(prev => prev.map((o,i) => i===idx ? {...o, toneladas: e.target.value} : o))}
+                          placeholder="0.000"
+                          className={`input-field ${excede ? 'border-amber-400' : ''}`} />
+                      </div>
+                      <button type="button"
+                        onClick={() => setOrigenSilos(prev => prev.filter((_,i) => i!==idx))}
+                        className="text-red-400 hover:text-red-600 text-lg leading-none mb-1">×</button>
+                    </div>
+                    {excede && (
+                      <p className="text-xs text-amber-600 mt-1">⚠ Supera el disponible ({orig.disponible.toLocaleString('es-AR', {maximumFractionDigits:3})} tn) — se guarda igual, revisá el stock del silo.</p>
+                    )}
+                  </div>
+                )})}
+                {totalOrigenes(origenSilos) > 0 && (
+                  <div className="text-xs text-campo-500 text-right font-medium">
+                    Total: {totalOrigenes(origenSilos).toLocaleString('es-AR', {maximumFractionDigits:3})} tn
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           </div>
         </div>
 

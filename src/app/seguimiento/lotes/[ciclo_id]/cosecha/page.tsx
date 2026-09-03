@@ -171,12 +171,17 @@ export default function NuevaCosechaPage() {
       .eq('nombre', cicloIds.campana_nombre)
       .maybeSingle()
 
-    // Borrar siempre los movimientos anteriores de esta cosecha
+    // Borrar siempre los movimientos de INGRESO anteriores de esta cosecha.
+    // Los cosecha_destinos NO se borran en bloque: se actualizan (upsert) más abajo
+    // para mantener sus IDs estables, porque las salidas (CPE/ventas/entregas) se
+    // vinculan a esos IDs y un borrado+recreado los dejaría huérfanos.
     await supabase.from('movimientos_cereal').delete().eq('ciclo_id', Number(ciclo_id)).eq('tipo', 'cosecha')
-    await supabase.from('cosecha_destinos').delete().eq('ciclo_id', Number(ciclo_id))
 
     // Si no hay kg o no se pudo mapear la campaña, no creamos movimiento nuevo
-    if (kgTotal <= 0 || !campCereal?.id) return
+    if (kgTotal <= 0 || !campCereal?.id) {
+      await supabase.from('cosecha_destinos').delete().eq('ciclo_id', Number(ciclo_id))
+      return
+    }
 
     // Obtener el usuario logueado
     const { data: userData } = await supabase.auth.getUser()
@@ -188,7 +193,8 @@ export default function NuevaCosechaPage() {
     const totalDestinosTn = destinosValidos.reduce((s, d) => s + Number(d.toneladas), 0)
 
     if (destinosValidos.length > 0 && totalDestinosTn > 0) {
-      // Insertar un movimiento por cada destino
+      // Insertar un movimiento de INGRESO por cada destino (esto sí se recrea
+      // siempre, arriba ya se borraron los anteriores tipo 'cosecha')
       for (const dest of destinosValidos) {
         const tn = Number(dest.toneladas)
         await supabase.from('movimientos_cereal').insert({
@@ -205,17 +211,55 @@ export default function NuevaCosechaPage() {
           descripcion_movimiento: `Cosecha desde seguimiento — ${ciclo?.lote} ${ciclo?.cultivo} ${ciclo?.campana}${dest.ubicacion === 'acopio' ? ' → Acopio' : ' → Campo'}`,
         })
       }
-      // Guardar en cosecha_destinos para referencia
-      await supabase.from('cosecha_destinos').insert(
-        destinosValidos.map(d => ({
-          ciclo_id: Number(ciclo_id),
-          ubicacion: d.ubicacion,
-          acopio_cliente_id: d.ubicacion === 'acopio' && d.acopio_cliente_id ? d.acopio_cliente_id : null,
-          toneladas: Number(d.toneladas),
-          nombre: d.nombre || null,
-          usuario_id: usuarioId,
-        }))
-      )
+
+      // Upsert de cosecha_destinos: mantiene el mismo id para un destino que ya
+      // existía (matcheando por ubicación + nombre/acopio), porque las salidas
+      // (CPE/ventas/entregas) quedan vinculadas a ese id vía movimiento_cereal_origenes.
+      // Solo se borran los destinos que el usuario sacó del formulario, y sólo si
+      // no tienen ninguna salida vinculada (si la tienen, se dejan como están).
+      const { data: destinosDB } = await supabase
+        .from('cosecha_destinos')
+        .select('id, ubicacion, acopio_cliente_id, nombre, toneladas')
+        .eq('ciclo_id', Number(ciclo_id))
+
+      const claveDe = (u: string, acopioId: string | null, nombre: string | null) =>
+        `${u}|${u === 'acopio' ? (acopioId ?? '') : (nombre ?? '').trim().toLowerCase()}`
+
+      const usados = new Set<string>()
+      for (const d of destinosValidos) {
+        const acopioId = d.ubicacion === 'acopio' && d.acopio_cliente_id ? d.acopio_cliente_id : null
+        const nombre = d.nombre || null
+        const clave = claveDe(d.ubicacion, acopioId, nombre)
+        const match = (destinosDB ?? []).find(db =>
+          !usados.has(db.id) && claveDe(db.ubicacion, db.acopio_cliente_id, db.nombre) === clave
+        )
+        if (match) {
+          usados.add(match.id)
+          await supabase.from('cosecha_destinos').update({
+            toneladas: Number(d.toneladas),
+            nombre,
+            acopio_cliente_id: acopioId,
+          }).eq('id', match.id)
+        } else {
+          await supabase.from('cosecha_destinos').insert({
+            ciclo_id: Number(ciclo_id),
+            ubicacion: d.ubicacion,
+            acopio_cliente_id: acopioId,
+            toneladas: Number(d.toneladas),
+            nombre,
+            usuario_id: usuarioId,
+          })
+        }
+      }
+
+      // Destinos que ya no están en el formulario: intentar borrar. Si tienen
+      // salidas vinculadas, la FK (on delete restrict) rechaza el borrado y se
+      // dejan como están (no rompe el guardado de la cosecha).
+      for (const db of destinosDB ?? []) {
+        if (!usados.has(db.id)) {
+          await supabase.from('cosecha_destinos').delete().eq('id', db.id)
+        }
+      }
     } else {
       // Sin destinos configurados: todo al campo
       const toneladas = kgTotal / 1000
@@ -232,6 +276,15 @@ export default function NuevaCosechaPage() {
         acopio_cliente_id: null,
         descripcion_movimiento: `Cosecha desde seguimiento — ${ciclo?.lote} ${ciclo?.cultivo} ${ciclo?.campana}`,
       })
+      // Si antes había destinos cargados y se quitaron todos, intentar limpiarlos
+      // (se dejan los que ya tengan salidas vinculadas, por la FK restrict).
+      const { data: destinosDB } = await supabase
+        .from('cosecha_destinos')
+        .select('id')
+        .eq('ciclo_id', Number(ciclo_id))
+      for (const db of destinosDB ?? []) {
+        await supabase.from('cosecha_destinos').delete().eq('id', db.id)
+      }
     }
   }
 
