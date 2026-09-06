@@ -79,13 +79,13 @@ export default function EditarCartaPorteForm() {
         supabase.from('cultivos').select('*').eq('activo', true).order('nombre'),
         supabase.from('lotes').select('*').eq('activo', true).order('nombre'),
         supabase.from('acopios').select('*').eq('activo', true).order('nombre'),
-        supabase.from('contratos').select('*, cultivos(nombre), clientes(razon_social)').order('created_at', { ascending: false }).limit(50),
+        supabase.from('contratos').select('*, cultivos(nombre), clientes(razon_social)').in('estado', ['activo', 'parcial']).order('created_at', { ascending: false }).limit(50),
       ])
       setCampanias(c.data ?? [])
       setCultivos(cu.data ?? [])
       setLotes(l.data ?? [])
       setAcopios(a.data ?? [])
-      setContratos(co.data ?? [])
+      let contratosList = co.data ?? []
 
       if (numeroCpe) {
         const { data: carta } = await supabase
@@ -95,6 +95,17 @@ export default function EditarCartaPorteForm() {
           .single()
 
         if (carta) {
+          // Si esta CPE ya estaba vinculada a un contrato que ya no está
+          // activo (por ej. se cerró después), lo agregamos igual a la lista
+          // para no perder la selección guardada al editar.
+          if (carta.contrato_id && !contratosList.some(c => c.id === carta.contrato_id)) {
+            const { data: contratoVinculado } = await supabase
+              .from('contratos')
+              .select('*, cultivos(nombre), clientes(razon_social)')
+              .eq('id', carta.contrato_id)
+              .single()
+            if (contratoVinculado) contratosList = [contratoVinculado, ...contratosList]
+          }
           setCartaId(carta.id)
           cargarOrigenesCPE(supabase, carta.id).then(setOrigenSilos)
           const obs = carta.observaciones ?? ''
@@ -180,6 +191,7 @@ export default function EditarCartaPorteForm() {
           })
         }
       }
+      setContratos(contratosList)
       setLoading(false)
     }
     load()

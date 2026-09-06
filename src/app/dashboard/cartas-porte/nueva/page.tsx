@@ -75,7 +75,7 @@ export default function NuevaCartaPortePage() {
         supabase.from('cultivos').select('*').eq('activo', true).order('nombre'),
         supabase.from('lotes').select('*').eq('activo', true).order('nombre'),
         supabase.from('acopios').select('*').eq('activo', true).order('nombre'),
-        supabase.from('contratos').select('*, cultivos(nombre), clientes(razon_social)').order('created_at', { ascending: false }).limit(50),
+        supabase.from('contratos').select('*, cultivos(nombre), clientes(razon_social)').in('estado', ['activo', 'parcial']).order('created_at', { ascending: false }).limit(50),
       ])
       setCampanias(c.data ?? [])
       setCultivos(cu.data ?? [])
