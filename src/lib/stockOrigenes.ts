@@ -35,14 +35,18 @@ export type OrigenSeleccionado = {
 export async function cargarSilosDisponibles(
   supabase: SupabaseClient,
   campaniaNombre: string,
-  cultivoNombre: string
+  cultivoId: string
 ): Promise<SiloDisponible[]> {
-  if (!campaniaNombre || !cultivoNombre) return []
+  if (!campaniaNombre || !cultivoId) return []
+  // Se filtra por cultivo_comercial_id (no por cultivo puntual): así, al elegir
+  // "Soja" o "Maíz" en una venta/CPE, aparecen los silos cargados bajo Soja 1,
+  // Soja 2, Maíz Temprano, Maíz Tardío o Maíz 2 (el módulo de Seguimiento sigue
+  // registrando la cosecha por variante específica).
   const { data } = await supabase
     .from('vw_stock_silos')
     .select('destino_id, ubicacion, silo_nombre, acopio_nombre, acopio_cliente_id, toneladas_ingresadas, toneladas_egresadas, stock_actual')
     .eq('campania', campaniaNombre)
-    .eq('cultivo', cultivoNombre)
+    .eq('cultivo_comercial_id', cultivoId)
   return (data ?? []) as SiloDisponible[]
 }
 

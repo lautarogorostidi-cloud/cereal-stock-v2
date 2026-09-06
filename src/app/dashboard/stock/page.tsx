@@ -22,14 +22,29 @@ export default async function StockPage() {
     const stock_campo = Number(r.stock_campo ?? 0)
     const stock_acopio = Number(r.stock_acopio ?? 0)
 
-    // Silos de esta fila
+    // Silos de esta fila (vw_stock_silos guarda el cultivo específico -Soja 1,
+    // Maíz Temprano, etc.-, por eso se cruza por cultivo_comercial, no por cultivo)
     const silosRow = (silos ?? []).filter(
-      s => s.campania === r.campania && s.cultivo === r.cultivo
+      s => s.campania === r.campania && s.cultivo_comercial === r.cultivo
     )
     const silosCampo = silosRow.filter(s => s.ubicacion === 'campo')
     const silosAcopio = silosRow.filter(s => s.ubicacion === 'acopio')
 
-    return { ...r, ton_comprometidas_real, stock_fisico, margen, stock_campo, stock_acopio, silosCampo, silosAcopio }
+    // Un mismo acopio (Fedea, Morero, etc.) puede tener mercadería de varias
+    // cargas/lotes distintos (cada uno es un registro de vw_stock_silos): acá
+    // se suman todas las cargas de un mismo acopio en una sola línea, para
+    // mostrar cuánto hay en total en cada acopio, no una línea por carga.
+    const acopiosPorCliente = new Map<string, { nombre: string; total: number }>()
+    for (const s of silosAcopio) {
+      const key = s.acopio_cliente_id ?? s.acopio_nombre ?? 'acopio'
+      const prev = acopiosPorCliente.get(key)
+      const monto = Number(s.stock_actual)
+      if (prev) prev.total += monto
+      else acopiosPorCliente.set(key, { nombre: s.acopio_nombre ?? 'Acopio', total: monto })
+    }
+    const acopiosAgrupados = Array.from(acopiosPorCliente.values())
+
+    return { ...r, ton_comprometidas_real, stock_fisico, margen, stock_campo, stock_acopio, silosCampo, silosAcopio, acopiosAgrupados }
   })
 
   const fmt = (n: number | null | undefined) => {
@@ -122,21 +137,22 @@ export default async function StockPage() {
                     )}
                   </td>
 
-                  {/* Acopios */}
+                  {/* Acopios: una línea por acopio (Fedea, Morero, etc.), sumando
+                      todas sus cargas/lotes en un solo total */}
                   <td className="px-5 py-3">
-                    {r.silosAcopio.length === 0 ? (
+                    {r.acopiosAgrupados.length === 0 ? (
                       r.stock_acopio > 0
                         ? <span className="text-blue-600">{fmt(r.stock_acopio)}</span>
                         : <span className="text-campo-300">—</span>
                     ) : (
                       <div className="space-y-0.5">
-                        {r.silosAcopio.map((s: any, j: number) => (
+                        {r.acopiosAgrupados.map((a: { nombre: string; total: number }, j: number) => (
                           <div key={j} className="flex items-center gap-2">
-                            <span className="font-medium text-blue-600">{fmt(Number(s.stock_actual))}</span>
-                            <span className="text-xs text-blue-500">{s.acopio_nombre ?? 'Acopio'}</span>
+                            <span className="font-medium text-blue-600">{fmt(a.total)}</span>
+                            <span className="text-xs text-blue-500">{a.nombre}</span>
                           </div>
                         ))}
-                        {r.silosAcopio.length > 1 && (
+                        {r.acopiosAgrupados.length > 1 && (
                           <div className="flex items-center justify-between border-t border-blue-100 pt-0.5">
                             <span className="text-xs text-campo-400">Total acopio</span>
                             <span className="text-xs font-semibold text-blue-700">{fmt(r.stock_acopio)}</span>

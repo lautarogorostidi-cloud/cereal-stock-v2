@@ -84,10 +84,9 @@ export default function NuevoMovimientoPage() {
   useEffect(() => {
     if (modo !== 'salida' || !form.campania_id || !form.cultivo_id) { setSilosCampo([]); setAcopiosCosecha([]); return }
     const campaniaNombre = campanias.find((c:any) => c.id === form.campania_id)?.nombre ?? ''
-    const cultivoNombre = cultivos.find((c:any) => c.id === form.cultivo_id)?.nombre ?? ''
-    if (!campaniaNombre || !cultivoNombre) return
+    if (!campaniaNombre) return
     const cargarSilos = async () => {
-      const data = await cargarSilosDisponibles(supabase, campaniaNombre, cultivoNombre)
+      const data = await cargarSilosDisponibles(supabase, campaniaNombre, form.cultivo_id)
       setSilosCampo(data.filter(s => s.ubicacion === 'campo'))
       setAcopiosCosecha(data.filter(s => s.ubicacion === 'acopio'))
     }
