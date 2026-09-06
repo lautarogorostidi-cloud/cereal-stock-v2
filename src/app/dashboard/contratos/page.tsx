@@ -19,6 +19,7 @@ export default function ContratosPage() {
   const [contratos, setContratos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [cerrando, setCerrando] = useState<string | null>(null)
+  const [filtro, setFiltro] = useState<'activos' | 'cumplidos' | 'todos'>('activos')
 
   async function load() {
     const { data } = await supabase
@@ -58,6 +59,13 @@ export default function ContratosPage() {
     }
   }
 
+  const contratosCumplidos = contratos.filter(c => c.estado === 'cumplido')
+  const contratosActivos = contratos.filter(c => c.estado !== 'cumplido' && c.estado !== 'cancelado')
+  const contratosFiltrados =
+    filtro === 'activos' ? contratosActivos :
+    filtro === 'cumplidos' ? contratosCumplidos :
+    contratos
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -66,6 +74,27 @@ export default function ContratosPage() {
           <p className="text-campo-500 text-sm mt-0.5">Posición por contrato de venta</p>
         </div>
         <Link href="/dashboard/contratos/nuevo" className="btn-primary">+ Nuevo contrato</Link>
+      </div>
+
+      {/* Filtro por estado */}
+      <div className="flex items-center gap-2">
+        {([
+          { key: 'activos', label: 'Activos', count: contratosActivos.length },
+          { key: 'cumplidos', label: 'Cumplidos', count: contratosCumplidos.length },
+          { key: 'todos', label: 'Todos', count: contratos.length },
+        ] as const).map(op => (
+          <button
+            key={op.key}
+            onClick={() => setFiltro(op.key)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              filtro === op.key
+                ? 'bg-campo-600 text-white'
+                : 'bg-campo-100 text-campo-600 hover:bg-campo-200'
+            }`}
+          >
+            {op.label} <span className="opacity-70">({op.count})</span>
+          </button>
+        ))}
       </div>
 
       <div className="card overflow-hidden p-0">
@@ -92,7 +121,7 @@ export default function ContratosPage() {
               {loading && (
                 <tr><td colSpan={13} className="px-4 py-8 text-center text-campo-400">Cargando...</td></tr>
               )}
-              {!loading && contratos.map((c, i) => (
+              {!loading && contratosFiltrados.map((c, i) => (
                 <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-campo-600">{c.numero}</td>
                   <td className="px-4 py-3 text-campo-600">{new Date(c.fecha_contrato).toLocaleDateString('es-AR')}</td>
@@ -151,8 +180,10 @@ export default function ContratosPage() {
                   </td>
                 </tr>
               ))}
-              {!loading && contratos.length === 0 && (
-                <tr><td colSpan={13} className="px-4 py-10 text-center text-campo-400">No hay contratos registrados</td></tr>
+              {!loading && contratosFiltrados.length === 0 && (
+                <tr><td colSpan={13} className="px-4 py-10 text-center text-campo-400">
+                  {contratos.length === 0 ? 'No hay contratos registrados' : 'No hay contratos en este estado'}
+                </td></tr>
               )}
             </tbody>
           </table>
