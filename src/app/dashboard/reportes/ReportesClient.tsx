@@ -152,14 +152,27 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                   <td className="px-4 py-3 text-xs text-campo-600">{r.destino_localidad ?? '—'}</td>
                   <td className="px-4 py-3 text-xs text-campo-600">{r.chofer_nombre ?? '—'}</td>
                   <td className="px-4 py-3 text-right font-medium">{fmt3(Number(r.ton_totales ?? 0))}</td>
-                  <td className="px-4 py-3 text-right text-campo-700">USD {fmt2(Number(r.precio_base ?? 0))}</td>
-                  <td className="px-4 py-3 text-right text-campo-700">{Number(r.plus ?? 0) > 0 ? `USD ${fmt2(Number(r.plus))}` : '—'}</td>
+                  <td className="px-4 py-3 text-right text-campo-700">
+                    {r.precio_base == null ? (
+                      <span className="text-orange-500 text-xs">Sin tipo de cambio</span>
+                    ) : (
+                      <>
+                        USD {fmt2(Number(r.precio_base))}
+                        {r.moneda_original && r.moneda_original !== 'USD' && (
+                          <div className="text-[10px] text-campo-400 font-normal">
+                            {r.moneda_original} → TC {fmt2(Number(r.tipo_cambio_usado))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-campo-700">{r.plus != null && Number(r.plus) > 0 ? `USD ${fmt2(Number(r.plus))}` : '—'}</td>
                   <td className="px-4 py-3 text-right text-campo-700">{Number(r.bonificacion_pct ?? 0) > 0 ? `${fmt2(Number(r.bonificacion_pct))}%` : '—'}</td>
-                  <td className="px-4 py-3 text-right text-green-600">{Number(r.bonificacion_usd_total ?? 0) > 0 ? `USD ${fmt2(Number(r.bonificacion_usd_total))}` : '—'}</td>
-                  <td className="px-4 py-3 text-right text-red-500">USD {fmt2(Number(r.comision_total ?? 0))}</td>
+                  <td className="px-4 py-3 text-right text-green-600">{r.bonificacion_usd_total != null && Number(r.bonificacion_usd_total) > 0 ? `USD ${fmt2(Number(r.bonificacion_usd_total))}` : '—'}</td>
+                  <td className="px-4 py-3 text-right text-red-500">{r.comision_total == null ? '—' : `USD ${fmt2(Number(r.comision_total))}`}</td>
                   <td className="px-4 py-3 text-right text-red-500">{Number(r.tarifa_flete ?? 0) > 0 ? `USD ${fmt2(Number(r.tarifa_flete))}` : '—'}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-campo-900">USD {fmt2(Number(r.ingreso_neto_total ?? 0))}</td>
-                  <td className="px-4 py-3 text-right font-medium text-campo-800">USD {fmt2(Number(r.precio_neto_promedio ?? 0))}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-campo-900">{r.ingreso_neto_total == null ? '—' : `USD ${fmt2(Number(r.ingreso_neto_total))}`}</td>
+                  <td className="px-4 py-3 text-right font-medium text-campo-800">{r.precio_neto_promedio == null ? '—' : `USD ${fmt2(Number(r.precio_neto_promedio))}`}</td>
                 </tr>
               ))}
               {filtrados.length === 0 && (
