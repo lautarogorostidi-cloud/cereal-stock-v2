@@ -3,17 +3,15 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-type Campo = { id: number; nombre: string }
 type CategoriaHacienda = { id: string; nombre: string; orden: number }
-type StockRow = { campo_id: number; campo_nombre: string; categoria_id: string; categoria_nombre: string; categoria_orden: number; stock_actual: number }
-type StockPorCampo = { campo_nombre: string; filas: StockRow[]; total: number }
+type StockRow = { categoria_id: string; categoria_nombre: string; categoria_orden: number; stock_actual: number }
 type FeedlotStock = { categoria: string; cabezas_activas: number }
 type MovimientoRow = {
-  id: string; campo_id: number; categoria_id: string; cantidad: number
+  id: string; categoria_id: string; cantidad: number
   tipo_movimiento: string; fecha: string; precio_cabeza_usd: number | null
   monto_total_usd: number | null; observaciones: string | null
   movimiento_relacionado_id: string | null
-  categorias_hacienda: { nombre: string }; campos: { nombre: string }
+  categorias_hacienda: { nombre: string }
 }
 
 type TipoMovimientoUI = 'compra' | 'venta' | 'nacimiento' | 'muerte' | 'recategorizacion' | 'ajuste_positivo' | 'ajuste_negativo'
@@ -48,9 +46,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 
 export default function GanaderiaMovimientosPage() {
   const supabase = createClient()
-  const [campos, setCampos] = useState<Campo[]>([])
   const [categorias, setCategorias] = useState<CategoriaHacienda[]>([])
-  const [campoId, setCampoId] = useState('')
   const [tipo, setTipo] = useState<TipoMovimientoUI>('compra')
   const [categoriaId, setCategoriaId] = useState('')
   const [categoriaDestinoId, setCategoriaDestinoId] = useState('')
@@ -63,7 +59,7 @@ export default function GanaderiaMovimientosPage() {
   const [exito, setExito] = useState<string | null>(null)
   const [movimientos, setMovimientos] = useState<MovimientoRow[]>([])
   const [cargandoMov, setCargandoMov] = useState(true)
-  const [stock, setStock] = useState<StockPorCampo[]>([])
+  const [stock, setStock] = useState<StockRow[]>([])
   const [feedlotStock, setFeedlotStock] = useState<FeedlotStock[]>([])
   const [cargandoStock, setCargandoStock] = useState(true)
   const [errorStock, setErrorStock] = useState<string | null>(null)
@@ -78,11 +74,8 @@ export default function GanaderiaMovimientosPage() {
 
   useEffect(() => {
     const cargar = async () => {
-      const [{ data: c }, { data: cat }] = await Promise.all([
-        supabase.from('campos').select('id, nombre').order('nombre'),
-        supabase.from('categorias_hacienda').select('id, nombre, orden').order('orden'),
-      ])
-      setCampos(c ?? []); setCategorias(cat ?? [])
+      const { data: cat } = await supabase.from('categorias_hacienda').select('id, nombre, orden').order('orden')
+      setCategorias(cat ?? [])
     }
     cargar(); cargarStock(); cargarMovimientos()
   }, [])
@@ -105,23 +98,16 @@ export default function GanaderiaMovimientosPage() {
     }
     setFeedlotStock(Array.from(feedlotMap.entries()).map(([categoria, cabezas_activas]) => ({ categoria, cabezas_activas })).sort((a, b) => a.categoria.localeCompare(b.categoria)))
 
-    const { data, error: eq } = await supabase.from('vw_stock_hacienda').select('*').order('campo_nombre').order('categoria_orden')
+    const { data, error: eq } = await supabase.from('vw_stock_hacienda').select('*').order('categoria_orden')
     if (eq) { setErrorStock(eq.message); setCargandoStock(false); return }
-    const filas = (data ?? []) as StockRow[]
-    const agrupado = new Map<string, StockPorCampo>()
-    for (const f of filas) {
-      if (f.stock_actual === 0) continue
-      if (!agrupado.has(f.campo_nombre)) agrupado.set(f.campo_nombre, { campo_nombre: f.campo_nombre, filas: [], total: 0 })
-      const g = agrupado.get(f.campo_nombre)!
-      g.filas.push(f); g.total += f.stock_actual
-    }
-    setStock(Array.from(agrupado.values())); setCargandoStock(false)
+    const filas = ((data ?? []) as StockRow[]).filter(f => f.stock_actual !== 0)
+    setStock(filas); setCargandoStock(false)
   }
 
   const cargarMovimientos = async () => {
     setCargandoMov(true)
     const { data } = await supabase.from('movimientos_hacienda')
-      .select('*, categorias_hacienda(nombre), campos(nombre)')
+      .select('*, categorias_hacienda(nombre)')
       .not('tipo_movimiento', 'in', '(recategorizacion_alta)')
       .order('fecha', { ascending: false }).limit(50)
     setMovimientos((data ?? []) as MovimientoRow[]); setCargandoMov(false)
@@ -132,7 +118,6 @@ export default function GanaderiaMovimientosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setExito(null)
-    if (!campoId) return setError('Seleccioná un campo.')
     if (!categoriaId) return setError('Seleccioná una categoría.')
     if (esRecategorizacion && !categoriaDestinoId) return setError('Seleccioná la categoría destino.')
     if (esRecategorizacion && categoriaDestinoId === categoriaId) return setError('Las categorías deben ser distintas.')
@@ -144,16 +129,16 @@ export default function GanaderiaMovimientosPage() {
       const precioNum = requierePrecio ? Number(precioCabeza) : null
       if (esRecategorizacion) {
         const { data: baja, error: eBaja } = await supabase.from('movimientos_hacienda')
-          .insert({ campo_id: Number(campoId), categoria_id: categoriaId, cantidad: cantNum, tipo_movimiento: 'recategorizacion_baja', fecha, observaciones: observaciones || null })
+          .insert({ categoria_id: categoriaId, cantidad: cantNum, tipo_movimiento: 'recategorizacion_baja', fecha, observaciones: observaciones || null })
           .select('id').single()
         if (eBaja || !baja) throw eBaja ?? new Error('Error en la baja.')
         const { data: alta, error: eAlta } = await supabase.from('movimientos_hacienda')
-          .insert({ campo_id: Number(campoId), categoria_id: categoriaDestinoId, cantidad: cantNum, tipo_movimiento: 'recategorizacion_alta', fecha, observaciones: observaciones || null, movimiento_relacionado_id: baja.id })
+          .insert({ categoria_id: categoriaDestinoId, cantidad: cantNum, tipo_movimiento: 'recategorizacion_alta', fecha, observaciones: observaciones || null, movimiento_relacionado_id: baja.id })
           .select('id').single()
         if (eAlta || !alta) { await supabase.from('movimientos_hacienda').delete().eq('id', baja.id); throw eAlta ?? new Error('Error en la alta.') }
         await supabase.from('movimientos_hacienda').update({ movimiento_relacionado_id: alta.id }).eq('id', baja.id)
       } else {
-        const { error: eIns } = await supabase.from('movimientos_hacienda').insert({ campo_id: Number(campoId), categoria_id: categoriaId, cantidad: cantNum, tipo_movimiento: tipo, fecha, precio_cabeza_usd: precioNum, observaciones: observaciones || null })
+        const { error: eIns } = await supabase.from('movimientos_hacienda').insert({ categoria_id: categoriaId, cantidad: cantNum, tipo_movimiento: tipo, fecha, precio_cabeza_usd: precioNum, observaciones: observaciones || null })
         if (eIns) throw eIns
       }
       setExito('Movimiento registrado.'); setCategoriaId(''); setCategoriaDestinoId(''); setCantidad(''); setPrecioCabeza(''); setObservaciones('')
@@ -204,12 +189,6 @@ export default function GanaderiaMovimientosPage() {
           {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
           {exito && <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{exito}</div>}
 
-          <div><label className={labelCls}>Campo</label>
-            <select value={campoId} onChange={(e) => setCampoId(e.target.value)} className={inputCls}>
-              <option value="">Seleccionar campo...</option>
-              {campos.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select></div>
-
           <div><label className={labelCls}>Tipo de movimiento</label>
             <select value={tipo} onChange={(e) => { setTipo(e.target.value as TipoMovimientoUI); setCategoriaDestinoId(''); setPrecioCabeza('') }} className={inputCls}>
               {TIPOS_MOVIMIENTO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -256,21 +235,21 @@ export default function GanaderiaMovimientosPage() {
             {!cargandoStock && errorStock && <p className="text-sm text-red-600">{errorStock}</p>}
             {!cargandoStock && !errorStock && stock.length === 0 && feedlotStock.length === 0 && <p className="text-sm text-stone-500">Sin cabezas registradas.</p>}
             {!cargandoStock && (stock.length > 0 || feedlotStock.length > 0) && (() => {
-              const totalCampos = stock.reduce((s, g) => s + g.total, 0)
+              const totalCampo = stock.reduce((s, f) => s + f.stock_actual, 0)
               const totalFeedlot = feedlotStock.reduce((s, f) => s + f.cabezas_activas, 0)
-              const totalGlobal = totalCampos + totalFeedlot
+              const totalGlobal = totalCampo + totalFeedlot
               return (
                 <div className="space-y-4">
-                  {/* Por campo */}
-                  {stock.map((grupo) => (
-                    <div key={grupo.campo_nombre} className="overflow-hidden rounded-lg border border-stone-200">
+                  {/* Total consolidado por categoría (sin discriminar por campo) */}
+                  {stock.length > 0 && (
+                    <div className="overflow-hidden rounded-lg border border-stone-200">
                       <div className="flex items-center justify-between bg-stone-50 px-4 py-2">
-                        <span className="text-sm font-semibold text-stone-900">{grupo.campo_nombre}</span>
-                        <span className="text-sm text-stone-500">{grupo.total.toLocaleString('es-AR')} cabezas</span>
+                        <span className="text-sm font-semibold text-stone-900">Campo</span>
+                        <span className="text-sm text-stone-500">{totalCampo.toLocaleString('es-AR')} cabezas</span>
                       </div>
                       <table className="w-full text-sm">
                         <tbody>
-                          {grupo.filas.map((f) => (
+                          {stock.map((f) => (
                             <tr key={f.categoria_id} className="border-t border-stone-100">
                               <td className="px-4 py-1.5 text-stone-700">{f.categoria_nombre}</td>
                               <td className="px-4 py-1.5 text-right font-medium text-stone-900">{f.stock_actual.toLocaleString('es-AR')}</td>
@@ -279,7 +258,7 @@ export default function GanaderiaMovimientosPage() {
                         </tbody>
                       </table>
                     </div>
-                  ))}
+                  )}
 
                   {/* Feedlot */}
                   {feedlotStock.length > 0 && (
@@ -320,7 +299,6 @@ export default function GanaderiaMovimientosPage() {
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
                     <th className="px-4 py-2 font-medium">Fecha</th>
-                    <th className="px-4 py-2 font-medium">Campo</th>
                     <th className="px-4 py-2 font-medium">Tipo</th>
                     <th className="px-4 py-2 font-medium">Categoría</th>
                     <th className="px-4 py-2 text-right font-medium">Cabezas</th>
@@ -331,7 +309,6 @@ export default function GanaderiaMovimientosPage() {
                     {movimientos.map((m) => (
                       <tr key={m.id} className="border-t border-stone-100">
                         <td className="px-4 py-2 text-stone-600">{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                        <td className="px-4 py-2 text-stone-700">{m.campos?.nombre}</td>
                         <td className="px-4 py-2 text-stone-700">{LABEL_TIPO[m.tipo_movimiento] ?? m.tipo_movimiento}</td>
                         <td className="px-4 py-2 text-stone-700">{m.categorias_hacienda?.nombre}</td>
                         <td className="px-4 py-2 text-right font-medium text-stone-900">{m.cantidad.toLocaleString('es-AR')}</td>
@@ -356,7 +333,7 @@ export default function GanaderiaMovimientosPage() {
         <Modal title="Editar movimiento" onClose={() => setEditMov(null)}>
           {emError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{emError}</div>}
           <div className="rounded-md bg-stone-50 px-3 py-2 text-sm text-stone-600">
-            <span className="font-medium">{editMov.campos?.nombre}</span> · {LABEL_TIPO[editMov.tipo_movimiento] ?? editMov.tipo_movimiento}
+            <span className="font-medium">{LABEL_TIPO[editMov.tipo_movimiento] ?? editMov.tipo_movimiento}</span>
           </div>
           <div><label className={labelCls}>Categoría</label>
             <select value={emCategoriaId} onChange={(e) => setEmCategoriaId(e.target.value)} className={inputCls}>
