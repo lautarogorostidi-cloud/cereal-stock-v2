@@ -11,13 +11,13 @@ type Lote = { id: string; nombre: string; establecimiento: string }
 type CategoriaHacienda = { id: string; nombre: string; orden: number }
 type Campania = { id: number; nombre: string }
 type ProductoVeterinario = { id: string; nombre: string; tipo: string; unidad: string; precio_usd: number | null }
-type LoteFeedlot = { id: string; numero_lote: string; campos: { nombre: string } }
+type LoteFeedlot = { id: string; campania: string; categorias_hacienda: { nombre: string } }
 
 type CostoGanaderia = {
   id: string; fecha: string; tipo: string; descripcion: string | null
   monto_usd: number; lote_feedlot_id: string | null; campo_id: number | null
   campania: string | null; categoria_id: string | null; observaciones: string | null
-  lotes_feedlot: { numero_lote: string; campos: { nombre: string } } | null
+  feedlot_ingresos: { campania: string; categorias_hacienda: { nombre: string } } | null
   campos: { nombre: string } | null
   categorias_hacienda: { nombre: string } | null
 }
@@ -210,7 +210,7 @@ export default function CostosSanidadPage() {
   const cargarCostos = async () => {
     setCargandoCostos(true)
     const { data } = await supabase.from('costos_ganaderia')
-      .select('*, lotes_feedlot(numero_lote, campos(nombre)), campos(nombre), categorias_hacienda(nombre)')
+      .select('*, feedlot_ingresos(campania, categorias_hacienda(nombre)), campos(nombre), categorias_hacienda(nombre)')
       .order('fecha', { ascending: false })
     setCostos((data ?? []) as unknown as CostoGanaderia[])
     setCargandoCostos(false)
@@ -383,7 +383,7 @@ export default function CostosSanidadPage() {
     if (filtroTipo && c.tipo !== filtroTipo) return false
     if (filtroCampo) {
       const cn = campos.find(x => x.id === Number(filtroCampo))?.nombre
-      if (c.lotes_feedlot?.campos?.nombre !== cn && c.campos?.nombre !== cn) return false
+      if (c.campos?.nombre !== cn) return false
     }
     if (filtroCampania && c.campania !== filtroCampania) return false
     return true
@@ -529,8 +529,8 @@ export default function CostosSanidadPage() {
                         <td className="px-3 py-2 text-stone-700">{TIPO_LABELS[c.tipo] ?? c.tipo}</td>
                         <td className="px-3 py-2 text-stone-700">{c.descripcion ?? '—'}</td>
                         <td className="px-3 py-2">
-                          {c.lotes_feedlot
-                            ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Feedlot · {c.lotes_feedlot.campos?.nombre}</span>
+                          {c.feedlot_ingresos
+                            ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Feedlot · {c.feedlot_ingresos.campania} · {c.feedlot_ingresos.categorias_hacienda?.nombre}</span>
                             : <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{c.campos?.nombre}{c.campania ? ' · ' + c.campania : ''}</span>}
                         </td>
                         <td className="px-3 py-2 text-right font-medium text-stone-900">USD {fmt(c.monto_usd)}</td>
