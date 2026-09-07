@@ -9,7 +9,14 @@ import { createClient } from '@/lib/supabase/client'
 type CategoriaHacienda = { id: string; nombre: string; orden: number }
 type Campania = { id: number; nombre: string }
 type ProductoVeterinario = { id: string; nombre: string; tipo: string; unidad: string; precio_usd: number | null }
-type LoteFeedlot = { id: string; campania: string; categorias_hacienda: { nombre: string } }
+type LoteFeedlot = { id: string; campania: string; cantidad_cabezas: number; categorias_hacienda: { nombre: string } }
+type FeedlotSalida = { ingreso_id: string; cantidad_cabezas: number }
+type PastoreoActivo = {
+  id: string; cantidad: number
+  campos: { nombre: string } | null
+  lotes: { nombre: string } | null
+  categorias_hacienda: { nombre: string } | null
+}
 
 type CostoGanaderia = {
   id: string; fecha: string; tipo: string; descripcion: string | null
@@ -24,12 +31,16 @@ type SanidadRow = {
   campania_id: number | null; fecha: string; cantidad_animales: number
   dosis_por_animal: number; total_producto: number
   precio_unitario_usd: number | null; costo_total_usd: number | null
-  monto_usd: number | null; lote_feedlot_id: string | null
+  monto_usd: number | null; lote_feedlot_id: string | null; pastoreo_id: string | null
   observaciones: string | null
   productos_veterinarios: { nombre: string; unidad: string }
   categorias_hacienda: { nombre: string } | null
   campanas: { nombre: string } | null
+  feedlot_ingresos: { campania: string; categorias_hacienda: { nombre: string } } | null
+  pastoreos: { cantidad: number; campos: { nombre: string } | null; lotes: { nombre: string } | null } | null
 }
+
+type AsociacionSanidad = 'campo' | 'feedlot'
 
 type AsociacionTipo = 'feedlot' | 'general'
 type Tab = 'costos' | 'sanidad'
@@ -80,6 +91,8 @@ export default function CostosSanidadPage() {
   const [categorias, setCategorias] = useState<CategoriaHacienda[]>([])
   const [campanias, setCampanias] = useState<Campania[]>([])
   const [lotesFeedlot, setLotesFeedlot] = useState<LoteFeedlot[]>([])
+  const [feedlotSalidas, setFeedlotSalidas] = useState<FeedlotSalida[]>([])
+  const [pastoreosActivos, setPastoreosActivos] = useState<PastoreoActivo[]>([])
   const [productosVet, setProductosVet] = useState<ProductoVeterinario[]>([])
 
   // ---- COSTOS ----
@@ -120,7 +133,9 @@ export default function CostosSanidadPage() {
   const [sCategoriaId, setSCategoriaId] = useState('')
   const [sCampaniaId, setSCampaniaId] = useState('')
   const [sProductoId, setSProductoId] = useState('')
+  const [sAsoc, setSAsoc] = useState<AsociacionSanidad>('campo')
   const [sLoteFeedlotId, setSLoteFeedlotId] = useState('')
+  const [sPastoreoId, setSPastoreoId] = useState('')
   const [sFecha, setSFecha] = useState(new Date().toISOString().slice(0, 10))
   const [sCantidad, setSCantidad] = useState('')
   const [sDosis, setSsDosis] = useState('')
@@ -141,6 +156,9 @@ export default function CostosSanidadPage() {
   const [esCampaniaId, setEsCampaniaId] = useState('')
   const [esCatId, setEsCatId] = useState('')
   const [esProductoId, setEsProductoId] = useState('')
+  const [esAsoc, setEsAsoc] = useState<AsociacionSanidad>('campo')
+  const [esLoteFeedlotId, setEsLoteFeedlotId] = useState('')
+  const [esPastoreoId, setEsPastoreoId] = useState('')
   const [esFecha, setEsFecha] = useState('')
   const [esCantidad, setEsCantidad] = useState('')
   const [esDosis, setEsDosis] = useState('')
@@ -172,15 +190,19 @@ export default function CostosSanidadPage() {
 
   useEffect(() => {
     const cargar = async () => {
-      const [{ data: cat }, { data: camp }, { data: lf }, { data: prod }] = await Promise.all([
+      const [{ data: cat }, { data: camp }, { data: lf }, { data: fs }, { data: past }, { data: prod }] = await Promise.all([
         supabase.from('categorias_hacienda').select('id, nombre, orden').order('orden'),
         supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false }),
-        supabase.from('feedlot_ingresos').select('id, campania, categorias_hacienda(nombre)').order('fecha_entrada', { ascending: false }),
+        supabase.from('feedlot_ingresos').select('id, campania, cantidad_cabezas, categorias_hacienda(nombre)').order('fecha_entrada', { ascending: false }),
+        supabase.from('feedlot_salidas').select('ingreso_id, cantidad_cabezas'),
+        supabase.from('pastoreos').select('id, cantidad, campos(nombre), lotes(nombre), categorias_hacienda(nombre)').is('fecha_salida', null).order('fecha_entrada', { ascending: false }),
         supabase.from('productos_veterinarios').select('id, nombre, tipo, unidad, precio_usd').eq('activo', true).order('nombre'),
       ])
       setCategorias(cat ?? [])
       setCampanias(camp ?? [])
       setLotesFeedlot((lf ?? []) as unknown as LoteFeedlot[])
+      setFeedlotSalidas((fs ?? []) as unknown as FeedlotSalida[])
+      setPastoreosActivos((past ?? []) as unknown as PastoreoActivo[])
       setProductosVet(prod ?? [])
     }
     cargar()
@@ -200,7 +222,7 @@ export default function CostosSanidadPage() {
   const cargarSanidad = async () => {
     setCargandoSanidad(true)
     const { data } = await supabase.from('sanidad_hacienda')
-      .select('*, productos_veterinarios(nombre, unidad), categorias_hacienda(nombre), campanas(nombre)')
+      .select('*, productos_veterinarios(nombre, unidad), categorias_hacienda(nombre), campanas(nombre), feedlot_ingresos(campania, categorias_hacienda(nombre)), pastoreos(cantidad, campos(nombre), lotes(nombre))')
       .order('fecha', { ascending: false })
     setSanidades((data ?? []) as unknown as SanidadRow[])
     setCargandoSanidad(false)
@@ -267,6 +289,12 @@ export default function CostosSanidadPage() {
     cargarCostos()
   }
 
+  // Lotes feedlot con cabezas activas (ingresadas - egresadas > 0)
+  const lotesFeedlotActivos = lotesFeedlot.filter(l => {
+    const salidas = feedlotSalidas.filter(s => s.ingreso_id === l.id).reduce((s, x) => s + x.cantidad_cabezas, 0)
+    return l.cantidad_cabezas - salidas > 0
+  })
+
   // ---- Acciones sanidad ----
   const handleSelectProducto = (id: string) => {
     setSProductoId(id)
@@ -287,7 +315,8 @@ export default function CostosSanidadPage() {
         producto_id: sProductoId, fecha: sFecha,
         cantidad_animales: Number(sCantidad), dosis_por_animal: Number(sDosis),
         precio_unitario_usd: sPrecioUnitario ? Number(sPrecioUnitario) : null,
-        lote_feedlot_id: sLoteFeedlotId || null,
+        lote_feedlot_id: sAsoc === 'feedlot' ? (sLoteFeedlotId || null) : null,
+        pastoreo_id: sAsoc === 'campo' ? (sPastoreoId || null) : null,
         monto_usd: sMontoUsd ? Number(sMontoUsd) : null,
         observaciones: sObs || null,
       })
@@ -295,7 +324,7 @@ export default function CostosSanidadPage() {
       setSExito('Aplicación registrada.')
       setSCategoriaId(''); setSProductoId(''); setSCantidad('')
       setSsDosis(''); setSPrecioUnitario(''); setSMontoUsd(''); setSsObs('')
-      setSLoteFeedlotId('')
+      setSLoteFeedlotId(''); setSPastoreoId('')
       cargarSanidad()
     } catch (err: any) { setSError(err.message) }
     finally { setSGuardando(false) }
@@ -323,6 +352,8 @@ export default function CostosSanidadPage() {
     setEsCantidad(String(s.cantidad_animales)); setEsDosis(String(s.dosis_por_animal))
     setEsPrecioUnitario(s.precio_unitario_usd ? String(s.precio_unitario_usd) : '')
     setEsMontoUsd(s.monto_usd ? String(s.monto_usd) : ''); setEsObs(s.observaciones ?? '')
+    setEsAsoc(s.lote_feedlot_id ? 'feedlot' : 'campo')
+    setEsLoteFeedlotId(s.lote_feedlot_id ?? ''); setEsPastoreoId(s.pastoreo_id ?? '')
     setEsError(null)
   }
 
@@ -337,6 +368,8 @@ export default function CostosSanidadPage() {
         precio_unitario_usd: esPrecioUnitario ? Number(esPrecioUnitario) : null,
         monto_usd: esMontoUsd ? Number(esMontoUsd) : null,
         observaciones: esObs || null,
+        lote_feedlot_id: esAsoc === 'feedlot' ? (esLoteFeedlotId || null) : null,
+        pastoreo_id: esAsoc === 'campo' ? (esPastoreoId || null) : null,
       }
       if (esProductoId) updateData.producto_id = esProductoId
       const { error } = await supabase.from('sanidad_hacienda').update(updateData).eq('id', editSan.id)
@@ -536,11 +569,35 @@ export default function CostosSanidadPage() {
                   {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select></div>
 
-              <div><label className={labelCls}>Lote feedlot <span className="text-stone-400">(opc.)</span></label>
-                <select value={sLoteFeedlotId} onChange={e => setSLoteFeedlotId(e.target.value)} className={inputCls}>
-                  <option value="">Sin vincular al feedlot</option>
-                  {lotesFeedlot.map(l => <option key={l.id} value={l.id}>{(l as any).campania} · {(l as any).categorias_hacienda?.nombre}</option>)}
-                </select></div>
+              <div>
+                <label className={labelCls}>Asociar a</label>
+                <div className="flex gap-2">
+                  {(['campo', 'feedlot'] as AsociacionSanidad[]).map(a => (
+                    <button key={a} type="button" onClick={() => setSAsoc(a)}
+                      className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${sAsoc === a ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>
+                      {a === 'campo' ? 'Campo' : 'Feedlot'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {sAsoc === 'feedlot' ? (
+                <div><label className={labelCls}>Lote feedlot <span className="text-stone-400">(opc.)</span></label>
+                  <select value={sLoteFeedlotId} onChange={e => setSLoteFeedlotId(e.target.value)} className={inputCls}>
+                    <option value="">Sin vincular a un lote</option>
+                    {lotesFeedlotActivos.map(l => <option key={l.id} value={l.id}>{(l as any).campania} · {(l as any).categorias_hacienda?.nombre}</option>)}
+                  </select>
+                  {lotesFeedlotActivos.length === 0 && <p className="mt-1 text-xs text-stone-400">No hay lotes feedlot activos.</p>}
+                </div>
+              ) : (
+                <div><label className={labelCls}>Lote de animales <span className="text-stone-400">(opc.)</span></label>
+                  <select value={sPastoreoId} onChange={e => setSPastoreoId(e.target.value)} className={inputCls}>
+                    <option value="">Sin vincular a un lote</option>
+                    {pastoreosActivos.map(p => <option key={p.id} value={p.id}>{p.campos?.nombre} · {p.lotes?.nombre} · {p.categorias_hacienda?.nombre} · {p.cantidad} cab.</option>)}
+                  </select>
+                  {pastoreosActivos.length === 0 && <p className="mt-1 text-xs text-stone-400">No hay lotes en pastoreo activos.</p>}
+                </div>
+              )}
 
               <div>
                 <div className="mb-1 flex items-center justify-between">
@@ -644,6 +701,7 @@ export default function CostosSanidadPage() {
                   <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
                     <th className="px-3 py-2 font-medium">Campaña</th>
                     <th className="px-3 py-2 font-medium">Fecha</th>
+                    <th className="px-3 py-2 font-medium">Asociado a</th>
                     <th className="px-3 py-2 font-medium">Categoría</th>
                     <th className="px-3 py-2 font-medium">Producto</th>
                     <th className="px-3 py-2 text-right font-medium">Animales</th>
@@ -656,6 +714,13 @@ export default function CostosSanidadPage() {
                       <tr key={s.id} className="border-t border-stone-100">
                         <td className="px-3 py-2 text-stone-600">{s.campanas?.nombre ?? '—'}</td>
                         <td className="px-3 py-2 text-stone-600">{new Date(s.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                        <td className="px-3 py-2">
+                          {s.feedlot_ingresos
+                            ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Feedlot · {s.feedlot_ingresos.campania} · {s.feedlot_ingresos.categorias_hacienda?.nombre}</span>
+                            : s.pastoreos
+                              ? <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">Campo · {s.pastoreos.campos?.nombre} · {s.pastoreos.lotes?.nombre}</span>
+                              : <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">General</span>}
+                        </td>
                         <td className="px-3 py-2 text-stone-700">{s.categorias_hacienda?.nombre ?? 'Todas'}</td>
                         <td className="px-3 py-2 text-stone-700">{s.productos_veterinarios?.nombre}</td>
                         <td className="px-3 py-2 text-right text-stone-900">{s.cantidad_animales.toLocaleString('es-AR')}</td>
@@ -747,6 +812,30 @@ export default function CostosSanidadPage() {
               <option value="">Todas las categorías</option>
               {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select></div>
+          <div>
+            <label className={labelCls}>Asociar a</label>
+            <div className="flex gap-2">
+              {(['campo', 'feedlot'] as AsociacionSanidad[]).map(a => (
+                <button key={a} type="button" onClick={() => setEsAsoc(a)}
+                  className={`flex-1 rounded-md border px-3 py-2 text-sm transition ${esAsoc === a ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 text-stone-700 hover:bg-stone-50'}`}>
+                  {a === 'campo' ? 'Campo' : 'Feedlot'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {esAsoc === 'feedlot' ? (
+            <div><label className={labelCls}>Lote feedlot <span className="text-stone-400">(opc.)</span></label>
+              <select value={esLoteFeedlotId} onChange={e => setEsLoteFeedlotId(e.target.value)} className={inputCls}>
+                <option value="">Sin vincular a un lote</option>
+                {lotesFeedlotActivos.map(l => <option key={l.id} value={l.id}>{(l as any).campania} · {(l as any).categorias_hacienda?.nombre}</option>)}
+              </select></div>
+          ) : (
+            <div><label className={labelCls}>Lote de animales <span className="text-stone-400">(opc.)</span></label>
+              <select value={esPastoreoId} onChange={e => setEsPastoreoId(e.target.value)} className={inputCls}>
+                <option value="">Sin vincular a un lote</option>
+                {pastoreosActivos.map(p => <option key={p.id} value={p.id}>{p.campos?.nombre} · {p.lotes?.nombre} · {p.categorias_hacienda?.nombre} · {p.cantidad} cab.</option>)}
+              </select></div>
+          )}
           <div><label className={labelCls}>Producto</label>
             <select value={esProductoId} onChange={e => setEsProductoId(e.target.value)} className={inputCls}>
               <option value="">— mismo producto ({editSan.productos_veterinarios?.nombre}) —</option>
