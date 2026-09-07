@@ -10,7 +10,6 @@ type Movimiento = {
   fecha: string
   tipo: string
   cantidad: number
-  lote: string | null
   campania: string | null
   observaciones: string | null
   precio_unitario: number | null
@@ -22,18 +21,16 @@ type Movimiento = {
 
 type Producto = { id: number; nombre: string; unidad: string; marca: string | null; cultivo_id: string; semillas_por_bolsa: number | null; proveedor_id: number | null; cultivos: { nombre: string } | null }
 type Proveedor = { id: string; nombre: string }
-type Lote = { id: string; nombre: string; establecimiento: string }
 type Cultivo = { id: string; nombre: string }
 type Campana = { id: number; nombre: string }
 
-const TIPOS = ['compra', 'siembra', 'devolucion', 'ajuste']
+const TIPOS = ['compra', 'devolucion', 'ajuste']
 
 export default function MovimientosSemillasPage() {
   const supabase = createClient()
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
-  const [lotes, setLotes] = useState<Lote[]>([])
   const [cultivos, setCultivos] = useState<Cultivo[]>([])
   const [campanas, setCampanas] = useState<Campana[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,7 +48,6 @@ export default function MovimientosSemillasPage() {
     cantidad: '',
     precio_unitario: '',
     proveedor_id: '',
-    lote: '',
     campania: '',
     numero_remito: '',
     numero_factura: '',
@@ -70,16 +66,14 @@ export default function MovimientosSemillasPage() {
   }
 
   async function cargarMaestros() {
-    const [{ data: prods }, { data: provs }, { data: ls }, { data: cs }, { data: caps }] = await Promise.all([
+    const [{ data: prods }, { data: provs }, { data: cs }, { data: caps }] = await Promise.all([
       supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre'),
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
-      supabase.from('lotes').select('id, nombre, establecimiento').order('establecimiento').order('nombre'),
       supabase.from('cultivos').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('campanas').select('id, nombre').eq('activo', true).order('nombre', { ascending: false }),
     ])
     setProductos((prods ?? []) as any)
     setProveedores(provs ?? [])
-    setLotes(ls ?? [])
     setCultivos(cs ?? [])
     setCampanas(caps ?? [])
     if (caps && caps.length > 0) setForm(f => ({ ...f, campania: caps[0].nombre }))
@@ -188,9 +182,6 @@ export default function MovimientosSemillasPage() {
       payload.numero_remito = form.numero_remito || null
       payload.numero_factura = form.numero_factura || null
     }
-    if (form.tipo === 'siembra') {
-      payload.lote = form.lote || null
-    }
     const { error } = editandoId
       ? await supabase.from('semillas_movimientos').update(payload).eq('id', editandoId)
       : await supabase.from('semillas_movimientos').insert(payload)
@@ -206,7 +197,7 @@ export default function MovimientosSemillasPage() {
       }
       setShowForm(false)
       setEditandoId(null)
-      setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', precio_unitario: '', proveedor_id: '', lote: '', campania: campanas[0]?.nombre ?? '', numero_remito: '', numero_factura: '', observaciones: '' })
+      setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', precio_unitario: '', proveedor_id: '', campania: campanas[0]?.nombre ?? '', numero_remito: '', numero_factura: '', observaciones: '' })
       cargar()
     }
     setSaving(false)
@@ -223,7 +214,6 @@ export default function MovimientosSemillasPage() {
       cantidad: m.cantidad.toString(),
       precio_unitario: m.precio_unitario?.toString() ?? '',
       proveedor_id: String(m.proveedor_id ?? ''),
-      lote: m.lote ?? '',
       campania: m.campania ?? '',
       numero_remito: m.numero_remito ?? '',
       numero_factura: m.numero_factura ?? '',
@@ -250,7 +240,6 @@ export default function MovimientosSemillasPage() {
         m.semillas_productos?.cultivos?.nombre?.toLowerCase().includes(q) ||
         m.tipo?.toLowerCase().includes(q) ||
         m.campania?.toLowerCase().includes(q) ||
-        m.lote?.toLowerCase().includes(q) ||
         m.proveedores?.nombre?.toLowerCase().includes(q) ||
         m.numero_remito?.toLowerCase().includes(q) ||
         m.numero_factura?.toLowerCase().includes(q)
@@ -259,23 +248,16 @@ export default function MovimientosSemillasPage() {
   const fmt = (n: number) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 })
   const badgeColor = (tipo: string) => {
     if (tipo === 'compra')     return 'bg-blue-100 text-blue-700'
-    if (tipo === 'siembra')    return 'bg-orange-100 text-orange-700'
     if (tipo === 'devolucion') return 'bg-purple-100 text-purple-700'
     return 'bg-campo-100 text-campo-600'
   }
-
-  const lotesPorCampo = lotes.reduce((acc: Record<string, Lote[]>, l) => {
-    if (!acc[l.establecimiento]) acc[l.establecimiento] = []
-    acc[l.establecimiento].push(l)
-    return acc
-  }, {})
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-campo-900">Movimientos</h1>
-          <p className="text-campo-500 text-sm mt-0.5">Compras, uso en siembra y devoluciones de semilla</p>
+          <p className="text-campo-500 text-sm mt-0.5">Compras, devoluciones y ajustes de semilla</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
           className="bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
@@ -459,22 +441,6 @@ export default function MovimientosSemillasPage() {
                     className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                 </div>
               </>
-            )}
-
-            {/* Campos específicos de SIEMBRA (uso de la semilla) */}
-            {form.tipo === 'siembra' && (
-              <div>
-                <label className="block text-xs font-medium text-campo-700 mb-1">Lote</label>
-                <select value={form.lote} onChange={e => setForm(f => ({ ...f, lote: e.target.value }))}
-                  className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                  <option value="">Seleccioná un lote</option>
-                  {Object.entries(lotesPorCampo).map(([campo, ls]) => (
-                    <optgroup key={campo} label={campo}>
-                      {ls.map(l => <option key={l.id} value={l.nombre}>{l.nombre}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
             )}
 
             <div className="sm:col-span-2 lg:col-span-3">

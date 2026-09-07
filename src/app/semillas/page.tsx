@@ -12,7 +12,6 @@ type StockItem = {
   stock_minimo: number
   proveedor_default: string | null
   total_ingresado: number
-  total_usado: number
   stock_actual: number
   alerta_stock_minimo: boolean
   activo: boolean
@@ -140,7 +139,6 @@ export default function StockSemillasPage() {
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Proveedor</th>
                   <th className="text-right px-5 py-3 font-semibold text-campo-700">Stock actual</th>
                   <th className="text-right px-5 py-3 font-semibold text-campo-700">Comprado</th>
-                  <th className="text-right px-5 py-3 font-semibold text-campo-700">Usado en siembra</th>
                   <th className="text-center px-5 py-3 font-semibold text-campo-700">Estado</th>
                 </tr>
               </thead>
@@ -156,7 +154,6 @@ export default function StockSemillasPage() {
                       {fmt(r.stock_actual)} <span className="text-xs text-campo-400">{r.unidad}</span>
                     </td>
                     <td className="px-5 py-3 text-right text-campo-600">{fmt(r.total_ingresado)}</td>
-                    <td className="px-5 py-3 text-right text-campo-600">{fmt(r.total_usado)}</td>
                     <td className="px-5 py-3 text-center">
                       {r.alerta_stock_minimo ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
