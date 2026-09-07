@@ -34,20 +34,36 @@ export default function ContratosPage() {
 
   async function cerrarContrato(numero: string) {
     setCerrando(numero)
-    const { data: contrato } = await supabase.from('contratos').select('id').eq('numero', numero).single()
-    if (contrato) {
-      await supabase.from('contratos').update({ estado: 'cumplido' }).eq('id', contrato.id)
-      await load()
+    const { data: contrato, error: errBuscar } = await supabase.from('contratos').select('id').eq('numero', numero).single()
+    if (errBuscar || !contrato) {
+      alert('No se encontró el contrato Nº ' + numero + (errBuscar ? `: ${errBuscar.message}` : ''))
+      setCerrando(null)
+      return
     }
+    const { error: errUpdate } = await supabase.from('contratos').update({ estado: 'cumplido' }).eq('id', contrato.id)
+    if (errUpdate) {
+      alert('No se pudo cerrar el contrato: ' + errUpdate.message)
+      setCerrando(null)
+      return
+    }
+    await load()
+    setFiltro('cumplidos')
     setCerrando(null)
   }
 
   async function reabrirContrato(numero: string) {
-    const { data: contrato } = await supabase.from('contratos').select('id').eq('numero', numero).single()
-    if (contrato) {
-      await supabase.from('contratos').update({ estado: 'activo' }).eq('id', contrato.id)
-      await load()
+    const { data: contrato, error: errBuscar } = await supabase.from('contratos').select('id').eq('numero', numero).single()
+    if (errBuscar || !contrato) {
+      alert('No se encontró el contrato Nº ' + numero + (errBuscar ? `: ${errBuscar.message}` : ''))
+      return
     }
+    const { error: errUpdate } = await supabase.from('contratos').update({ estado: 'activo' }).eq('id', contrato.id)
+    if (errUpdate) {
+      alert('No se pudo reabrir el contrato: ' + errUpdate.message)
+      return
+    }
+    await load()
+    setFiltro('activos')
   }
 
   async function borrarContrato(numero: string) {

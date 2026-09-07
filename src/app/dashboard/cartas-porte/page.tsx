@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import CartasPorteClient from './CartasPorteClient'
+import { obtenerMapaCultivoComercial } from '@/lib/cultivoComercial'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function CartasPortePage() {
   const supabase = createClient()
-  const [{ data: cartas }, { data: contratos }] = await Promise.all([
+  const [{ data: cartas }, { data: contratos }, mapaCultivo] = await Promise.all([
     supabase
       .from('cartas_porte')
       .select(`*, campanias(nombre), cultivos(nombre), contratos(numero)`)
@@ -17,7 +18,13 @@ export default async function CartasPortePage() {
       .select(`id, numero, cultivo_id, campania_id`)
       .in('estado', ['activo', 'parcial'])
       .order('numero', { ascending: false }),
+    obtenerMapaCultivoComercial(supabase),
   ])
+
+  const cartasResueltas = (cartas ?? []).map(c => ({
+    ...c,
+    cultivos: { nombre: mapaCultivo.get((c as any).cultivo_id) ?? (c.cultivos as any)?.nombre ?? null },
+  }))
 
   return (
     <div className="space-y-6">
@@ -28,7 +35,7 @@ export default async function CartasPortePage() {
         </div>
         <a href="/dashboard/cartas-porte/nueva" className="btn-primary">+ Nueva carta de porte</a>
       </div>
-      <CartasPorteClient cartas={cartas ?? []} contratos={contratos ?? []} />
+      <CartasPorteClient cartas={cartasResueltas} contratos={contratos ?? []} />
     </div>
   )
 }

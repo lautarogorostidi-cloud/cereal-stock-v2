@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import EntregasClient from './EntregasClient'
+import { obtenerMapaCultivoComercial } from '@/lib/cultivoComercial'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -7,12 +8,15 @@ export const revalidate = 0
 export default async function EntregasPage() {
   const supabase = createClient()
 
-  const { data: movimientos } = await supabase
-    .from('movimientos_cereal')
-    .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id), cartas_porte(ctg)`)
-    .eq('tipo', 'entrega')
-    .order('fecha', { ascending: false })
-    .limit(200)
+  const [{ data: movimientos }, mapaCultivo] = await Promise.all([
+    supabase
+      .from('movimientos_cereal')
+      .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id), cartas_porte(ctg)`)
+      .eq('tipo', 'entrega')
+      .order('fecha', { ascending: false })
+      .limit(200),
+    obtenerMapaCultivoComercial(supabase),
+  ])
 
   // Obtener clientes por separado
   const clienteIds = Array.from(new Set((movimientos ?? []).map(e => (e.contratos as any)?.cliente_id).filter(Boolean)))
@@ -27,7 +31,7 @@ export default async function EntregasPage() {
     fecha: e.fecha,
     ctg: (e.cartas_porte as any)?.ctg ?? null,
     carta_porte_id: e.carta_porte_id,
-    cultivo: (e.cultivos as any)?.nombre ?? null,
+    cultivo: mapaCultivo.get(e.cultivo_id) ?? (e.cultivos as any)?.nombre ?? null,
     campania: (e.campanias as any)?.nombre ?? null,
     toneladas: e.toneladas,
     cliente: clienteMap[(e.contratos as any)?.cliente_id] ?? null,

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import VentasClient from './VentasClient'
+import { obtenerMapaCultivoComercial } from '@/lib/cultivoComercial'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -7,7 +8,7 @@ export const revalidate = 0
 export default async function VentasPage() {
   const supabase = createClient()
 
-  const [{ data: movimientos }, { data: contratos }] = await Promise.all([
+  const [{ data: movimientos }, { data: contratos }, mapaCultivo] = await Promise.all([
     supabase
       .from('movimientos_cereal')
       .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id, precio_unitario, precio_plus, comision_corredor, bonificacion_calidad), cartas_porte(ctg, bonificacion_calidad, tarifa_flete)`)
@@ -17,7 +18,8 @@ export default async function VentasPage() {
     supabase
       .from('contratos')
       .select('id, numero, cultivo_id, clientes(razon_social)')
-      .order('numero', { ascending: false })
+      .order('numero', { ascending: false }),
+    obtenerMapaCultivoComercial(supabase),
   ])
 
   const clienteIds = Array.from(new Set((movimientos ?? []).flatMap(e => [(e.contratos as any)?.cliente_id, e.cliente_id]).filter(Boolean)))
@@ -54,7 +56,7 @@ export default async function VentasPage() {
       fecha: e.fecha,
       ctg: (e.cartas_porte as any)?.ctg ?? null,
       carta_porte_id: e.carta_porte_id,
-      cultivo: (e.cultivos as any)?.nombre ?? null,
+      cultivo: mapaCultivo.get(e.cultivo_id) ?? (e.cultivos as any)?.nombre ?? null,
       campania: (e.campanias as any)?.nombre ?? null,
       toneladas: e.toneladas,
       descripcion_movimiento: e.descripcion_movimiento,
