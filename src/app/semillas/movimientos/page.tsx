@@ -20,7 +20,7 @@ type Movimiento = {
   proveedores: { nombre: string } | null
 }
 
-type Producto = { id: number; nombre: string; unidad: string; marca: string | null; cultivo_id: string; semillas_por_bolsa: number | null; cultivos: { nombre: string } | null }
+type Producto = { id: number; nombre: string; unidad: string; marca: string | null; cultivo_id: string; semillas_por_bolsa: number | null; proveedor_id: number | null; cultivos: { nombre: string } | null }
 type Proveedor = { id: string; nombre: string }
 type Lote = { id: string; nombre: string; establecimiento: string }
 type Cultivo = { id: string; nombre: string }
@@ -71,7 +71,7 @@ export default function MovimientosSemillasPage() {
 
   async function cargarMaestros() {
     const [{ data: prods }, { data: provs }, { data: ls }, { data: cs }, { data: caps }] = await Promise.all([
-      supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, cultivos(nombre)').eq('activo', true).order('nombre'),
+      supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre'),
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('lotes').select('id, nombre, establecimiento').order('establecimiento').order('nombre'),
       supabase.from('cultivos').select('id, nombre').eq('activo', true).order('nombre'),
@@ -135,7 +135,7 @@ export default function MovimientosSemillasPage() {
     }).select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, cultivos(nombre)').single()
     if (!error && data) {
       const nuevoId = String(data.id)
-      const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, cultivos(nombre)').eq('activo', true).order('nombre')
+      const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre')
       setProductos((prods ?? []) as any)
       setNuevoProductoMode(false)
       setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '' })
@@ -288,7 +288,8 @@ export default function MovimientosSemillasPage() {
                 <>
                   <select value={form.producto_id} onChange={e => {
                     if (e.target.value === '__nuevo__') { setNuevoProductoMode(true); return }
-                    setForm(f => ({ ...f, producto_id: e.target.value }))
+                    const prod = productos.find(p => String(p.id) === e.target.value)
+                    setForm(f => ({ ...f, producto_id: e.target.value, proveedor_id: prod?.proveedor_id ? String(prod.proveedor_id) : f.proveedor_id }))
                   }}
                     className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
                     <option value="">Seleccioná una semilla</option>
