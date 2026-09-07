@@ -35,8 +35,11 @@ export default async function VentasPage() {
     const precio_base = Number((e.contratos as any)?.precio_unitario ?? e.precio_unitario ?? 0)
     const precio_plus = Number((e.contratos as any)?.precio_plus ?? 0)
     const comision_pct = Number((e.contratos as any)?.comision_corredor ?? 0)
-    const tarifa_flete = Number((e.cartas_porte as any)?.tarifa_flete ?? 0)
     const toneladas = Number(e.toneladas ?? 0)
+    // Si no hay carta de porte con tarifa por tonelada, usar el flete total cargado
+    // directo en el movimiento (mismo que alimenta resultado_neto en movimientos_cereal)
+    const tarifa_flete_cp = Number((e.cartas_porte as any)?.tarifa_flete ?? 0)
+    const tarifa_flete = tarifa_flete_cp || (toneladas > 0 ? Number(e.flete ?? 0) / toneladas : 0)
 
     // Bonificación: primero carta de porte, luego movimiento, luego contrato
     const bonificacion =
