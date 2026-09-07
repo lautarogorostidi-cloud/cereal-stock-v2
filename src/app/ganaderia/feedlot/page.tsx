@@ -72,6 +72,8 @@ export default function FeedlotPage() {
   const [categorias, setCategorias] = useState<CategoriaHacienda[]>([])
   const [ingresos, setIngresos] = useState<FeedlotIngreso[]>([])
   const [cargando, setCargando] = useState(true)
+  const [showListaIngresos, setShowListaIngresos] = useState(false)
+  const [filtroCampaniaLista, setFiltroCampaniaLista] = useState('')
   const [ingresoSel, setIngresoSel] = useState<FeedlotIngreso | null>(null)
   const [salidas, setSalidas] = useState<FeedlotSalida[]>([])
   const [cargas, setCargas] = useState<FeedlotCarga[]>([])
@@ -368,6 +370,13 @@ export default function FeedlotPage() {
   const totalMezclaForm = (Number(cMaizTn)||0) + (Number(cNucleoTn)||0) + (Number(cExpellerTn)||0) + cOtros.reduce((s,o) => s + o.cantidad_tn, 0)
   const costoTotalForm = (Number(cMaizTn)||0)*(Number(cMaizPrecio)||0) + (Number(cNucleoTn)||0)*(Number(cNucleoPrecio)||0) + (Number(cExpellerTn)||0)*(Number(cExpellerPrecio)||0) + cOtros.reduce((s,o) => s + o.cantidad_tn * o.precio_usd_tn, 0)
 
+  // Listado de ingresos (modal) filtrado por campaña
+  const ingresosFiltradosLista = filtroCampaniaLista
+    ? ingresos.filter(i => i.campania === filtroCampaniaLista)
+    : ingresos
+  const totalCabezasLista = ingresosFiltradosLista.reduce((s, i) => s + i.cantidad_cabezas, 0)
+  const totalCabezasGeneral = ingresos.reduce((s, i) => s + i.cantidad_cabezas, 0)
+
   return (
     <div className="space-y-6">
       <div>
@@ -410,28 +419,27 @@ export default function FeedlotPage() {
           </form>
 
           <div className="rounded-lg border border-stone-200 bg-white overflow-hidden">
-            <div className="bg-stone-50 px-4 py-3 border-b border-stone-200">
+            <div className="bg-stone-50 px-4 py-3 border-b border-stone-200 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-stone-900">Ingresos registrados</h3>
+              <span className="text-xs text-stone-400">{ingresos.length}</span>
             </div>
             {cargando && <p className="px-4 py-3 text-sm text-stone-500">Cargando...</p>}
-            {!cargando && ingresos.length === 0 && <p className="px-4 py-3 text-sm text-stone-500">Sin ingresos registrados.</p>}
-            <div className="divide-y divide-stone-100">
-              {ingresos.map(i => (
-                <div key={i.id} onClick={() => cargarDetalle(i)}
-                  className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${ingresoSel?.id === i.id ? 'bg-stone-100' : 'hover:bg-stone-50'}`}>
-                  <div>
-                    <div className="text-sm font-semibold text-stone-900">{i.categorias_hacienda?.nombre}</div>
-                    <div className="text-xs text-stone-500">{i.campania} · {i.cantidad_cabezas} cab. · {new Date(i.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')}</div>
-                  </div>
-                  <div className="flex gap-2 shrink-0 ml-2">
-                    <button onClick={ev => { ev.stopPropagation(); setEditIngreso(i); setEiCabezas(String(i.cantidad_cabezas)); setEiObs(i.observaciones ?? '') }}
-                      className="text-xs text-stone-500 hover:text-stone-900 underline">Editar</button>
-                    <button onClick={ev => { ev.stopPropagation(); handleBorrarIngreso(i.id) }}
-                      className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {!cargando && (
+              <div className="px-4 py-3 space-y-3">
+                <p className="text-xs text-stone-500">
+                  Total cabezas ingresadas: <span className="font-semibold text-stone-900">{totalCabezasGeneral}</span>
+                </p>
+                {ingresoSel && (
+                  <p className="text-xs text-stone-500 truncate">
+                    Seleccionado: <span className="font-medium text-stone-700">{ingresoSel.categorias_hacienda?.nombre} · {ingresoSel.campania}</span>
+                  </p>
+                )}
+                <button onClick={() => { setFiltroCampaniaLista(''); setShowListaIngresos(true) }}
+                  className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50">
+                  Ver ingresos registrados →
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -792,6 +800,44 @@ export default function FeedlotPage() {
             <button onClick={handleGuardarEditSalida} disabled={esGuardando} className="flex-1 rounded-md bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">
               {esGuardando ? 'Guardando...' : 'Guardar cambios'}
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal listado de ingresos */}
+      {showListaIngresos && (
+        <Modal title="Ingresos registrados" onClose={() => setShowListaIngresos(false)}>
+          <div>
+            <label className={labelCls}>Campaña</label>
+            <select value={filtroCampaniaLista} onChange={e => setFiltroCampaniaLista(e.target.value)} className={inputCls}>
+              <option value="">Todas las campañas</option>
+              {campanias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+            </select>
+          </div>
+
+          <div className="rounded-md bg-stone-100 px-3 py-2 text-sm text-stone-700">
+            {filtroCampaniaLista ? `Campaña ${filtroCampaniaLista}` : 'Todas las campañas'}: <span className="font-bold text-stone-900">{totalCabezasLista}</span> cabezas en {ingresosFiltradosLista.length} ingreso{ingresosFiltradosLista.length === 1 ? '' : 's'}
+          </div>
+
+          <div className="max-h-96 overflow-y-auto divide-y divide-stone-100 rounded-md border border-stone-200">
+            {ingresosFiltradosLista.length === 0 && (
+              <p className="px-3 py-4 text-sm text-stone-500">Sin ingresos para esta campaña.</p>
+            )}
+            {ingresosFiltradosLista.map(i => (
+              <div key={i.id} onClick={() => { cargarDetalle(i); setShowListaIngresos(false) }}
+                className={`flex items-center justify-between px-3 py-3 cursor-pointer transition-colors ${ingresoSel?.id === i.id ? 'bg-stone-100' : 'hover:bg-stone-50'}`}>
+                <div>
+                  <div className="text-sm font-semibold text-stone-900">{i.categorias_hacienda?.nombre}</div>
+                  <div className="text-xs text-stone-500">{i.campania} · {i.cantidad_cabezas} cab. · {new Date(i.fecha_entrada + 'T00:00:00').toLocaleDateString('es-AR')}</div>
+                </div>
+                <div className="flex gap-2 shrink-0 ml-2">
+                  <button onClick={ev => { ev.stopPropagation(); setEditIngreso(i); setEiCabezas(String(i.cantidad_cabezas)); setEiObs(i.observaciones ?? '') }}
+                    className="text-xs text-stone-500 hover:text-stone-900 underline">Editar</button>
+                  <button onClick={ev => { ev.stopPropagation(); handleBorrarIngreso(i.id) }}
+                    className="text-xs text-red-500 hover:text-red-700 underline">Borrar</button>
+                </div>
+              </div>
+            ))}
           </div>
         </Modal>
       )}
