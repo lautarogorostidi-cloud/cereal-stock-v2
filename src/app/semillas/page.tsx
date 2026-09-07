@@ -18,9 +18,15 @@ type StockItem = {
   activo: boolean
 }
 
+type CompraMov = { campania: string | null; cantidad: number; precio_unitario: number | null }
+type Campana = { id: number; nombre: string }
+
 export default function StockSemillasPage() {
   const supabase = createClient()
   const [stock, setStock] = useState<StockItem[]>([])
+  const [compras, setCompras] = useState<CompraMov[]>([])
+  const [campanas, setCampanas] = useState<Campana[]>([])
+  const [campaniaKpi, setCampaniaKpi] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [soloAlertas, setSoloAlertas] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -29,8 +35,15 @@ export default function StockSemillasPage() {
 
   async function cargar() {
     setLoading(true)
-    const { data } = await supabase.from('vw_stock_semillas').select('*').order('cultivo').order('producto')
+    const [{ data }, { data: comprasData }, { data: caps }] = await Promise.all([
+      supabase.from('vw_stock_semillas').select('*').order('cultivo').order('producto'),
+      supabase.from('semillas_movimientos').select('campania, cantidad, precio_unitario').eq('tipo', 'compra'),
+      supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false }),
+    ])
     setStock(((data ?? []) as StockItem[]).filter(r => r.activo))
+    setCompras((comprasData ?? []) as CompraMov[])
+    setCampanas(caps ?? [])
+    if (caps && caps.length > 0) setCampaniaKpi(caps[0].nombre)
     setLoading(false)
   }
 
@@ -53,7 +66,11 @@ export default function StockSemillasPage() {
 
   const totalAlertas = stock.filter(r => r.alerta_stock_minimo).length
 
+  const comprasCampania = campaniaKpi ? compras.filter(c => c.campania === campaniaKpi) : compras
+  const costoTotalCampania = comprasCampania.reduce((s, c) => s + Number(c.cantidad) * Number(c.precio_unitario ?? 0), 0)
+
   const fmt = (n: number) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  const fmtUsd = (n: number) => `USD ${Number(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 
   return (
     <div className="space-y-6">
@@ -78,9 +95,16 @@ export default function StockSemillasPage() {
           <div className="text-xs text-campo-400 mt-0.5">bajo el mínimo definido</div>
         </div>
         <div className="card p-5">
-          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Cultivos con semilla</div>
-          <div className="text-2xl font-bold text-campo-900">{Object.keys(porCultivo).length}</div>
-          <div className="text-xs text-campo-400 mt-0.5">de los filtrados</div>
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider">Costo total</div>
+            <select value={campaniaKpi} onChange={e => setCampaniaKpi(e.target.value)}
+              className="text-xs border border-campo-200 rounded-md px-1.5 py-0.5 text-campo-600 focus:outline-none focus:ring-1 focus:ring-emerald-400">
+              <option value="">Todas</option>
+              {campanas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+            </select>
+          </div>
+          <div className="text-2xl font-bold text-campo-900">{fmtUsd(costoTotalCampania)}</div>
+          <div className="text-xs text-campo-400 mt-0.5">compras de semilla{campaniaKpi ? ` — campaña ${campaniaKpi}` : ' — todas las campañas'}</div>
         </div>
       </div>
 

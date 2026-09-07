@@ -44,6 +44,7 @@ export default async function ProductosSemillasPage() {
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Marca</th>
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Proveedor</th>
                   <th className="text-center px-5 py-3 font-semibold text-campo-700">Unidad</th>
+                  <th className="text-right px-5 py-3 font-semibold text-campo-700">Semillas/bolsa</th>
                   <th className="text-right px-5 py-3 font-semibold text-campo-700">Stock mínimo</th>
                   <th className="text-center px-5 py-3 font-semibold text-campo-700">Estado</th>
                 </tr>
@@ -59,6 +60,7 @@ export default async function ProductosSemillasPage() {
                         {p.unidad}
                       </span>
                     </td>
+                    <td className="px-5 py-3 text-right text-campo-600">{p.semillas_por_bolsa ? Number(p.semillas_por_bolsa).toLocaleString('es-AR') : '—'}</td>
                     <td className="px-5 py-3 text-right text-campo-600">{Number(p.stock_minimo) > 0 ? Number(p.stock_minimo).toLocaleString('es-AR') : '—'}</td>
                     <td className="px-5 py-3 text-center">
                       {p.activo ? (

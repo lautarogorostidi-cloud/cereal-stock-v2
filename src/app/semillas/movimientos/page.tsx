@@ -20,7 +20,7 @@ type Movimiento = {
   proveedores: { nombre: string } | null
 }
 
-type Producto = { id: number; nombre: string; unidad: string; marca: string | null; cultivo_id: string; cultivos: { nombre: string } | null }
+type Producto = { id: number; nombre: string; unidad: string; marca: string | null; cultivo_id: string; semillas_por_bolsa: number | null; cultivos: { nombre: string } | null }
 type Proveedor = { id: string; nombre: string }
 type Lote = { id: string; nombre: string; establecimiento: string }
 type Cultivo = { id: string; nombre: string }
@@ -71,7 +71,7 @@ export default function MovimientosSemillasPage() {
 
   async function cargarMaestros() {
     const [{ data: prods }, { data: provs }, { data: ls }, { data: cs }, { data: caps }] = await Promise.all([
-      supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, cultivos(nombre)').eq('activo', true).order('nombre'),
+      supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, cultivos(nombre)').eq('activo', true).order('nombre'),
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('lotes').select('id, nombre, establecimiento').order('establecimiento').order('nombre'),
       supabase.from('cultivos').select('id, nombre').eq('activo', true).order('nombre'),
@@ -91,7 +91,7 @@ export default function MovimientosSemillasPage() {
   }, [])
 
   const [nuevoProductoMode, setNuevoProductoMode] = useState(false)
-  const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '' })
+  const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '' })
   const [savingProducto, setSavingProducto] = useState(false)
   const [errorProducto, setErrorProducto] = useState<string | null>(null)
 
@@ -130,14 +130,15 @@ export default function MovimientosSemillasPage() {
       cultivo_id: nuevoProducto.cultivo_id,
       unidad: nuevoProducto.unidad,
       marca: nuevoProducto.marca || null,
+      semillas_por_bolsa: nuevoProducto.unidad === 'bolsas' && nuevoProducto.semillas_por_bolsa ? Number(nuevoProducto.semillas_por_bolsa) : null,
       activo: true,
-    }).select('id, nombre, unidad, marca, cultivo_id, cultivos(nombre)').single()
+    }).select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, cultivos(nombre)').single()
     if (!error && data) {
       const nuevoId = String(data.id)
-      const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, cultivos(nombre)').eq('activo', true).order('nombre')
+      const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, cultivos(nombre)').eq('activo', true).order('nombre')
       setProductos((prods ?? []) as any)
       setNuevoProductoMode(false)
-      setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '' })
+      setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '' })
       setForm(f => ({ ...f, producto_id: nuevoId }))
     } else if (error) {
       if (error.code === '23505') {
@@ -312,17 +313,23 @@ export default function MovimientosSemillasPage() {
                     </select>
                     <input type="text" value={nuevoProducto.marca} onChange={e => setNuevoProducto(p => ({ ...p, marca: e.target.value }))}
                       placeholder="Marca (Dekalb, Nidera...)" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-                    <select value={nuevoProducto.unidad} onChange={e => setNuevoProducto(p => ({ ...p, unidad: e.target.value }))}
+                    <select value={nuevoProducto.unidad} onChange={e => setNuevoProducto(p => ({ ...p, unidad: e.target.value, semillas_por_bolsa: e.target.value === 'bolsas' ? p.semillas_por_bolsa : '' }))}
                       className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
                       {UNIDADES_PRODUCTO.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
+                    {nuevoProducto.unidad === 'bolsas' && (
+                      <input type="number" min={0} step="1" value={nuevoProducto.semillas_por_bolsa}
+                        onChange={e => setNuevoProducto(p => ({ ...p, semillas_por_bolsa: e.target.value }))}
+                        placeholder="Semillas por bolsa (opcional)"
+                        className="col-span-2 rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                    )}
                   </div>
                   <div className="flex gap-2 pt-1">
                     <button type="button" onClick={handleGuardarNuevoProducto} disabled={savingProducto || !nuevoProducto.nombre || !nuevoProducto.cultivo_id}
                       className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
                       {savingProducto ? 'Guardando...' : 'Guardar semilla'}
                     </button>
-                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '' }); setErrorProducto(null) }}
+                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '' }); setErrorProducto(null) }}
                       className="text-xs text-campo-500 hover:text-campo-700 px-3 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
                       Cancelar
                     </button>
