@@ -15,12 +15,19 @@ export default async function DashboardPage() {
     supabase.from('cultivos').select('*').eq('activo', true).order('nombre'),
   ])
 
+  // "Sin Siembra" y "Vicia + Avena" son conceptos de Seguimiento Agronómico (lotes en
+  // barbecho o con cobertura mixta), no cultivos que se comercialicen: se ocultan acá
+  // para no ensuciar el filtro del Dashboard Comercial. No se tocan en la tabla maestra.
+  const cultivosComerciales = (cultivos ?? []).filter(
+    c => c.nombre !== 'Sin Siembra' && c.nombre !== 'Vicia + Avena'
+  )
+
   return (
     <DashboardClient
       stockData={stock ?? []}
       comprometidoData={comprometido ?? []}
       campanias={campanias ?? []}
-      cultivos={cultivos ?? []}
+      cultivos={cultivosComerciales}
     />
   )
 }
