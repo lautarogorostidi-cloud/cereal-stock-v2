@@ -91,7 +91,7 @@ export default function MovimientosSemillasPage() {
   }, [])
 
   const [nuevoProductoMode, setNuevoProductoMode] = useState(false)
-  const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '' })
+  const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '', proveedor_id: '' })
   const [savingProducto, setSavingProducto] = useState(false)
   const [errorProducto, setErrorProducto] = useState<string | null>(null)
 
@@ -131,15 +131,16 @@ export default function MovimientosSemillasPage() {
       unidad: nuevoProducto.unidad,
       marca: nuevoProducto.marca || null,
       semillas_por_bolsa: nuevoProducto.unidad === 'bolsas' && nuevoProducto.semillas_por_bolsa ? Number(nuevoProducto.semillas_por_bolsa) : null,
+      proveedor_id: nuevoProducto.proveedor_id || null,
       activo: true,
-    }).select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, cultivos(nombre)').single()
+    }).select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').single()
     if (!error && data) {
       const nuevoId = String(data.id)
       const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre')
       setProductos((prods ?? []) as any)
       setNuevoProductoMode(false)
-      setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '' })
-      setForm(f => ({ ...f, producto_id: nuevoId }))
+      setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '', proveedor_id: '' })
+      setForm(f => ({ ...f, producto_id: nuevoId, proveedor_id: nuevoProducto.proveedor_id || f.proveedor_id }))
     } else if (error) {
       if (error.code === '23505') {
         setErrorProducto('Ya existe una semilla con ese nombre. Cancelá y buscala en la lista.')
@@ -196,6 +197,13 @@ export default function MovimientosSemillasPage() {
     if (error) {
       setError(error.message)
     } else {
+      // Si la semilla todavía no tiene un proveedor por defecto, el de esta compra queda como tal
+      // (así se completa solo en Productos/Stock sin tener que cargarlo dos veces)
+      if (form.tipo === 'compra' && payload.proveedor_id && productoSeleccionado && !productoSeleccionado.proveedor_id) {
+        await supabase.from('semillas_productos').update({ proveedor_id: payload.proveedor_id }).eq('id', payload.producto_id)
+        const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre')
+        setProductos((prods ?? []) as any)
+      }
       setShowForm(false)
       setEditandoId(null)
       setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', precio_unitario: '', proveedor_id: '', lote: '', campania: campanas[0]?.nombre ?? '', numero_remito: '', numero_factura: '', observaciones: '' })
@@ -322,15 +330,20 @@ export default function MovimientosSemillasPage() {
                       <input type="number" min={0} step="1" value={nuevoProducto.semillas_por_bolsa}
                         onChange={e => setNuevoProducto(p => ({ ...p, semillas_por_bolsa: e.target.value }))}
                         placeholder="Semillas por bolsa (opcional)"
-                        className="col-span-2 rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                        className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                     )}
+                    <select value={nuevoProducto.proveedor_id} onChange={e => setNuevoProducto(p => ({ ...p, proveedor_id: e.target.value }))}
+                      className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
+                      <option value="">Proveedor (opcional)</option>
+                      {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </select>
                   </div>
                   <div className="flex gap-2 pt-1">
                     <button type="button" onClick={handleGuardarNuevoProducto} disabled={savingProducto || !nuevoProducto.nombre || !nuevoProducto.cultivo_id}
                       className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
                       {savingProducto ? 'Guardando...' : 'Guardar semilla'}
                     </button>
-                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '' }); setErrorProducto(null) }}
+                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '', proveedor_id: '' }); setErrorProducto(null) }}
                       className="text-xs text-campo-500 hover:text-campo-700 px-3 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
                       Cancelar
                     </button>
