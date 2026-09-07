@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client'
 // =====================================================================
 // Tipos compartidos
 // =====================================================================
-type Campo = { id: number; nombre: string }
 type Lote = { id: string; nombre: string; establecimiento: string }
 type CategoriaHacienda = { id: string; nombre: string; orden: number }
 type Campania = { id: number; nombre: string }
@@ -18,12 +17,11 @@ type CostoGanaderia = {
   monto_usd: number; lote_feedlot_id: string | null; campo_id: number | null
   campania: string | null; categoria_id: string | null; observaciones: string | null
   feedlot_ingresos: { campania: string; categorias_hacienda: { nombre: string } } | null
-  campos: { nombre: string } | null
   categorias_hacienda: { nombre: string } | null
 }
 
 type SanidadRow = {
-  id: string; campo_id: number; lote_id: string | null; categoria_id: string | null
+  id: string; campo_id: number | null; lote_id: string | null; categoria_id: string | null
   campania_id: number | null; fecha: string; cantidad_animales: number
   dosis_por_animal: number; total_producto: number
   precio_unitario_usd: number | null; costo_total_usd: number | null
@@ -32,7 +30,6 @@ type SanidadRow = {
   productos_veterinarios: { nombre: string; unidad: string }
   lotes: { nombre: string } | null
   categorias_hacienda: { nombre: string } | null
-  campos: { nombre: string }
   campanas: { nombre: string } | null
 }
 
@@ -82,7 +79,6 @@ export default function CostosSanidadPage() {
   const [tab, setTab] = useState<Tab>('costos')
 
   // Catálogos compartidos
-  const [campos, setCampos] = useState<Campo[]>([])
   const [lotes, setLotes] = useState<Lote[]>([])
   const [categorias, setCategorias] = useState<CategoriaHacienda[]>([])
   const [campanias, setCampanias] = useState<Campania[]>([])
@@ -100,14 +96,12 @@ export default function CostosSanidadPage() {
   const [monto, setMonto] = useState('')
   const [categoriaId, setCategoriaId] = useState('')
   const [loteId, setLoteId] = useState('')
-  const [campoId, setCampoId] = useState('')
   const [campania, setCampania] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const [cGuardando, setCGuardando] = useState(false)
   const [cError, setCError] = useState<string | null>(null)
   const [cExito, setCExito] = useState<string | null>(null)
   const [filtroTipo, setFiltroTipo] = useState('')
-  const [filtroCampo, setFiltroCampo] = useState('')
   const [filtroCampania, setFiltroCampania] = useState('')
   const [editCosto, setEditCosto] = useState<CostoGanaderia | null>(null)
   const [eFecha, setEFecha] = useState('')
@@ -117,7 +111,6 @@ export default function CostosSanidadPage() {
   const [eMonto, setEMonto] = useState('')
   const [eCatId, setECatId] = useState('')
   const [eLoteId, setELoteId] = useState('')
-  const [eCampoId, setECampoId] = useState('')
   const [eCampania, setECampania] = useState('')
   const [eObs, setEObs] = useState('')
   const [eAsoc, setEAsoc] = useState<AsociacionTipo>('general')
@@ -127,7 +120,6 @@ export default function CostosSanidadPage() {
   // ---- SANIDAD ----
   const [sanidades, setSanidades] = useState<SanidadRow[]>([])
   const [cargandoSanidad, setCargandoSanidad] = useState(true)
-  const [sCampoId, setSCampoId] = useState('')
   const [sLoteId, setSLoteId] = useState('')
   const [sCategoriaId, setSCategoriaId] = useState('')
   const [sCampaniaId, setSCampaniaId] = useState('')
@@ -149,10 +141,8 @@ export default function CostosSanidadPage() {
   const [npPrecio, setNpPrecio] = useState('')
   const [npGuardando, setNpGuardando] = useState(false)
   const [filtroCampaniaSan, setFiltroCampaniaSan] = useState('')
-  const [filtroCampoSan, setFiltroCampoSan] = useState('')
   const [editSan, setEditSan] = useState<SanidadRow | null>(null)
   const [esCampaniaId, setEsCampaniaId] = useState('')
-  const [esCampoId, setEsCampoId] = useState('')
   const [esLoteId, setEsLoteId] = useState('')
   const [esCatId, setEsCatId] = useState('')
   const [esProductoId, setEsProductoId] = useState('')
@@ -187,15 +177,13 @@ export default function CostosSanidadPage() {
 
   useEffect(() => {
     const cargar = async () => {
-      const [{ data: c }, { data: l }, { data: cat }, { data: camp }, { data: lf }, { data: prod }] = await Promise.all([
-        supabase.from('campos').select('id, nombre').order('nombre'),
+      const [{ data: l }, { data: cat }, { data: camp }, { data: lf }, { data: prod }] = await Promise.all([
         supabase.from('lotes').select('id, nombre, establecimiento').eq('activo', true).order('nombre'),
         supabase.from('categorias_hacienda').select('id, nombre, orden').order('orden'),
         supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false }),
         supabase.from('feedlot_ingresos').select('id, campania, categorias_hacienda(nombre)').order('fecha_entrada', { ascending: false }),
         supabase.from('productos_veterinarios').select('id, nombre, tipo, unidad, precio_usd').eq('activo', true).order('nombre'),
       ])
-      setCampos(c ?? [])
       setLotes(l ?? [])
       setCategorias(cat ?? [])
       setCampanias(camp ?? [])
@@ -210,7 +198,7 @@ export default function CostosSanidadPage() {
   const cargarCostos = async () => {
     setCargandoCostos(true)
     const { data } = await supabase.from('costos_ganaderia')
-      .select('*, feedlot_ingresos(campania, categorias_hacienda(nombre)), campos(nombre), categorias_hacienda(nombre)')
+      .select('*, feedlot_ingresos(campania, categorias_hacienda(nombre)), categorias_hacienda(nombre)')
       .order('fecha', { ascending: false })
     setCostos((data ?? []) as unknown as CostoGanaderia[])
     setCargandoCostos(false)
@@ -219,22 +207,17 @@ export default function CostosSanidadPage() {
   const cargarSanidad = async () => {
     setCargandoSanidad(true)
     const { data } = await supabase.from('sanidad_hacienda')
-      .select('*, productos_veterinarios(nombre, unidad), lotes(nombre), categorias_hacienda(nombre), campos(nombre), campanas(nombre)')
+      .select('*, productos_veterinarios(nombre, unidad), lotes(nombre), categorias_hacienda(nombre), campanas(nombre)')
       .order('fecha', { ascending: false })
     setSanidades((data ?? []) as unknown as SanidadRow[])
     setCargandoSanidad(false)
   }
-
-  const nombreCampo = (id: string) => campos.find(c => c.id === Number(id))?.nombre ?? ''
-  const lotesPorCampo = (campoIdStr: string) =>
-    campoIdStr ? lotes.filter(l => l.establecimiento === nombreCampo(campoIdStr)) : lotes
 
   // ---- Acciones costos ----
   const handleSubmitCosto = async (e: React.FormEvent) => {
     e.preventDefault(); setCError(null); setCExito(null)
     if (!monto || Number(monto) <= 0) return setCError('Ingresá un monto válido.')
     if (asociacion === 'feedlot' && !loteId) return setCError('Seleccioná un lote feedlot.')
-    if (asociacion === 'general' && !campoId) return setCError('Seleccioná un campo.')
     setCGuardando(true)
     try {
       const { error } = await supabase.from('costos_ganaderia').insert({
@@ -243,14 +226,14 @@ export default function CostosSanidadPage() {
         monto_usd: Number(monto),
         categoria_id: categoriaId || null,
         lote_feedlot_id: asociacion === 'feedlot' ? loteId : null,
-        campo_id: asociacion === 'general' ? Number(campoId) : null,
+        campo_id: null,
         campania: asociacion === 'general' && campania ? campania : null,
         observaciones: observaciones || null,
       })
       if (error) throw error
       setCExito('Costo registrado.')
       setDescripcion(''); setTipoOtroDesc(''); setMonto(''); setCategoriaId('')
-      setLoteId(''); setCampoId(''); setCampania(''); setObservaciones('')
+      setLoteId(''); setCampania(''); setObservaciones('')
       cargarCostos()
     } catch (err: any) { setCError(err.message) }
     finally { setCGuardando(false) }
@@ -260,7 +243,7 @@ export default function CostosSanidadPage() {
     setEditCosto(c); setEFecha(c.fecha); setETipo(c.tipo); setEDesc(c.descripcion ?? '')
     setETipoOtroDesc(c.tipo === 'otro' ? (c.descripcion ?? '') : '')
     setEMonto(String(c.monto_usd)); setECatId(c.categoria_id ?? '')
-    setELoteId(c.lote_feedlot_id ?? ''); setECampoId(c.campo_id ? String(c.campo_id) : '')
+    setELoteId(c.lote_feedlot_id ?? '')
     setECampania(c.campania ?? ''); setEObs(c.observaciones ?? '')
     setEAsoc(c.lote_feedlot_id ? 'feedlot' : 'general'); setEError(null)
   }
@@ -275,7 +258,7 @@ export default function CostosSanidadPage() {
         descripcion: eTipo === 'otro' ? (eTipoOtroDesc || null) : (eDesc || null),
         monto_usd: Number(eMonto), categoria_id: eCatId || null,
         lote_feedlot_id: eAsoc === 'feedlot' ? eLoteId : null,
-        campo_id: eAsoc === 'general' ? Number(eCampoId) : null,
+        campo_id: eAsoc === 'general' ? null : editCosto.campo_id,
         campania: eAsoc === 'general' && eCampania ? eCampania : null,
         observaciones: eObs || null,
       }).eq('id', editCosto.id)
@@ -300,14 +283,13 @@ export default function CostosSanidadPage() {
 
   const handleSubmitSanidad = async (e: React.FormEvent) => {
     e.preventDefault(); setSError(null); setSExito(null)
-    if (!sCampoId) return setSError('Seleccioná un campo.')
     if (!sProductoId) return setSError('Seleccioná un producto.')
     if (!sCantidad || Number(sCantidad) <= 0) return setSError('Ingresá la cantidad de animales.')
     if (!sDosis || Number(sDosis) <= 0) return setSError('Ingresá la dosis por animal.')
     setSGuardando(true)
     try {
       const { error } = await supabase.from('sanidad_hacienda').insert({
-        campo_id: Number(sCampoId), lote_id: sLoteId || null, categoria_id: sCategoriaId || null,
+        campo_id: null, lote_id: sLoteId || null, categoria_id: sCategoriaId || null,
         campania_id: sCampaniaId ? Number(sCampaniaId) : null,
         producto_id: sProductoId, fecha: sFecha,
         cantidad_animales: Number(sCantidad), dosis_por_animal: Number(sDosis),
@@ -344,7 +326,7 @@ export default function CostosSanidadPage() {
 
   const abrirEditSan = (s: SanidadRow) => {
     setEditSan(s); setEsCampaniaId(s.campania_id ? String(s.campania_id) : '')
-    setEsCampoId(String(s.campo_id)); setEsLoteId(s.lote_id ?? '')
+    setEsLoteId(s.lote_id ?? '')
     setEsCatId(s.categoria_id ?? ''); setEsProductoId(''); setEsFecha(s.fecha)
     setEsCantidad(String(s.cantidad_animales)); setEsDosis(String(s.dosis_por_animal))
     setEsPrecioUnitario(s.precio_unitario_usd ? String(s.precio_unitario_usd) : '')
@@ -357,7 +339,7 @@ export default function CostosSanidadPage() {
     setEsGuardando(true)
     try {
       const updateData: Record<string, any> = {
-        campo_id: Number(esCampoId), lote_id: esLoteId || null, categoria_id: esCatId || null,
+        lote_id: esLoteId || null, categoria_id: esCatId || null,
         campania_id: esCampaniaId ? Number(esCampaniaId) : null,
         fecha: esFecha, cantidad_animales: Number(esCantidad), dosis_por_animal: Number(esDosis),
         precio_unitario_usd: esPrecioUnitario ? Number(esPrecioUnitario) : null,
@@ -381,10 +363,6 @@ export default function CostosSanidadPage() {
   // Totales y filtros
   const costosFiltrados = costos.filter(c => {
     if (filtroTipo && c.tipo !== filtroTipo) return false
-    if (filtroCampo) {
-      const cn = campos.find(x => x.id === Number(filtroCampo))?.nombre
-      if (c.campos?.nombre !== cn) return false
-    }
     if (filtroCampania && c.campania !== filtroCampania) return false
     return true
   })
@@ -392,7 +370,6 @@ export default function CostosSanidadPage() {
 
   const sanidadesFiltradas = sanidades.filter(s => {
     if (filtroCampaniaSan && s.campanas?.nombre !== filtroCampaniaSan) return false
-    if (filtroCampoSan && s.campo_id !== Number(filtroCampoSan)) return false
     return true
   })
   const totalSanidad = sanidadesFiltradas.reduce((s, x) => s + (x.monto_usd ?? 0), 0)
@@ -447,11 +424,6 @@ export default function CostosSanidadPage() {
                 </select></div>
             ) : (
               <div className="space-y-3">
-                <div><label className={labelCls}>Campo</label>
-                  <select value={campoId} onChange={e => setCampoId(e.target.value)} className={inputCls}>
-                    <option value="">Seleccionar campo...</option>
-                    {campos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select></div>
                 <div><label className={labelCls}>Campaña <span className="text-stone-400">(opc.)</span></label>
                   <select value={campania} onChange={e => setCampania(e.target.value)} className={inputCls}>
                     <option value="">Sin campaña</option>
@@ -500,10 +472,6 @@ export default function CostosSanidadPage() {
                 <option value="">Todos los tipos</option>
                 {TIPOS_COSTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
-              <select value={filtroCampo} onChange={e => setFiltroCampo(e.target.value)} className="rounded-md border border-stone-300 px-2 py-1 text-sm">
-                <option value="">Todos los campos</option>
-                {campos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
               <select value={filtroCampania} onChange={e => setFiltroCampania(e.target.value)} className="rounded-md border border-stone-300 px-2 py-1 text-sm">
                 <option value="">Todas las campañas</option>
                 {campanias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
@@ -531,7 +499,7 @@ export default function CostosSanidadPage() {
                         <td className="px-3 py-2">
                           {c.feedlot_ingresos
                             ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Feedlot · {c.feedlot_ingresos.campania} · {c.feedlot_ingresos.categorias_hacienda?.nombre}</span>
-                            : <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{c.campos?.nombre}{c.campania ? ' · ' + c.campania : ''}</span>}
+                            : <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">General{c.campania ? ' · ' + c.campania : ''}</span>}
                         </td>
                         <td className="px-3 py-2 text-right font-medium text-stone-900">USD {fmt(c.monto_usd)}</td>
                         <td className="px-3 py-2">
@@ -570,16 +538,10 @@ export default function CostosSanidadPage() {
                   {campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select></div>
 
-              <div><label className={labelCls}>Campo</label>
-                <select value={sCampoId} onChange={e => { setSCampoId(e.target.value); setSLoteId('') }} className={inputCls}>
-                  <option value="">Seleccionar campo...</option>
-                  {campos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select></div>
-
               <div><label className={labelCls}>Lote <span className="text-stone-400">(opc.)</span></label>
-                <select value={sLoteId} onChange={e => setSLoteId(e.target.value)} disabled={!sCampoId} className={`${inputCls} disabled:opacity-50`}>
-                  <option value="">Todo el campo</option>
-                  {lotesPorCampo(sCampoId).map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+                <select value={sLoteId} onChange={e => setSLoteId(e.target.value)} className={inputCls}>
+                  <option value="">General (todos los lotes)</option>
+                  {lotes.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
                 </select></div>
 
               <div><label className={labelCls}>Categoría <span className="text-stone-400">(opc.)</span></label>
@@ -686,10 +648,6 @@ export default function CostosSanidadPage() {
                 <option value="">Todas las campañas</option>
                 {campanias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
               </select>
-              <select value={filtroCampoSan} onChange={e => setFiltroCampoSan(e.target.value)} className="rounded-md border border-stone-300 px-2 py-1 text-sm">
-                <option value="">Todos los campos</option>
-                {campos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
               {totalSanidad > 0 && <span className="ml-auto text-sm font-medium text-stone-700">Total: USD {fmt(totalSanidad)}</span>}
             </div>
             {cargandoSanidad && <p className="text-sm text-stone-500">Cargando...</p>}
@@ -700,7 +658,7 @@ export default function CostosSanidadPage() {
                   <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
                     <th className="px-3 py-2 font-medium">Campaña</th>
                     <th className="px-3 py-2 font-medium">Fecha</th>
-                    <th className="px-3 py-2 font-medium">Campo / Lote</th>
+                    <th className="px-3 py-2 font-medium">Lote</th>
                     <th className="px-3 py-2 font-medium">Categoría</th>
                     <th className="px-3 py-2 font-medium">Producto</th>
                     <th className="px-3 py-2 text-right font-medium">Animales</th>
@@ -713,7 +671,7 @@ export default function CostosSanidadPage() {
                       <tr key={s.id} className="border-t border-stone-100">
                         <td className="px-3 py-2 text-stone-600">{s.campanas?.nombre ?? '—'}</td>
                         <td className="px-3 py-2 text-stone-600">{new Date(s.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                        <td className="px-3 py-2"><div className="font-medium text-stone-900">{s.campos?.nombre}</div><div className="text-xs text-stone-500">{s.lotes?.nombre ?? 'Todo el campo'}</div></td>
+                        <td className="px-3 py-2 text-stone-700">{s.lotes?.nombre ?? 'General'}</td>
                         <td className="px-3 py-2 text-stone-700">{s.categorias_hacienda?.nombre ?? 'Todas'}</td>
                         <td className="px-3 py-2 text-stone-700">{s.productos_veterinarios?.nombre}</td>
                         <td className="px-3 py-2 text-right text-stone-900">{s.cantidad_animales.toLocaleString('es-AR')}</td>
@@ -758,11 +716,6 @@ export default function CostosSanidadPage() {
               </select></div>
           ) : (
             <div className="space-y-3">
-              <div><label className={labelCls}>Campo</label>
-                <select value={eCampoId} onChange={e => setECampoId(e.target.value)} className={inputCls}>
-                  <option value="">Seleccionar campo...</option>
-                  {campos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select></div>
               <div><label className={labelCls}>Campaña</label>
                 <select value={eCampania} onChange={e => setECampania(e.target.value)} className={inputCls}>
                   <option value="">Sin campaña</option>
@@ -805,14 +758,10 @@ export default function CostosSanidadPage() {
               <option value="">Sin campaña</option>
               {campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select></div>
-          <div><label className={labelCls}>Campo</label>
-            <select value={esCampoId} onChange={e => { setEsCampoId(e.target.value); setEsLoteId('') }} className={inputCls}>
-              {campos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select></div>
           <div><label className={labelCls}>Lote <span className="text-stone-400">(opc.)</span></label>
             <select value={esLoteId} onChange={e => setEsLoteId(e.target.value)} className={inputCls}>
-              <option value="">Todo el campo</option>
-              {lotesPorCampo(esCampoId).map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
+              <option value="">General (todos los lotes)</option>
+              {lotes.map(l => <option key={l.id} value={l.id}>{l.nombre}</option>)}
             </select></div>
           <div><label className={labelCls}>Categoría <span className="text-stone-400">(opc.)</span></label>
             <select value={esCatId} onChange={e => setEsCatId(e.target.value)} className={inputCls}>
