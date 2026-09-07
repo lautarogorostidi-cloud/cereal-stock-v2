@@ -7,7 +7,6 @@ type StockItem = {
   producto_id: number
   producto: string
   marca: string | null
-  cultivo: string
   unidad: string
   stock_minimo: number
   proveedor_default: string | null
@@ -17,7 +16,7 @@ type StockItem = {
   activo: boolean
 }
 
-type CompraMov = { campania: string | null; cantidad: number; precio_unitario: number | null; fertilizantes_productos: { cultivos: { nombre: string } | null } | null }
+type CompraMov = { campania: string | null; cantidad: number; precio_unitario: number | null; fertilizantes_productos: { nombre: string } | null }
 type Campana = { id: number; nombre: string }
 
 export default function StockFertilizantesPage() {
@@ -35,8 +34,8 @@ export default function StockFertilizantesPage() {
   async function cargar() {
     setLoading(true)
     const [{ data }, { data: comprasData }, { data: caps }] = await Promise.all([
-      supabase.from('vw_stock_fertilizantes').select('*').order('cultivo').order('producto'),
-      supabase.from('fertilizantes_movimientos').select('campania, cantidad, precio_unitario, fertilizantes_productos(cultivos(nombre))').eq('tipo', 'compra'),
+      supabase.from('vw_stock_fertilizantes').select('*').order('producto'),
+      supabase.from('fertilizantes_movimientos').select('campania, cantidad, precio_unitario, fertilizantes_productos(nombre)').eq('tipo', 'compra'),
       supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false }),
     ])
     setStock(((data ?? []) as StockItem[]).filter(r => r.activo))
@@ -51,24 +50,17 @@ export default function StockFertilizantesPage() {
     const q = busqueda.toLowerCase()
     return (
       r.producto.toLowerCase().includes(q) ||
-      r.cultivo.toLowerCase().includes(q) ||
       (r.marca?.toLowerCase().includes(q) ?? false)
     )
   })
 
-  const porCultivo = listaFiltrada.reduce((acc: Record<string, StockItem[]>, r) => {
-    if (!acc[r.cultivo]) acc[r.cultivo] = []
-    acc[r.cultivo].push(r)
-    return acc
-  }, {})
-
   const comprasCampania = campaniaKpi ? compras.filter(c => c.campania === campaniaKpi) : compras
   const costoTotalCampania = comprasCampania.reduce((s, c) => s + Number(c.cantidad) * Number(c.precio_unitario ?? 0), 0)
 
-  const costoPorCultivo = Object.entries(
+  const costoPorProducto = Object.entries(
     comprasCampania.reduce((acc: Record<string, number>, c) => {
-      const cultivo = c.fertilizantes_productos?.cultivos?.nombre ?? 'General'
-      acc[cultivo] = (acc[cultivo] ?? 0) + Number(c.cantidad) * Number(c.precio_unitario ?? 0)
+      const producto = c.fertilizantes_productos?.nombre ?? 'Sin producto'
+      acc[producto] = (acc[producto] ?? 0) + Number(c.cantidad) * Number(c.precio_unitario ?? 0)
       return acc
     }, {})
   ).sort(([, a], [, b]) => b - a)
@@ -104,14 +96,14 @@ export default function StockFertilizantesPage() {
           <div className="text-sm text-campo-400 mt-1">compras de fertilizante{campaniaKpi ? ` — campaña ${campaniaKpi}` : ' — todas las campañas'}</div>
         </div>
         <div className="card p-6">
-          <div className="text-sm font-semibold text-campo-500 uppercase tracking-wider mb-3">Costo por cultivo</div>
-          {costoPorCultivo.length === 0 ? (
+          <div className="text-sm font-semibold text-campo-500 uppercase tracking-wider mb-3">Costo por fertilizante</div>
+          {costoPorProducto.length === 0 ? (
             <div className="text-base text-campo-400">Sin compras registradas{campaniaKpi ? ` en ${campaniaKpi}` : ''}.</div>
           ) : (
             <div className="space-y-2.5">
-              {costoPorCultivo.map(([cultivo, monto]) => (
-                <div key={cultivo} className="flex items-center justify-between text-base">
-                  <span className="text-campo-700 font-medium">🧱 {cultivo}</span>
+              {costoPorProducto.map(([producto, monto]) => (
+                <div key={producto} className="flex items-center justify-between text-base">
+                  <span className="text-campo-700 font-medium">🧱 {producto}</span>
                   <span className="font-bold text-lg text-campo-900">{fmtUsd(monto)}</span>
                 </div>
               ))}
@@ -123,7 +115,7 @@ export default function StockFertilizantesPage() {
       {/* Filtros */}
       <div className="flex gap-3 items-center flex-wrap">
         <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar producto, cultivo, marca..."
+          placeholder="Buscar producto, marca..."
           className="flex-1 rounded-lg border border-campo-200 px-4 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
         <button onClick={() => setSoloAlertas(!soloAlertas)}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${soloAlertas ? 'bg-red-600 text-white' : 'bg-campo-100 text-campo-600 hover:bg-campo-200'}`}>
@@ -133,21 +125,18 @@ export default function StockFertilizantesPage() {
 
       {loading && <div className="card p-10 text-center text-campo-400">Cargando...</div>}
 
-      {!loading && Object.keys(porCultivo).length === 0 && (
+      {!loading && listaFiltrada.length === 0 && (
         <div className="card p-12 text-center text-campo-400">
           No hay fertilizantes cargados todavía. Empezá agregando un movimiento de compra.
         </div>
       )}
 
-      {!loading && Object.entries(porCultivo).map(([cultivo, items]) => (
-        <div key={cultivo} className="card overflow-hidden p-0">
-          <div className="px-5 py-3 border-b border-campo-100 bg-campo-50">
-            <h2 className="font-semibold text-campo-700 text-sm">🧱 {cultivo} — {items.length} producto{items.length === 1 ? '' : 's'}</h2>
-          </div>
+      {!loading && listaFiltrada.length > 0 && (
+        <div className="card overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-campo-100">
+                <tr className="border-b border-campo-100 bg-campo-50">
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Producto</th>
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Proveedor</th>
                   <th className="text-right px-5 py-3 font-semibold text-campo-700">Stock actual</th>
@@ -156,7 +145,7 @@ export default function StockFertilizantesPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map(r => (
+                {listaFiltrada.map(r => (
                   <tr key={r.producto_id} className={`border-b border-campo-50 hover:bg-campo-50/50 transition-colors ${r.alerta_stock_minimo ? 'bg-red-50/30' : ''}`}>
                     <td className="px-5 py-3">
                       <div className="font-medium text-campo-900">{r.producto}</div>
@@ -184,7 +173,7 @@ export default function StockFertilizantesPage() {
             </table>
           </div>
         </div>
-      ))}
+      )}
     </div>
   )
 }

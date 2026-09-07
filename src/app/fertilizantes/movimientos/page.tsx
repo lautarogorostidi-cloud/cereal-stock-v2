@@ -15,13 +15,12 @@ type Movimiento = {
   precio_unitario: number | null
   numero_remito: string | null
   numero_factura: string | null
-  fertilizantes_productos: { nombre: string; unidad: string; marca: string | null; cultivos: { nombre: string } | null } | null
+  fertilizantes_productos: { nombre: string; unidad: string; marca: string | null } | null
   proveedores: { nombre: string } | null
 }
 
-type Producto = { id: number; nombre: string; unidad: string; marca: string | null; cultivo_id: string | null; proveedor_id: number | null; cultivos: { nombre: string } | null }
+type Producto = { id: number; nombre: string; unidad: string; marca: string | null; proveedor_id: number | null }
 type Proveedor = { id: string; nombre: string }
-type Cultivo = { id: string; nombre: string }
 type Campana = { id: number; nombre: string }
 
 const TIPOS = ['compra', 'devolucion', 'ajuste']
@@ -31,7 +30,6 @@ export default function MovimientosFertilizantesPage() {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
-  const [cultivos, setCultivos] = useState<Cultivo[]>([])
   const [campanas, setCampanas] = useState<Campana[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -58,7 +56,7 @@ export default function MovimientosFertilizantesPage() {
     setLoading(true)
     const { data, error } = await supabase
       .from('fertilizantes_movimientos')
-      .select('*, fertilizantes_productos(nombre, unidad, marca, cultivos(nombre)), proveedores(nombre)')
+      .select('*, fertilizantes_productos(nombre, unidad, marca), proveedores(nombre)')
       .order('fecha', { ascending: false })
     if (error) console.error('Error cargando movimientos:', error)
     setMovimientos((data ?? []) as any)
@@ -66,15 +64,13 @@ export default function MovimientosFertilizantesPage() {
   }
 
   async function cargarMaestros() {
-    const [{ data: prods }, { data: provs }, { data: cs }, { data: caps }] = await Promise.all([
-      supabase.from('fertilizantes_productos').select('id, nombre, unidad, marca, cultivo_id, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre'),
+    const [{ data: prods }, { data: provs }, { data: caps }] = await Promise.all([
+      supabase.from('fertilizantes_productos').select('id, nombre, unidad, marca, proveedor_id').eq('activo', true).order('nombre'),
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
-      supabase.from('cultivos').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('campanas').select('id, nombre').eq('activo', true).order('nombre', { ascending: false }),
     ])
     setProductos((prods ?? []) as any)
     setProveedores(provs ?? [])
-    setCultivos(cs ?? [])
     setCampanas(caps ?? [])
     if (caps && caps.length > 0) setForm(f => ({ ...f, campania: caps[0].nombre }))
   }
@@ -85,7 +81,7 @@ export default function MovimientosFertilizantesPage() {
   }, [])
 
   const [nuevoProductoMode, setNuevoProductoMode] = useState(false)
-  const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', cultivo_id: '', unidad: 'kg', marca: '', proveedor_id: '' })
+  const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', unidad: 'kg', marca: '', proveedor_id: '' })
   const [savingProducto, setSavingProducto] = useState(false)
   const [errorProducto, setErrorProducto] = useState<string | null>(null)
 
@@ -121,18 +117,17 @@ export default function MovimientosFertilizantesPage() {
     setErrorProducto(null)
     const { data, error } = await supabase.from('fertilizantes_productos').insert({
       nombre: nuevoProducto.nombre,
-      cultivo_id: nuevoProducto.cultivo_id || null,
       unidad: nuevoProducto.unidad,
       marca: nuevoProducto.marca || null,
       proveedor_id: nuevoProducto.proveedor_id || null,
       activo: true,
-    }).select('id, nombre, unidad, marca, cultivo_id, proveedor_id, cultivos(nombre)').single()
+    }).select('id, nombre, unidad, marca, proveedor_id').single()
     if (!error && data) {
       const nuevoId = String(data.id)
-      const { data: prods } = await supabase.from('fertilizantes_productos').select('id, nombre, unidad, marca, cultivo_id, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre')
+      const { data: prods } = await supabase.from('fertilizantes_productos').select('id, nombre, unidad, marca, proveedor_id').eq('activo', true).order('nombre')
       setProductos((prods ?? []) as any)
       setNuevoProductoMode(false)
-      setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'kg', marca: '', proveedor_id: '' })
+      setNuevoProducto({ nombre: '', unidad: 'kg', marca: '', proveedor_id: '' })
       setForm(f => ({ ...f, producto_id: nuevoId, proveedor_id: nuevoProducto.proveedor_id || f.proveedor_id }))
     } else if (error) {
       if (error.code === '23505') {
@@ -147,14 +142,6 @@ export default function MovimientosFertilizantesPage() {
   const costoTotal = Number(form.cantidad || 0) * Number(form.precio_unitario || 0)
   const productoSeleccionado = productos.find(p => String(p.id) === form.producto_id)
   const fmtUsd = (n: number) => n > 0 ? `USD ${n.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : ''
-
-  // Agrupar productos por cultivo
-  const productosPorCultivo = productos.reduce((acc: Record<string, Producto[]>, p) => {
-    const c = p.cultivos?.nombre ?? 'General'
-    if (!acc[c]) acc[c] = []
-    acc[c].push(p)
-    return acc
-  }, {})
 
   async function handleGuardar() {
     setError(null)
@@ -191,7 +178,7 @@ export default function MovimientosFertilizantesPage() {
       // (así se completa solo en Productos/Stock sin tener que cargarlo dos veces)
       if (form.tipo === 'compra' && payload.proveedor_id && productoSeleccionado && !productoSeleccionado.proveedor_id) {
         await supabase.from('fertilizantes_productos').update({ proveedor_id: payload.proveedor_id }).eq('id', payload.producto_id)
-        const { data: prods } = await supabase.from('fertilizantes_productos').select('id, nombre, unidad, marca, cultivo_id, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre')
+        const { data: prods } = await supabase.from('fertilizantes_productos').select('id, nombre, unidad, marca, proveedor_id').eq('activo', true).order('nombre')
         setProductos((prods ?? []) as any)
       }
       setShowForm(false)
@@ -236,7 +223,6 @@ export default function MovimientosFertilizantesPage() {
       const q = busqueda.toLowerCase()
       return (
         m.fertilizantes_productos?.nombre?.toLowerCase().includes(q) ||
-        m.fertilizantes_productos?.cultivos?.nombre?.toLowerCase().includes(q) ||
         m.tipo?.toLowerCase().includes(q) ||
         m.campania?.toLowerCase().includes(q) ||
         m.proveedores?.nombre?.toLowerCase().includes(q) ||
@@ -282,11 +268,7 @@ export default function MovimientosFertilizantesPage() {
                   }}
                     className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
                     <option value="">Seleccioná un fertilizante</option>
-                    {Object.entries(productosPorCultivo).map(([cultivo, prods]) => (
-                      <optgroup key={cultivo} label={cultivo}>
-                        {prods.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.marca ? ` — ${p.marca}` : ''}</option>)}
-                      </optgroup>
-                    ))}
+                    {productos.map(p => <option key={p.id} value={p.id}>{p.nombre}{p.marca ? ` — ${p.marca}` : ''}</option>)}
                     <option value="__nuevo__">➕ Agregar nuevo fertilizante...</option>
                   </select>
                 </>
@@ -296,11 +278,6 @@ export default function MovimientosFertilizantesPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <input type="text" value={nuevoProducto.nombre} onChange={e => setNuevoProducto(p => ({ ...p, nombre: e.target.value }))}
                       placeholder="Nombre (Urea, PDA, Mezcla...) *" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-                    <select value={nuevoProducto.cultivo_id} onChange={e => setNuevoProducto(p => ({ ...p, cultivo_id: e.target.value }))}
-                      className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                      <option value="">Cultivo (opcional)</option>
-                      {cultivos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                    </select>
                     <input type="text" value={nuevoProducto.marca} onChange={e => setNuevoProducto(p => ({ ...p, marca: e.target.value }))}
                       placeholder="Marca (opcional)" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                     <select value={nuevoProducto.unidad} onChange={e => setNuevoProducto(p => ({ ...p, unidad: e.target.value }))}
@@ -318,7 +295,7 @@ export default function MovimientosFertilizantesPage() {
                       className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
                       {savingProducto ? 'Guardando...' : 'Guardar fertilizante'}
                     </button>
-                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'kg', marca: '', proveedor_id: '' }); setErrorProducto(null) }}
+                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', unidad: 'kg', marca: '', proveedor_id: '' }); setErrorProducto(null) }}
                       className="text-xs text-campo-500 hover:text-campo-700 px-3 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
                       Cancelar
                     </button>
@@ -475,7 +452,7 @@ export default function MovimientosFertilizantesPage() {
             type="text"
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por producto, cultivo, campaña, proveedor, remito..."
+            placeholder="Buscar por producto, campaña, proveedor, remito..."
             className="w-full rounded-lg border border-campo-200 px-4 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400"
           />
         </div>
@@ -518,10 +495,7 @@ export default function MovimientosFertilizantesPage() {
               {movFiltrados.map((m, i) => (
                 <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-4 py-3 text-campo-600">{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-campo-900">{m.fertilizantes_productos?.nombre ?? '—'}</div>
-                    {m.fertilizantes_productos?.cultivos?.nombre && <div className="text-xs text-campo-400">{m.fertilizantes_productos.cultivos.nombre}</div>}
-                  </td>
+                  <td className="px-4 py-3 font-medium text-campo-900">{m.fertilizantes_productos?.nombre ?? '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badgeColor(m.tipo)}`}>
                       {m.tipo.charAt(0).toUpperCase() + m.tipo.slice(1)}

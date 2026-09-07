@@ -7,17 +7,10 @@ export default async function ProductosFertilizantesPage() {
   const supabase = createClient()
   const { data: productos } = await supabase
     .from('fertilizantes_productos')
-    .select('*, cultivos(nombre), proveedores(nombre)')
+    .select('*, proveedores(nombre)')
     .order('nombre')
 
   const lista = productos ?? []
-
-  const porCultivo = lista.reduce((acc: Record<string, typeof lista>, p: any) => {
-    const c = p.cultivos?.nombre ?? 'General'
-    if (!acc[c]) acc[c] = []
-    acc[c].push(p)
-    return acc
-  }, {})
 
   return (
     <div className="space-y-6">
@@ -29,17 +22,12 @@ export default async function ProductosFertilizantesPage() {
         <a href="/fertilizantes/movimientos" className="btn-primary">+ Agregar producto</a>
       </div>
 
-      {Object.entries(porCultivo).map(([cultivo, prods]) => (
-        <div key={cultivo} className="card overflow-hidden p-0">
-          <div className="px-5 py-3 border-b border-campo-100 bg-campo-50">
-            <h2 className="font-semibold text-campo-700 text-sm">
-              🧱 {cultivo} — {prods.length} producto{prods.length === 1 ? '' : 's'}
-            </h2>
-          </div>
+      {lista.length > 0 && (
+        <div className="card overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-campo-100">
+                <tr className="border-b border-campo-100 bg-campo-50">
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Producto</th>
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Marca</th>
                   <th className="text-left px-5 py-3 font-semibold text-campo-700">Proveedor</th>
@@ -49,7 +37,7 @@ export default async function ProductosFertilizantesPage() {
                 </tr>
               </thead>
               <tbody>
-                {prods.map((p: any) => (
+                {lista.map((p: any) => (
                   <tr key={p.id} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                     <td className="px-5 py-3 font-medium text-campo-900">{p.nombre}</td>
                     <td className="px-5 py-3 text-campo-600">{p.marca ?? '—'}</td>
@@ -77,7 +65,7 @@ export default async function ProductosFertilizantesPage() {
             </table>
           </div>
         </div>
-      ))}
+      )}
 
       {lista.length === 0 && (
         <div className="card p-12 text-center text-campo-400">
