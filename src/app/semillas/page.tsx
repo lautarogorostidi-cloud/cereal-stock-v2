@@ -17,7 +17,7 @@ type StockItem = {
   activo: boolean
 }
 
-type CompraMov = { campania: string | null; cantidad: number; precio_unitario: number | null }
+type CompraMov = { campania: string | null; cantidad: number; precio_unitario: number | null; semillas_productos: { cultivos: { nombre: string } | null } | null }
 type Campana = { id: number; nombre: string }
 
 export default function StockSemillasPage() {
@@ -36,11 +36,11 @@ export default function StockSemillasPage() {
     setLoading(true)
     const [{ data }, { data: comprasData }, { data: caps }] = await Promise.all([
       supabase.from('vw_stock_semillas').select('*').order('cultivo').order('producto'),
-      supabase.from('semillas_movimientos').select('campania, cantidad, precio_unitario').eq('tipo', 'compra'),
+      supabase.from('semillas_movimientos').select('campania, cantidad, precio_unitario, semillas_productos(cultivos(nombre))').eq('tipo', 'compra'),
       supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false }),
     ])
     setStock(((data ?? []) as StockItem[]).filter(r => r.activo))
-    setCompras((comprasData ?? []) as CompraMov[])
+    setCompras((comprasData ?? []) as any)
     setCampanas(caps ?? [])
     if (caps && caps.length > 0) setCampaniaKpi(caps[0].nombre)
     setLoading(false)
@@ -63,10 +63,16 @@ export default function StockSemillasPage() {
     return acc
   }, {})
 
-  const totalAlertas = stock.filter(r => r.alerta_stock_minimo).length
-
   const comprasCampania = campaniaKpi ? compras.filter(c => c.campania === campaniaKpi) : compras
   const costoTotalCampania = comprasCampania.reduce((s, c) => s + Number(c.cantidad) * Number(c.precio_unitario ?? 0), 0)
+
+  const costoPorCultivo = Object.entries(
+    comprasCampania.reduce((acc: Record<string, number>, c) => {
+      const cultivo = c.semillas_productos?.cultivos?.nombre ?? 'Sin cultivo'
+      acc[cultivo] = (acc[cultivo] ?? 0) + Number(c.cantidad) * Number(c.precio_unitario ?? 0)
+      return acc
+    }, {})
+  ).sort(([, a], [, b]) => b - a)
 
   const fmt = (n: number) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   const fmtUsd = (n: number) => `USD ${Number(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -81,29 +87,37 @@ export default function StockSemillasPage() {
         <a href="/semillas/movimientos" className="btn-primary">+ Nuevo movimiento</a>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Selector de campaña */}
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-semibold text-campo-700">Campaña</label>
+        <select value={campaniaKpi} onChange={e => setCampaniaKpi(e.target.value)}
+          className="rounded-lg border border-campo-300 bg-white px-4 py-2.5 text-base font-medium text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[160px]">
+          <option value="">Todas las campañas</option>
+          {campanas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+        </select>
+      </div>
+
+      {/* KPIs de costo */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="card p-5">
-          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Productos</div>
-          <div className="text-2xl font-bold text-campo-900">{stock.length}</div>
-          <div className="text-xs text-campo-400 mt-0.5">en catálogo</div>
-        </div>
-        <div className={`card p-5 ${totalAlertas > 0 ? 'border-red-200 bg-red-50' : ''}`}>
-          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Alertas de stock</div>
-          <div className={`text-2xl font-bold ${totalAlertas > 0 ? 'text-red-600' : 'text-campo-900'}`}>{totalAlertas}</div>
-          <div className="text-xs text-campo-400 mt-0.5">bajo el mínimo definido</div>
-        </div>
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-1">
-            <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider">Costo total</div>
-            <select value={campaniaKpi} onChange={e => setCampaniaKpi(e.target.value)}
-              className="text-xs border border-campo-200 rounded-md px-1.5 py-0.5 text-campo-600 focus:outline-none focus:ring-1 focus:ring-emerald-400">
-              <option value="">Todas</option>
-              {campanas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
-            </select>
-          </div>
+          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Costo total</div>
           <div className="text-2xl font-bold text-campo-900">{fmtUsd(costoTotalCampania)}</div>
           <div className="text-xs text-campo-400 mt-0.5">compras de semilla{campaniaKpi ? ` — campaña ${campaniaKpi}` : ' — todas las campañas'}</div>
+        </div>
+        <div className="card p-5">
+          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-2">Costo por cultivo</div>
+          {costoPorCultivo.length === 0 ? (
+            <div className="text-sm text-campo-400">Sin compras registradas{campaniaKpi ? ` en ${campaniaKpi}` : ''}.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {costoPorCultivo.map(([cultivo, monto]) => (
+                <div key={cultivo} className="flex items-center justify-between text-sm">
+                  <span className="text-campo-700">🌱 {cultivo}</span>
+                  <span className="font-semibold text-campo-900">{fmtUsd(monto)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
