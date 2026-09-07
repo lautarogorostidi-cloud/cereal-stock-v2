@@ -42,7 +42,6 @@ export default function StockSemillasPage() {
     setStock(((data ?? []) as StockItem[]).filter(r => r.activo))
     setCompras((comprasData ?? []) as any)
     setCampanas(caps ?? [])
-    if (caps && caps.length > 0) setCampaniaKpi(caps[0].nombre)
     setLoading(false)
   }
 
@@ -99,21 +98,21 @@ export default function StockSemillasPage() {
 
       {/* KPIs de costo */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="card p-5">
-          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Costo total</div>
-          <div className="text-2xl font-bold text-campo-900">{fmtUsd(costoTotalCampania)}</div>
-          <div className="text-xs text-campo-400 mt-0.5">compras de semilla{campaniaKpi ? ` — campaña ${campaniaKpi}` : ' — todas las campañas'}</div>
+        <div className="card p-6">
+          <div className="text-sm font-semibold text-campo-500 uppercase tracking-wider mb-2">Costo total</div>
+          <div className="text-4xl font-bold text-campo-900">{fmtUsd(costoTotalCampania)}</div>
+          <div className="text-sm text-campo-400 mt-1">compras de semilla{campaniaKpi ? ` — campaña ${campaniaKpi}` : ' — todas las campañas'}</div>
         </div>
-        <div className="card p-5">
-          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-2">Costo por cultivo</div>
+        <div className="card p-6">
+          <div className="text-sm font-semibold text-campo-500 uppercase tracking-wider mb-3">Costo por cultivo</div>
           {costoPorCultivo.length === 0 ? (
-            <div className="text-sm text-campo-400">Sin compras registradas{campaniaKpi ? ` en ${campaniaKpi}` : ''}.</div>
+            <div className="text-base text-campo-400">Sin compras registradas{campaniaKpi ? ` en ${campaniaKpi}` : ''}.</div>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-2.5">
               {costoPorCultivo.map(([cultivo, monto]) => (
-                <div key={cultivo} className="flex items-center justify-between text-sm">
-                  <span className="text-campo-700">🌱 {cultivo}</span>
-                  <span className="font-semibold text-campo-900">{fmtUsd(monto)}</span>
+                <div key={cultivo} className="flex items-center justify-between text-base">
+                  <span className="text-campo-700 font-medium">🌱 {cultivo}</span>
+                  <span className="font-bold text-lg text-campo-900">{fmtUsd(monto)}</span>
                 </div>
               ))}
             </div>

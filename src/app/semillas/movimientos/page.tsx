@@ -19,7 +19,7 @@ type Movimiento = {
   proveedores: { nombre: string } | null
 }
 
-type Producto = { id: number; nombre: string; unidad: string; marca: string | null; cultivo_id: string; semillas_por_bolsa: number | null; proveedor_id: number | null; cultivos: { nombre: string } | null }
+type Producto = { id: number; nombre: string; unidad: string; marca: string | null; cultivo_id: string; semillas_por_bolsa: number | null; kg_por_bolsa: number | null; proveedor_id: number | null; cultivos: { nombre: string } | null }
 type Proveedor = { id: string; nombre: string }
 type Cultivo = { id: string; nombre: string }
 type Campana = { id: number; nombre: string }
@@ -67,7 +67,7 @@ export default function MovimientosSemillasPage() {
 
   async function cargarMaestros() {
     const [{ data: prods }, { data: provs }, { data: cs }, { data: caps }] = await Promise.all([
-      supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre'),
+      supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, kg_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre'),
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('cultivos').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('campanas').select('id, nombre').eq('activo', true).order('nombre', { ascending: false }),
@@ -85,7 +85,7 @@ export default function MovimientosSemillasPage() {
   }, [])
 
   const [nuevoProductoMode, setNuevoProductoMode] = useState(false)
-  const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '', proveedor_id: '' })
+  const [nuevoProducto, setNuevoProducto] = useState({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '', kg_por_bolsa: '', proveedor_id: '' })
   const [savingProducto, setSavingProducto] = useState(false)
   const [errorProducto, setErrorProducto] = useState<string | null>(null)
 
@@ -125,15 +125,16 @@ export default function MovimientosSemillasPage() {
       unidad: nuevoProducto.unidad,
       marca: nuevoProducto.marca || null,
       semillas_por_bolsa: nuevoProducto.unidad === 'bolsas' && nuevoProducto.semillas_por_bolsa ? Number(nuevoProducto.semillas_por_bolsa) : null,
+      kg_por_bolsa: nuevoProducto.unidad === 'bolsas' && nuevoProducto.kg_por_bolsa ? Number(nuevoProducto.kg_por_bolsa) : null,
       proveedor_id: nuevoProducto.proveedor_id || null,
       activo: true,
-    }).select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').single()
+    }).select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, kg_por_bolsa, proveedor_id, cultivos(nombre)').single()
     if (!error && data) {
       const nuevoId = String(data.id)
-      const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre')
+      const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, kg_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre')
       setProductos((prods ?? []) as any)
       setNuevoProductoMode(false)
-      setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '', proveedor_id: '' })
+      setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '', kg_por_bolsa: '', proveedor_id: '' })
       setForm(f => ({ ...f, producto_id: nuevoId, proveedor_id: nuevoProducto.proveedor_id || f.proveedor_id }))
     } else if (error) {
       if (error.code === '23505') {
@@ -192,7 +193,7 @@ export default function MovimientosSemillasPage() {
       // (así se completa solo en Productos/Stock sin tener que cargarlo dos veces)
       if (form.tipo === 'compra' && payload.proveedor_id && productoSeleccionado && !productoSeleccionado.proveedor_id) {
         await supabase.from('semillas_productos').update({ proveedor_id: payload.proveedor_id }).eq('id', payload.producto_id)
-        const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre')
+        const { data: prods } = await supabase.from('semillas_productos').select('id, nombre, unidad, marca, cultivo_id, semillas_por_bolsa, kg_por_bolsa, proveedor_id, cultivos(nombre)').eq('activo', true).order('nombre')
         setProductos((prods ?? []) as any)
       }
       setShowForm(false)
@@ -304,7 +305,7 @@ export default function MovimientosSemillasPage() {
                     </select>
                     <input type="text" value={nuevoProducto.marca} onChange={e => setNuevoProducto(p => ({ ...p, marca: e.target.value }))}
                       placeholder="Marca (Dekalb, Nidera...)" className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-                    <select value={nuevoProducto.unidad} onChange={e => setNuevoProducto(p => ({ ...p, unidad: e.target.value, semillas_por_bolsa: e.target.value === 'bolsas' ? p.semillas_por_bolsa : '' }))}
+                    <select value={nuevoProducto.unidad} onChange={e => setNuevoProducto(p => ({ ...p, unidad: e.target.value, semillas_por_bolsa: e.target.value === 'bolsas' ? p.semillas_por_bolsa : '', kg_por_bolsa: e.target.value === 'bolsas' ? p.kg_por_bolsa : '' }))}
                       className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
                       {UNIDADES_PRODUCTO.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
@@ -312,6 +313,12 @@ export default function MovimientosSemillasPage() {
                       <input type="number" min={0} step="1" value={nuevoProducto.semillas_por_bolsa}
                         onChange={e => setNuevoProducto(p => ({ ...p, semillas_por_bolsa: e.target.value }))}
                         placeholder="Semillas por bolsa (opcional)"
+                        className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                    )}
+                    {nuevoProducto.unidad === 'bolsas' && (
+                      <input type="number" min={0} step="0.01" value={nuevoProducto.kg_por_bolsa}
+                        onChange={e => setNuevoProducto(p => ({ ...p, kg_por_bolsa: e.target.value }))}
+                        placeholder="Kg por bolsa (opcional)"
                         className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
                     )}
                     <select value={nuevoProducto.proveedor_id} onChange={e => setNuevoProducto(p => ({ ...p, proveedor_id: e.target.value }))}
@@ -325,7 +332,7 @@ export default function MovimientosSemillasPage() {
                       className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
                       {savingProducto ? 'Guardando...' : 'Guardar semilla'}
                     </button>
-                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '', proveedor_id: '' }); setErrorProducto(null) }}
+                    <button type="button" onClick={() => { setNuevoProductoMode(false); setNuevoProducto({ nombre: '', cultivo_id: '', unidad: 'bolsas', marca: '', semillas_por_bolsa: '', kg_por_bolsa: '', proveedor_id: '' }); setErrorProducto(null) }}
                       className="text-xs text-campo-500 hover:text-campo-700 px-3 py-1.5 rounded-lg hover:bg-campo-100 transition-colors">
                       Cancelar
                     </button>
