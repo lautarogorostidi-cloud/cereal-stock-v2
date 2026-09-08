@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -8,10 +8,30 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
   const supabase = createClient()
   const router = useRouter()
   const [lista, setLista] = useState(cartas)
+  const [busqueda, setBusqueda] = useState('')
   const [vinculando, setVinculando] = useState<any | null>(null)
   const [contratoSel, setContratoSel] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const listaFiltrada = useMemo(() => {
+    if (!busqueda.trim()) return lista
+    const q = busqueda.toLowerCase()
+    return lista.filter(c =>
+      c.numero_cpe?.toLowerCase().includes(q) ||
+      c.ctg?.toLowerCase().includes(q) ||
+      c.cultivos?.nombre?.toLowerCase().includes(q) ||
+      c.campanias?.nombre?.toLowerCase().includes(q) ||
+      c.destinatario?.toLowerCase().includes(q) ||
+      c.destino_localidad?.toLowerCase().includes(q) ||
+      c.destino_provincia?.toLowerCase().includes(q) ||
+      c.procedencia_localidad?.toLowerCase().includes(q) ||
+      c.patente_camion?.toLowerCase().includes(q) ||
+      c.chofer_nombre?.toLowerCase().includes(q) ||
+      c.empresa_transportista?.toLowerCase().includes(q) ||
+      String(c.contratos?.numero ?? '').toLowerCase().includes(q)
+    )
+  }, [lista, busqueda])
 
   function abrirModal(carta: any) {
     setVinculando(carta)
@@ -183,6 +203,15 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
         <button onClick={descargarExcel} className="btn-secondary">⬇ Descargar Excel</button>
       </div>
 
+      <div className="card p-4 mb-4">
+        <input
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="Buscar por CPE, CTG, cultivo, campaña, destinatario, destino, patente, chofer, contrato..."
+          className="input-field"
+        />
+      </div>
+
       <div className="card overflow-hidden p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -201,7 +230,7 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
               </tr>
             </thead>
             <tbody>
-              {lista.map(c => (
+              {listaFiltrada.map(c => (
                 <tr key={c.id} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-campo-600">{c.numero_cpe}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{c.ctg ?? '—'}</td>
@@ -236,10 +265,10 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                   </td>
                 </tr>
               ))}
-              {lista.length === 0 && (
+              {listaFiltrada.length === 0 && (
                 <tr>
                   <td colSpan={10} className="px-4 py-10 text-center text-campo-400">
-                    No hay cartas de porte registradas
+                    {lista.length === 0 ? 'No hay cartas de porte registradas' : 'Sin resultados para la búsqueda'}
                   </td>
                 </tr>
               )}

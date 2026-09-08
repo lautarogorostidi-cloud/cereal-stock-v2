@@ -20,6 +20,7 @@ export default function ContratosPage() {
   const [loading, setLoading] = useState(true)
   const [cerrando, setCerrando] = useState<string | null>(null)
   const [filtro, setFiltro] = useState<'activos' | 'cumplidos' | 'todos'>('activos')
+  const [busqueda, setBusqueda] = useState('')
 
   async function load() {
     const { data } = await supabase
@@ -75,10 +76,23 @@ export default function ContratosPage() {
 
   const contratosCumplidos = contratos.filter(c => c.estado === 'cumplido')
   const contratosActivos = contratos.filter(c => c.estado !== 'cumplido' && c.estado !== 'cancelado')
-  const contratosFiltrados =
+  const contratosPorEstado =
     filtro === 'activos' ? contratosActivos :
     filtro === 'cumplidos' ? contratosCumplidos :
     contratos
+
+  const contratosFiltrados = (() => {
+    if (!busqueda.trim()) return contratosPorEstado
+    const q = busqueda.toLowerCase()
+    return contratosPorEstado.filter(c =>
+      String(c.numero ?? '').toLowerCase().includes(q) ||
+      c.cultivo?.toLowerCase().includes(q) ||
+      c.cliente?.toLowerCase().includes(q) ||
+      c.corredor?.toLowerCase().includes(q) ||
+      c.estado?.toLowerCase().includes(q) ||
+      c.moneda?.toLowerCase().includes(q)
+    )
+  })()
 
   return (
     <div className="space-y-6">
@@ -109,6 +123,15 @@ export default function ContratosPage() {
             {op.label} <span className="opacity-70">({op.count})</span>
           </button>
         ))}
+      </div>
+
+      <div className="card p-4">
+        <input
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="Buscar por número, cultivo, comprador, corredor, moneda, estado..."
+          className="input-field"
+        />
       </div>
 
       <div className="card overflow-hidden p-0">
@@ -196,7 +219,11 @@ export default function ContratosPage() {
               ))}
               {!loading && contratosFiltrados.length === 0 && (
                 <tr><td colSpan={13} className="px-4 py-10 text-center text-campo-400">
-                  {contratos.length === 0 ? 'No hay contratos registrados' : 'No hay contratos en este estado'}
+                  {contratos.length === 0
+                    ? 'No hay contratos registrados'
+                    : busqueda.trim()
+                      ? 'Sin resultados para la búsqueda'
+                      : 'No hay contratos en este estado'}
                 </td></tr>
               )}
             </tbody>
