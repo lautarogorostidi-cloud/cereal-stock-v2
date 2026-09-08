@@ -47,7 +47,6 @@ export default function ContratosPage() {
       return
     }
     await load()
-    setFiltro('cumplidos')
     setCerrando(null)
   }
 
@@ -63,7 +62,6 @@ export default function ContratosPage() {
       return
     }
     await load()
-    setFiltro('activos')
   }
 
   async function borrarContrato(numero: string) {
