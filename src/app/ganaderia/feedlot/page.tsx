@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 type Campania = { id: number; nombre: string }
@@ -375,7 +375,17 @@ export default function FeedlotPage() {
     ? ingresos.filter(i => i.campania === filtroCampaniaLista)
     : ingresos
   const totalCabezasLista = ingresosFiltradosLista.reduce((s, i) => s + i.cantidad_cabezas, 0)
-  const totalCabezasGeneral = ingresos.reduce((s, i) => s + i.cantidad_cabezas, 0)
+
+  // Cabezas ingresadas agrupadas por campaña (nunca un acumulado mezclando campañas)
+  const totalesPorCampania = useMemo(() => {
+    const map: Record<string, { cabezas: number; ingresos: number }> = {}
+    ingresos.forEach(i => {
+      if (!map[i.campania]) map[i.campania] = { cabezas: 0, ingresos: 0 }
+      map[i.campania].cabezas += i.cantidad_cabezas
+      map[i.campania].ingresos += 1
+    })
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]))
+  }, [ingresos])
 
   return (
     <div className="space-y-6">
@@ -426,9 +436,15 @@ export default function FeedlotPage() {
             {cargando && <p className="px-4 py-3 text-sm text-stone-500">Cargando...</p>}
             {!cargando && (
               <div className="px-4 py-3 space-y-3">
-                <p className="text-xs text-stone-500">
-                  Total cabezas ingresadas: <span className="font-semibold text-stone-900">{totalCabezasGeneral}</span>
-                </p>
+                {totalesPorCampania.length > 0 && (
+                  <div className="text-xs text-stone-500 space-y-0.5">
+                    {totalesPorCampania.map(([campania, t]) => (
+                      <p key={campania}>
+                        Campaña {campania}: <span className="font-semibold text-stone-900">{t.cabezas}</span> cabezas
+                      </p>
+                    ))}
+                  </div>
+                )}
                 {ingresoSel && (
                   <p className="text-xs text-stone-500 truncate">
                     Seleccionado: <span className="font-medium text-stone-700">{ingresoSel.categorias_hacienda?.nombre} · {ingresoSel.campania}</span>
@@ -815,9 +831,19 @@ export default function FeedlotPage() {
             </select>
           </div>
 
-          <div className="rounded-md bg-stone-100 px-3 py-2 text-sm text-stone-700">
-            {filtroCampaniaLista ? `Campaña ${filtroCampaniaLista}` : 'Todas las campañas'}: <span className="font-bold text-stone-900">{totalCabezasLista}</span> cabezas en {ingresosFiltradosLista.length} ingreso{ingresosFiltradosLista.length === 1 ? '' : 's'}
-          </div>
+          {filtroCampaniaLista ? (
+            <div className="rounded-md bg-stone-100 px-3 py-2 text-sm text-stone-700">
+              Campaña {filtroCampaniaLista}: <span className="font-bold text-stone-900">{totalCabezasLista}</span> cabezas en {ingresosFiltradosLista.length} ingreso{ingresosFiltradosLista.length === 1 ? '' : 's'}
+            </div>
+          ) : (
+            <div className="rounded-md bg-stone-100 px-3 py-2 text-sm text-stone-700 space-y-0.5">
+              {totalesPorCampania.map(([campania, t]) => (
+                <div key={campania}>
+                  Campaña {campania}: <span className="font-bold text-stone-900">{t.cabezas}</span> cabezas en {t.ingresos} ingreso{t.ingresos === 1 ? '' : 's'}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="max-h-96 overflow-y-auto divide-y divide-stone-100 rounded-md border border-stone-200">
             {ingresosFiltradosLista.length === 0 && (
