@@ -123,32 +123,14 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
   const fmt = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 0 })
   const fmtD = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-  const Gauge = ({ pct, color, size = 80 }: { pct: number; color: string; size?: number }) => {
-    const r = size * 0.38
-    const cx = size / 2
-    const cy = size / 2
-    const startAngle = Math.PI
-    const x1 = cx + r * Math.cos(startAngle)
-    const y1 = cy + r * Math.sin(startAngle)
-    const endAngle = startAngle + Math.PI
-    const x2 = cx + r * Math.cos(endAngle)
-    const y2 = cy + r * Math.sin(endAngle)
-    const filledAngle = startAngle + (Math.PI * Math.min(pct, 100) / 100)
-    const x3 = cx + r * Math.cos(filledAngle)
-    const y3 = cy + r * Math.sin(filledAngle)
-    const large = pct > 50 ? 1 : 0
-
-    return (
-      <svg width={size} height={size * 0.6} viewBox={`0 0 ${size} ${size * 0.6}`}>
-        <path d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`}
-          fill="none" stroke="#e5e7eb" strokeWidth={size * 0.08} strokeLinecap="round" />
-        {pct > 0 && (
-          <path d={`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x3} ${y3}`}
-            fill="none" stroke={color} strokeWidth={size * 0.08} strokeLinecap="round" />
-        )}
-      </svg>
-    )
-  }
+  const Meter = ({ pct, color }: { pct: number; color: string }) => (
+    <div className="w-full h-1.5 rounded-full overflow-hidden mt-3" style={{ backgroundColor: `${color}22` }}>
+      <div
+        className="h-full rounded-full transition-all"
+        style={{ width: `${Math.max(0, Math.min(pct, 100))}%`, backgroundColor: color }}
+      />
+    </div>
+  )
 
   const pctVendido = kpis.cosechado > 0 ? (kpis.entregado / kpis.cosechado) * 100 : 0
   const pctComprometido = kpis.cosechado > 0 ? (kpis.comprometido / kpis.cosechado) * 100 : 0
@@ -213,12 +195,13 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
           { label: 'Pendiente de Entrega', value: kpis.comprometido, sub: 'Contratos pendientes', pct: pctComprometido, color: COLORS.comprometido, bg: 'bg-orange-50', border: 'border-orange-200', textColor: 'text-orange-800', subColor: 'text-orange-500' },
           { label: 'Margen para vender', value: kpis.margen, sub: 'Disponible - Comprometido', pct: pctMargen, color: kpis.margen >= 0 ? COLORS.margen : '#ef4444', bg: kpis.margen >= 0 ? 'bg-green-50' : 'bg-red-50', border: kpis.margen >= 0 ? 'border-green-200' : 'border-red-200', textColor: kpis.margen >= 0 ? 'text-green-800' : 'text-red-700', subColor: kpis.margen >= 0 ? 'text-green-500' : 'text-red-500' },
         ].map(kpi => (
-          <div key={kpi.label} className={`rounded-2xl border ${kpi.bg} ${kpi.border} p-5 flex flex-col items-center text-center`}>
-            <div className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: kpi.color }}>{kpi.label}</div>
-            <Gauge pct={kpi.pct} color={kpi.color} size={90} />
-            <div className={`text-xl font-bold mt-1 ${kpi.textColor}`}>{fmt(kpi.value)} tn</div>
+          <div key={kpi.label} className={`rounded-2xl border ${kpi.bg} ${kpi.border} p-5 flex flex-col`}>
+            <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: kpi.color }}>{kpi.label}</div>
+            <div className={`text-2xl font-bold mt-1.5 ${kpi.textColor}`}>
+              {fmt(kpi.value)} <span className="text-sm font-medium">tn</span>
+            </div>
             <div className={`text-xs mt-0.5 ${kpi.subColor}`}>{kpi.sub}</div>
-            <div className={`text-xs font-semibold mt-1 ${kpi.subColor}`}>{kpi.sub}</div>
+            <Meter pct={kpi.pct} color={kpi.color} />
           </div>
         ))}
       </div>
