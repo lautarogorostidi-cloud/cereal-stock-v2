@@ -2,13 +2,39 @@
 
 import { useState, useMemo } from 'react'
 
+// Año fiscal propio: va de septiembre a agosto (ej: 01/09/2025 al 31/08/2026 = "2025-2026"),
+// a diferencia de la Campaña Cereal que se carga manualmente por contrato/movimiento.
+function calcularAnioFiscal(fecha: string | null | undefined): string | null {
+  if (!fecha) return null
+  const d = new Date(fecha + 'T00:00:00')
+  if (isNaN(d.getTime())) return null
+  const mes = d.getMonth() + 1
+  const anio = d.getFullYear()
+  const inicio = mes >= 9 ? anio : anio - 1
+  return `${inicio}-${inicio + 1}`
+}
+
 export default function ReportesClient({ resultados }: { resultados: any[] }) {
   const [busqueda, setBusqueda] = useState('')
+  const [anioFiscalSel, setAnioFiscalSel] = useState('')
+
+  const aniosFiscales = useMemo(() => {
+    const set = new Set<string>()
+    resultados.forEach(r => {
+      const af = calcularAnioFiscal(r.fecha)
+      if (af) set.add(af)
+    })
+    return Array.from(set).sort().reverse()
+  }, [resultados])
 
   const filtrados = useMemo(() => {
-    if (!busqueda.trim()) return resultados
+    let base = resultados
+    if (anioFiscalSel) {
+      base = base.filter(r => calcularAnioFiscal(r.fecha) === anioFiscalSel)
+    }
+    if (!busqueda.trim()) return base
     const q = busqueda.toLowerCase()
-    return resultados.filter(r =>
+    return base.filter(r =>
       r.campania?.toLowerCase().includes(q) ||
       r.cultivo?.toLowerCase().includes(q) ||
       r.cliente?.toLowerCase().includes(q) ||
@@ -17,7 +43,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
       r.destino_localidad?.toLowerCase().includes(q) ||
       r.chofer_nombre?.toLowerCase().includes(q)
     )
-  }, [resultados, busqueda])
+  }, [resultados, busqueda, anioFiscalSel])
 
   const totalTon = filtrados.reduce((s, r) => s + Number(r.ton_totales ?? 0), 0)
   const totalBonif = filtrados.reduce((s, r) => s + Number(r.bonificacion_usd_total ?? 0), 0)
@@ -31,7 +57,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
 
   function descargarCSV() {
     const headers = [
-      'Fecha', 'CTG', 'N° Turno', 'Campaña', 'Cultivo', 'Cliente', 'Contrato',
+      'Fecha', 'CTG', 'N° Turno', 'Campaña Cereal', 'Año Fiscal', 'Cultivo', 'Cliente', 'Contrato',
       'Patente Camión', 'Patente Acoplado', 'Chofer',
       'Destino Localidad', 'Destino Provincia',
       'Toneladas', 'Precio Base', 'Plus', 'Bonif %', 'Bonif USD',
@@ -44,6 +70,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
       r.ctg ?? '',
       r.nro_turno ?? '',
       r.campania ?? '',
+      calcularAnioFiscal(r.fecha) ?? '',
       r.cultivo ?? '',
       r.cliente ?? '',
       r.contrato ?? '',
@@ -104,6 +131,19 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
         </div>
       </div>
 
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-semibold text-campo-700">Año Fiscal</label>
+        <select
+          value={anioFiscalSel}
+          onChange={e => setAnioFiscalSel(e.target.value)}
+          className="rounded-lg border border-campo-300 bg-white px-4 py-2.5 text-base font-medium text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[160px]"
+        >
+          <option value="">Todos</option>
+          {aniosFiscales.map(af => <option key={af} value={af}>{af}</option>)}
+        </select>
+        <span className="text-xs text-campo-400">Septiembre a agosto</span>
+      </div>
+
       <div className="card p-4 flex gap-3 items-center">
         <input
           value={busqueda}
@@ -123,7 +163,8 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
               <tr className="border-b border-campo-100 bg-campo-50">
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">CTG</th>
-                <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña Cereal</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Año Fiscal</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cliente</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Contrato</th>
@@ -146,6 +187,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                   <td className="px-4 py-3 text-campo-600">{r.fecha ? new Date(r.fecha).toLocaleDateString('es-AR') : '—'}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{r.ctg ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-600">{r.campania}</td>
+                  <td className="px-4 py-3 text-campo-600">{calcularAnioFiscal(r.fecha) ?? '—'}</td>
                   <td className="px-4 py-3 font-medium text-campo-900">{r.cultivo}</td>
                   <td className="px-4 py-3 text-campo-700">{r.cliente}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{r.contrato}</td>
@@ -176,13 +218,13 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                 </tr>
               ))}
               {filtrados.length === 0 && (
-                <tr><td colSpan={17} className="px-4 py-10 text-center text-campo-400">Sin datos</td></tr>
+                <tr><td colSpan={18} className="px-4 py-10 text-center text-campo-400">Sin datos</td></tr>
               )}
             </tbody>
             {filtrados.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-campo-200 bg-campo-50">
-                  <td colSpan={8} className="px-4 py-3 font-bold text-campo-800">Total</td>
+                  <td colSpan={9} className="px-4 py-3 font-bold text-campo-800">Total</td>
                   <td className="px-4 py-3 text-right font-bold text-campo-800">{fmt3(totalTon)}</td>
                   <td colSpan={3} />
                   <td className="px-4 py-3 text-right font-bold text-green-600">USD {fmt2(totalBonif)}</td>
