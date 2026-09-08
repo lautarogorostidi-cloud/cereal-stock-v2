@@ -225,9 +225,9 @@ export default function AgroquimicosDashboard() {
           .map(([producto, a]) => ({
             producto,
             unidad: a.unidad,
-            cantidad: a.cantidad,
-            dosisPromedioHa: a.ha > 0 ? a.cantidad / a.ha : 0,
-            costoUnitarioPromedio: a.cantidad > 0 ? a.costo / a.cantidad : 0,
+            cantidadPorHa: a.ha > 0 ? a.cantidad / a.ha : 0,
+            costoPorHa: a.ha > 0 ? a.costo / a.ha : 0,
+            hectareas: a.ha,
             costoTotal: a.costo,
           }))
           .sort((x, y) => y.costoTotal - x.costoTotal)
@@ -337,7 +337,7 @@ export default function AgroquimicosDashboard() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="font-semibold text-campo-900">Costo de insumos por cultivo</h2>
-            <p className="text-xs text-campo-400 mt-0.5">Cantidad aplicada, dosis por hectárea y costo por producto</p>
+            <p className="text-xs text-campo-400 mt-0.5">Cantidad y costo por hectárea (promedio ponderado por superficie), hectáreas tratadas y costo total por producto</p>
           </div>
           <div className="text-right">
             <div className="text-xs text-campo-500">Costo total insumos</div>
@@ -382,9 +382,9 @@ export default function AgroquimicosDashboard() {
                       <thead>
                         <tr className="text-campo-500 border-b border-campo-100">
                           <th className="text-left py-1.5 font-semibold">Producto</th>
-                          <th className="text-right py-1.5 font-semibold">Cantidad</th>
-                          <th className="text-right py-1.5 font-semibold">Dosis/ha</th>
-                          <th className="text-right py-1.5 font-semibold">Costo unitario</th>
+                          <th className="text-right py-1.5 font-semibold">Cantidad (por ha)</th>
+                          <th className="text-right py-1.5 font-semibold">Costo (por ha)</th>
+                          <th className="text-right py-1.5 font-semibold">Hectáreas</th>
                           <th className="text-right py-1.5 font-semibold pr-1">Costo total</th>
                         </tr>
                       </thead>
@@ -392,11 +392,11 @@ export default function AgroquimicosDashboard() {
                         {pc.filas.map(f => (
                           <tr key={f.producto} className="border-b border-campo-50">
                             <td className="py-1.5 text-campo-700">{f.producto}</td>
-                            <td className="py-1.5 text-right text-campo-600">{fmtCantidad(f.cantidad)} {f.unidad}</td>
-                            <td className="py-1.5 text-right text-campo-600">{fmtCantidad(f.dosisPromedioHa)} {f.unidad}/ha</td>
+                            <td className="py-1.5 text-right text-campo-600">{fmtCantidad(f.cantidadPorHa)} {f.unidad}/ha</td>
                             <td className="py-1.5 text-right text-campo-600">
-                              {f.costoUnitarioPromedio.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD/{f.unidad}
+                              {f.costoPorHa.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD/ha
                             </td>
+                            <td className="py-1.5 text-right text-campo-600">{fmtCantidad(f.hectareas)} ha</td>
                             <td className="py-1.5 text-right font-medium text-campo-900 pr-1">{fmtUsd(f.costoTotal)}</td>
                           </tr>
                         ))}
