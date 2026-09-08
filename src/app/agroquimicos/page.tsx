@@ -3,22 +3,25 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer
 } from 'recharts'
 
 type RegistroInsumo = {
   key: string
-  mes: string
   tipo: string
   costo_insumos: number
   aplicacion_id: number
   campana: string
+  cultivo: string
+  producto: string
+  unidad: string
+  dosis_ha: number
+  superficie_ha: number
 }
 
 type RegistroServicio = {
   key: string
-  mes: string
   costo_servicio: number
   aplicacion_id: number
   campana: string
@@ -27,37 +30,9 @@ type RegistroServicio = {
 // Año fiscal: 01/09/(n-1) al 30/08/(n) → campaña 'YY-YY'
 // Sep-Dic de un año pertenecen a la campaña que termina el año siguiente
 // Ene-Ago de un año pertenecen a la campaña que empezó el año anterior
-function getCampana(fecha: string): string {
-  const d = new Date(fecha + 'T00:00:00')
-  const anio = d.getFullYear()
-  const mes = d.getMonth() + 1 // 1-12
-  if (mes >= 9) {
-    // Sep-Dic: campaña anio/(anio+1)
-    const a1 = String(anio).slice(2)
-    const a2 = String(anio + 1).slice(2)
-    return `${a1}-${a2}`
-  } else {
-    // Ene-Ago: campaña (anio-1)/anio
-    const a1 = String(anio - 1).slice(2)
-    const a2 = String(anio).slice(2)
-    return `${a1}-${a2}`
-  }
-}
-
-// Orden de campaña para sorting
-function campanaSort(campana: string): number {
-  const [a] = campana.split('-')
-  return parseInt(a)
-}
-
 function getKey(fecha: string) {
   const d = new Date(fecha + 'T00:00:00')
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-function getMesLabel(fecha: string) {
-  const d = new Date(fecha + 'T00:00:00')
-  return d.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })
 }
 
 // Campaña a la que pertenece un key 'YYYY-MM' (corte: sep = mes 9)
@@ -70,6 +45,12 @@ function keyToCampana(key: string): string {
   }
 }
 
+// Orden de campaña para sorting
+function campanaSort(campana: string): number {
+  const [a] = campana.split('-')
+  return parseInt(a)
+}
+
 // Tipos canónicos del sistema
 const TIPOS_CANONICOS = ['herbicida', 'fungicida', 'insecticida', 'acaricida', 'curasemilla', 'coadyuvante', 'otro']
 
@@ -77,7 +58,6 @@ export default function AgroquimicosDashboard() {
   const supabase = createClient()
   const [registrosInsumos, setRegistrosInsumos] = useState<RegistroInsumo[]>([])
   const [registrosServicios, setRegistrosServicios] = useState<RegistroServicio[]>([])
-  const [alertas, setAlertas] = useState(0)
   const [totalProductos, setTotalProductos] = useState(0)
   const [campanasDisponibles, setCampanasDisponibles] = useState<string[]>([])
   const [campanasSeleccionadas, setCampanasSeleccionadas] = useState<string[]>([])
@@ -105,57 +85,34 @@ export default function AgroquimicosDashboard() {
 
     const [
       { data: stockData },
-      { data: usadoData },
       { data: insumos },
       { data: servicios },
-      { data: tiposData },
+      { data: productosData },
       { data: campanasData },
     ] = await Promise.all([
-      supabase.from('vw_stock_agroquimicos').select('producto, stock_actual, stock_minimo, activo'),
-      supabase.from('sa_aplicacion_productos').select('producto, dosis_ha, sa_aplicaciones(superficie_ha)').limit(10000),
+      supabase.from('vw_stock_agroquimicos').select('producto, activo'),
       supabase
         .from('sa_aplicacion_productos')
-        .select('aplicacion_id, producto, dosis_ha, costo_unitario, sa_aplicaciones!inner(fecha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre)))')
+        .select('aplicacion_id, producto, dosis_ha, costo_unitario, sa_aplicaciones!inner(fecha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre), cultivos(nombre)))')
         .limit(10000),
       supabase
         .from('sa_aplicaciones')
         .select('id, fecha, costo_servicio_usd_ha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre))')
         .not('costo_servicio_usd_ha', 'is', null),
-      supabase.from('agroquimicos_productos').select('nombre, tipo').eq('activo', true),
+      supabase.from('agroquimicos_productos').select('nombre, tipo, unidad').eq('activo', true),
       supabase.from('campanas').select('nombre').order('nombre'),
     ])
 
-    // Alertas de stock — top 20 productos más usados, alerta si stock < 10% del histórico
-    const usadoMap: Record<string, number> = {}
-    ;(usadoData ?? []).forEach((ap: any) => {
-      const nombre = ap.producto?.trim().toLowerCase()
-      const sup = Number(ap.sa_aplicaciones?.superficie_ha ?? 0)
-      const dosis = Number(ap.dosis_ha ?? 0)
-      if (nombre) usadoMap[nombre] = (usadoMap[nombre] ?? 0) + dosis * sup
-    })
-    // Obtener top 20 productos por uso histórico
-    const top20 = new Set(
-      Object.entries(usadoMap)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 20)
-        .map(([nombre]) => nombre)
-    )
-    const lista = (stockData ?? []).filter((r: any) => r.activo)
-    setAlertas(lista.filter((r: any) => {
-      const nombreNorm = r.producto?.trim().toLowerCase()
-      if (!top20.has(nombreNorm)) return false
-      const stockActual = Number(r.stock_actual ?? 0)
-      const totalUsado = usadoMap[nombreNorm] ?? 0
-      return totalUsado > 0 && stockActual < totalUsado * 0.1
-    }).length)
-    setTotalProductos(lista.length)
+    setTotalProductos((stockData ?? []).filter((r: any) => r.activo).length)
 
-    // Mapa nombre → tipo de producto (normalizado a minúscula)
+    // Mapas nombre → tipo / unidad de producto (normalizado a minúscula)
     const tipoMap: Record<string, string> = {}
-    ;(tiposData ?? []).forEach((p: any) => {
+    const unidadMap: Record<string, string> = {}
+    ;(productosData ?? []).forEach((p: any) => {
       const nombreNorm = p.nombre?.trim().toLowerCase()
-      const tipoNorm = p.tipo?.trim().toLowerCase() ?? 'otro'
-      if (nombreNorm) tipoMap[nombreNorm] = tipoNorm
+      if (!nombreNorm) return
+      tipoMap[nombreNorm] = p.tipo?.trim().toLowerCase() ?? 'otro'
+      unidadMap[nombreNorm] = p.unidad ?? ''
     })
 
     // ── Registros de INSUMOS (uno por producto-aplicación) ──
@@ -164,12 +121,25 @@ export default function AgroquimicosDashboard() {
       const fecha = ap.sa_aplicaciones?.fecha
       if (!fecha) return
       const key = getKey(fecha)
-      const mes = getMesLabel(fecha)
       const nombreNorm = ap.producto?.trim().toLowerCase()
       const tipo = tipoMap[nombreNorm] ?? 'otro'
-      const costoInsumo = Number(ap.costo_unitario ?? 0) * Number(ap.dosis_ha ?? 0) * Number(ap.sa_aplicaciones?.superficie_ha ?? 0)
+      const dosisHa = Number(ap.dosis_ha ?? 0)
+      const superficieHa = Number(ap.sa_aplicaciones?.superficie_ha ?? 0)
+      const costoInsumo = Number(ap.costo_unitario ?? 0) * dosisHa * superficieHa
       const campana = ap.sa_aplicaciones?.sa_ciclos?.campanas?.nombre ?? keyToCampana(key)
-      regsInsumos.push({ key, mes, tipo, costo_insumos: costoInsumo, aplicacion_id: ap.aplicacion_id, campana })
+      const cultivo = ap.sa_aplicaciones?.sa_ciclos?.cultivos?.nombre ?? 'Sin cultivo'
+      regsInsumos.push({
+        key,
+        tipo,
+        costo_insumos: costoInsumo,
+        aplicacion_id: ap.aplicacion_id,
+        campana,
+        cultivo,
+        producto: ap.producto,
+        unidad: unidadMap[nombreNorm] ?? '',
+        dosis_ha: dosisHa,
+        superficie_ha: superficieHa,
+      })
     })
     setRegistrosInsumos(regsInsumos)
 
@@ -179,11 +149,10 @@ export default function AgroquimicosDashboard() {
       const fecha = a.fecha
       if (!fecha) return
       const key = getKey(fecha)
-      const mes = getMesLabel(fecha)
       const costoServicio = Number(a.costo_servicio_usd_ha ?? 0) * Number(a.superficie_ha ?? 0)
       const campana = a.sa_ciclos?.campanas?.nombre ?? keyToCampana(key)
       if (costoServicio > 0) {
-        regsServicios.push({ key, mes, costo_servicio: costoServicio, aplicacion_id: a.id, campana })
+        regsServicios.push({ key, costo_servicio: costoServicio, aplicacion_id: a.id, campana })
       }
     })
     setRegistrosServicios(regsServicios)
@@ -205,84 +174,6 @@ export default function AgroquimicosDashboard() {
     setLoading(false)
   }
 
-  // Eje X fijo: sep(0) oct(1) nov(2) dic(3) ene(4) feb(5) mar(6) abr(7) may(8) jun(9) jul(10) ago(11)
-  const MESES_LABELS = ['sep', 'oct', 'nov', 'dic', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago']
-  // Índice fiscal de un key YYYY-MM (0=sep, 11=ago)
-  function mesIndexFiscal(key: string): number {
-    const mes = parseInt(key.split('-')[1]) // 1-12
-    return mes >= 9 ? mes - 9 : mes + 3  // sep=0, oct=1, ..., dic=3, ene=4, ..., ago=11
-  }
-
-  // Colores por campaña
-  const CAMPANA_COLORS = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
-
-  // Calcular datos filtrados — estructura por mes fiscal con una entrada por campaña
-  const { datosFiltrados, campanasEnGrafico } = useMemo(() => {
-    const campanas = campanasSeleccionadas.length > 0 ? campanasSeleccionadas : campanasDisponibles
-
-    // Por cada campaña, acumular insumos y servicios por índice de mes fiscal (0-11)
-    const porCampana: Record<string, { insumos: number[]; servicio: number[]; aplicaciones: Set<number>[] }> = {}
-    campanas.forEach(c => {
-      porCampana[c] = {
-        insumos: Array(12).fill(0),
-        servicio: Array(12).fill(0),
-        aplicaciones: Array.from({ length: 12 }, () => new Set<number>()),
-      }
-    })
-
-    // Insumos filtrados por campaña y tipo
-    registrosInsumos.forEach(r => {
-      if (!porCampana[r.campana]) return
-      const tipoOk = tiposSeleccionados.length === 0 || tiposSeleccionados.includes(r.tipo)
-      if (!tipoOk) return
-      const idx = mesIndexFiscal(r.key)
-      porCampana[r.campana].insumos[idx] += r.costo_insumos
-      porCampana[r.campana].aplicaciones[idx].add(r.aplicacion_id)
-    })
-
-    // Servicios filtrados por campaña — solo para aplicaciones con insumos en filtro
-    const aplIdsConInsumos = new Set(
-      registrosInsumos
-        .filter(r => {
-          const campanaOk = campanas.includes(r.campana)
-          const tipoOk = tiposSeleccionados.length === 0 || tiposSeleccionados.includes(r.tipo)
-          return campanaOk && tipoOk
-        })
-        .map(r => r.aplicacion_id)
-    )
-    registrosServicios.forEach(r => {
-      if (!porCampana[r.campana]) return
-      if (!aplIdsConInsumos.has(r.aplicacion_id)) return
-      const idx = mesIndexFiscal(r.key)
-      porCampana[r.campana].servicio[idx] += r.costo_servicio
-      porCampana[r.campana].aplicaciones[idx].add(r.aplicacion_id)
-    })
-
-    // Construir array de 12 filas (sep..ago), cada fila tiene un valor por campaña
-    const datos: Array<Record<string, string | number>> = MESES_LABELS.map((label, idx) => {
-      const fila: Record<string, string | number> = { mesLabel: label, mes_idx: idx }
-      campanas.forEach(c => {
-        fila[`insumos_${c}`] = Math.round(porCampana[c].insumos[idx])
-        fila[`servicio_${c}`] = Math.round(porCampana[c].servicio[idx])
-        fila[`apl_${c}`] = porCampana[c].aplicaciones[idx].size
-      })
-      return fila
-    })
-
-    return { datosFiltrados: datos, campanasEnGrafico: campanas }
-  }, [registrosInsumos, registrosServicios, campanasSeleccionadas, campanasDisponibles, tiposSeleccionados])
-
-  const totalInsumos = campanasEnGrafico.reduce((acc, c) =>
-    acc + datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`insumos_${c}`] ?? 0), 0), 0)
-  const totalServicio = campanasEnGrafico.reduce((acc, c) =>
-    acc + datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`servicio_${c}`] ?? 0), 0), 0)
-  const totalAplicaciones = campanasEnGrafico.reduce((acc, c) =>
-    acc + datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`apl_${c}`] ?? 0), 0), 0)
-
-
-
-  const fmtUsd = (n: number) => `USD ${Math.round(n).toLocaleString('es-AR')}`
-
   const TIPO_COLORS: Record<string, string> = {
     herbicida: '#059669',
     fungicida: '#8b5cf6',
@@ -293,20 +184,91 @@ export default function AgroquimicosDashboard() {
     otro: '#6b7280',
   }
 
+  const fmtUsd = (n: number) => `USD ${Math.round(n).toLocaleString('es-AR')}`
+  const fmtCantidad = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
+  // Insumos filtrados por campaña y tipo seleccionados
+  const insumosFiltrados = useMemo(() => {
+    const campanas = campanasSeleccionadas.length > 0 ? campanasSeleccionadas : campanasDisponibles
+    return registrosInsumos.filter(r =>
+      campanas.includes(r.campana) &&
+      (tiposSeleccionados.length === 0 || tiposSeleccionados.includes(r.tipo))
+    )
+  }, [registrosInsumos, campanasSeleccionadas, campanasDisponibles, tiposSeleccionados])
+
+  const totalInsumos = useMemo(() => insumosFiltrados.reduce((s, r) => s + r.costo_insumos, 0), [insumosFiltrados])
+
+  const totalServicio = useMemo(() => {
+    const campanas = campanasSeleccionadas.length > 0 ? campanasSeleccionadas : campanasDisponibles
+    const aplIdsConInsumos = new Set(insumosFiltrados.map(r => r.aplicacion_id))
+    return registrosServicios
+      .filter(r => campanas.includes(r.campana) && aplIdsConInsumos.has(r.aplicacion_id))
+      .reduce((s, r) => s + r.costo_servicio, 0)
+  }, [registrosServicios, insumosFiltrados, campanasSeleccionadas, campanasDisponibles])
+
+  // Agrupado por cultivo → producto: cantidad usada, dosis/ha, costo unitario, costo total
+  const porCultivo = useMemo(() => {
+    type Acc = { cantidad: number; ha: number; costo: number; unidad: string }
+    const map: Record<string, Record<string, Acc>> = {}
+    insumosFiltrados.forEach(r => {
+      if (!map[r.cultivo]) map[r.cultivo] = {}
+      if (!map[r.cultivo][r.producto]) map[r.cultivo][r.producto] = { cantidad: 0, ha: 0, costo: 0, unidad: r.unidad }
+      const acc = map[r.cultivo][r.producto]
+      acc.cantidad += r.dosis_ha * r.superficie_ha
+      acc.ha += r.superficie_ha
+      acc.costo += r.costo_insumos
+    })
+
+    return Object.entries(map)
+      .map(([cultivo, productos]) => {
+        const filas = Object.entries(productos)
+          .map(([producto, a]) => ({
+            producto,
+            unidad: a.unidad,
+            cantidad: a.cantidad,
+            dosisPromedioHa: a.ha > 0 ? a.cantidad / a.ha : 0,
+            costoUnitarioPromedio: a.cantidad > 0 ? a.costo / a.cantidad : 0,
+            costoTotal: a.costo,
+          }))
+          .sort((x, y) => y.costoTotal - x.costoTotal)
+        const costoTotalCultivo = filas.reduce((s, f) => s + f.costoTotal, 0)
+        return { cultivo, filas, costoTotalCultivo }
+      })
+      .sort((a, b) => b.costoTotalCultivo - a.costoTotalCultivo)
+  }, [insumosFiltrados])
+
+  // Datos para el gráfico: costo por cultivo, apilado por tipo de producto
+  const datosChart = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {}
+    insumosFiltrados.forEach(r => {
+      if (!map[r.cultivo]) map[r.cultivo] = {}
+      map[r.cultivo][r.tipo] = (map[r.cultivo][r.tipo] ?? 0) + r.costo_insumos
+    })
+    return Object.entries(map)
+      .map(([cultivo, tipos]) => ({ cultivo, ...tipos, total: Object.values(tipos).reduce((s, v) => s + v, 0) }))
+      .sort((a, b) => b.total - a.total)
+  }, [insumosFiltrados])
+
+  const tiposEnGrafico = tiposSeleccionados.length > 0 ? tiposSeleccionados : tiposDisponibles
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null
+    const filtrados = payload.filter((p: any) => (p.value ?? 0) > 0)
+    const total = filtrados.reduce((s: number, p: any) => s + p.value, 0)
     return (
       <div className="bg-white border border-campo-200 rounded-lg px-4 py-3 shadow-lg text-sm space-y-1">
         <div className="font-semibold text-campo-900 mb-2">{label}</div>
-        {payload.map((p: any) => (
+        {filtrados.map((p: any) => (
           <div key={p.dataKey} className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.color }} />
-            <span className="text-campo-600">{p.name}:</span>
-            <span className="font-medium text-campo-900">
-              {String(p.dataKey).startsWith('apl_') ? p.value : fmtUsd(p.value)}
-            </span>
+            <span className="text-campo-600 capitalize">{p.dataKey}:</span>
+            <span className="font-medium text-campo-900">{fmtUsd(p.value)}</span>
           </div>
         ))}
+        <div className="border-t border-campo-100 mt-1 pt-1 flex items-center justify-between gap-4">
+          <span className="text-campo-500">Total</span>
+          <span className="font-semibold text-campo-900">{fmtUsd(total)}</span>
+        </div>
       </div>
     )
   }
@@ -317,20 +279,15 @@ export default function AgroquimicosDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-campo-900">Dashboard Agroquímicos</h1>
-        <p className="text-campo-500 text-sm mt-0.5">Costos y aplicaciones por campaña</p>
+        <p className="text-campo-500 text-sm mt-0.5">Costos de insumos por cultivo y campaña</p>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Productos</div>
           <div className="text-2xl font-bold text-campo-900">{totalProductos}</div>
           <div className="text-xs text-campo-400 mt-0.5">en catálogo</div>
-        </div>
-        <div className={`card p-5 ${alertas > 0 ? 'border-red-200 bg-red-50' : ''}`}>
-          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Alertas stock</div>
-          <div className={`text-2xl font-bold ${alertas > 0 ? 'text-red-600' : 'text-campo-900'}`}>{alertas}</div>
-          <div className="text-xs text-campo-400 mt-0.5">bajo el 10% histórico</div>
         </div>
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Costo insumos</div>
@@ -375,96 +332,82 @@ export default function AgroquimicosDashboard() {
         </div>
       </div>
 
-      {/* Gráfico */}
+      {/* Gráfico + detalle por cultivo */}
       <div className="card p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="font-semibold text-campo-900">Costos mensuales de aplicaciones</h2>
-            <p className="text-xs text-campo-400 mt-0.5">Insumos + Servicio de pulverización</p>
+            <h2 className="font-semibold text-campo-900">Costo de insumos por cultivo</h2>
+            <p className="text-xs text-campo-400 mt-0.5">Cantidad aplicada, dosis por hectárea y costo por producto</p>
           </div>
           <div className="text-right">
-            <div className="text-xs text-campo-500">Costo total período</div>
-            <div className="text-lg font-bold text-campo-900">{fmtUsd(totalInsumos + totalServicio)}</div>
+            <div className="text-xs text-campo-500">Costo total insumos</div>
+            <div className="text-lg font-bold text-campo-900">{fmtUsd(totalInsumos)}</div>
           </div>
         </div>
 
-        <ResponsiveContainer width="100%" height={340}>
-          <ComposedChart data={datosFiltrados} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="mesLabel" tick={{ fontSize: 11, fill: '#6b7280' }} />
-            <YAxis yAxisId="usd" orientation="left" tick={{ fontSize: 11, fill: '#6b7280' }}
-              tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-            <YAxis yAxisId="apl" orientation="right" tick={{ fontSize: 11, fill: '#6b7280' }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-            {campanasEnGrafico.map((c, i) => {
-              const color = CAMPANA_COLORS[i % CAMPANA_COLORS.length]
-              // Variante más clara para servicio: mezcla con blanco
-              const colorClaro = color + '99'
-              return [
-                <Bar key={`ins_${c}`} yAxisId="usd" dataKey={`insumos_${c}`} name={`Insumos ${c}`} stackId={c} fill={color} radius={[0, 0, 0, 0]} />,
-                <Bar key={`srv_${c}`} yAxisId="usd" dataKey={`servicio_${c}`} name={`Servicio ${c}`} stackId={c} fill={colorClaro} radius={[4, 4, 0, 0]} />,
-              ]
-            })}
-            {campanasEnGrafico.map((c, i) => (
-              <Line key={`apl_${c}`} yAxisId="apl" type="monotone" dataKey={`apl_${c}`} name={`Q Aplic. ${c}`}
-                stroke={CAMPANA_COLORS[i % CAMPANA_COLORS.length]} strokeWidth={2}
-                dot={{ fill: CAMPANA_COLORS[i % CAMPANA_COLORS.length], r: 3 }} strokeDasharray={i > 0 ? '4 2' : undefined} />
-            ))}
-          </ComposedChart>
-        </ResponsiveContainer>
+        {datosChart.length === 0 ? (
+          <div className="text-center text-campo-400 py-16 text-sm">No hay datos para el filtro seleccionado</div>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={Math.max(220, datosChart.length * 42)}>
+              <BarChart data={datosChart} layout="vertical" margin={{ top: 5, right: 24, left: 8, bottom: 5 }} barSize={20}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: '#6b7280' }}
+                  tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                <YAxis type="category" dataKey="cultivo" width={110} tick={{ fontSize: 11, fill: '#374151' }} />
+                <Tooltip content={<CustomTooltip />} />
+                {tiposEnGrafico.map((tipo, i) => (
+                  <Bar
+                    key={tipo}
+                    dataKey={tipo}
+                    name={tipo}
+                    stackId="costo"
+                    fill={TIPO_COLORS[tipo] ?? '#6b7280'}
+                    radius={i === tiposEnGrafico.length - 1 ? [0, 4, 4, 0] : [0, 0, 0, 0]}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
 
-        {/* Tabla resumen por campaña */}
-        <div className="mt-6 border-t border-campo-100 pt-4 overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-campo-500">
-                <th className="text-left py-1 font-semibold">Mes</th>
-                {campanasEnGrafico.map(c => (
-                  <th key={c} className="text-right py-1 font-semibold" colSpan={3}>{c}</th>
-                ))}
-              </tr>
-              <tr className="text-campo-400">
-                <th />
-                {campanasEnGrafico.map(c => (
-                  [
-                    <th key={`ih_${c}`} className="text-right py-1">Insumos</th>,
-                    <th key={`sh_${c}`} className="text-right py-1">Servicio</th>,
-                    <th key={`th_${c}`} className="text-right py-1 pr-4">Total</th>,
-                  ]
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {datosFiltrados.map((d, i) => (
-                <tr key={i} className="border-t border-campo-50">
-                  <td className="py-1.5 text-campo-700 font-medium">{d.mesLabel}</td>
-                  {campanasEnGrafico.map(c => {
-                    const ins = (d as Record<string, number>)[`insumos_${c}`] ?? 0
-                    const srv = (d as Record<string, number>)[`servicio_${c}`] ?? 0
-                    return [
-                      <td key={`i_${c}`} className="py-1.5 text-right text-campo-600">{ins > 0 ? fmtUsd(ins) : '—'}</td>,
-                      <td key={`s_${c}`} className="py-1.5 text-right text-campo-600">{srv > 0 ? fmtUsd(srv) : '—'}</td>,
-                      <td key={`t_${c}`} className="py-1.5 text-right font-medium text-campo-900 pr-4">{ins + srv > 0 ? fmtUsd(ins + srv) : '—'}</td>,
-                    ]
-                  })}
-                </tr>
+            {/* Detalle por cultivo y producto */}
+            <div className="mt-6 border-t border-campo-100 pt-4 space-y-5">
+              {porCultivo.map(pc => (
+                <div key={pc.cultivo}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-campo-800">{pc.cultivo}</h3>
+                    <span className="text-sm font-semibold text-campo-900">{fmtUsd(pc.costoTotalCultivo)}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-campo-500 border-b border-campo-100">
+                          <th className="text-left py-1.5 font-semibold">Producto</th>
+                          <th className="text-right py-1.5 font-semibold">Cantidad</th>
+                          <th className="text-right py-1.5 font-semibold">Dosis/ha</th>
+                          <th className="text-right py-1.5 font-semibold">Costo unitario</th>
+                          <th className="text-right py-1.5 font-semibold pr-1">Costo total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pc.filas.map(f => (
+                          <tr key={f.producto} className="border-b border-campo-50">
+                            <td className="py-1.5 text-campo-700">{f.producto}</td>
+                            <td className="py-1.5 text-right text-campo-600">{fmtCantidad(f.cantidad)} {f.unidad}</td>
+                            <td className="py-1.5 text-right text-campo-600">{fmtCantidad(f.dosisPromedioHa)} {f.unidad}/ha</td>
+                            <td className="py-1.5 text-right text-campo-600">
+                              {f.costoUnitarioPromedio.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD/{f.unidad}
+                            </td>
+                            <td className="py-1.5 text-right font-medium text-campo-900 pr-1">{fmtUsd(f.costoTotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               ))}
-              <tr className="border-t-2 border-campo-200 font-semibold">
-                <td className="py-1.5 text-campo-900">Total</td>
-                {campanasEnGrafico.map(c => {
-                  const ins = datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`insumos_${c}`] ?? 0), 0)
-                  const srv = datosFiltrados.reduce((s, d) => s + ((d as Record<string, number>)[`servicio_${c}`] ?? 0), 0)
-                  return [
-                    <td key={`ti_${c}`} className="py-1.5 text-right text-campo-900">{fmtUsd(ins)}</td>,
-                    <td key={`ts_${c}`} className="py-1.5 text-right text-campo-900">{fmtUsd(srv)}</td>,
-                    <td key={`tt_${c}`} className="py-1.5 text-right text-campo-900 pr-4">{fmtUsd(ins + srv)}</td>,
-                  ]
-                })}
-              </tr>
-            </tbody>
-          </table>
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
