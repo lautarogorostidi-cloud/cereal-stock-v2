@@ -235,7 +235,7 @@ export default function MovimientosPage() {
   }
 
   const movFiltrados = movimientos
-    .filter(m => filtroTipo ? m.tipo === filtroTipo : m.tipo !== 'ajuste')
+    .filter(m => filtroTipo ? m.tipo === filtroTipo : (m.tipo !== 'ajuste' && m.tipo !== 'aplicacion'))
     .filter(m => filtroCampana ? m.campaña === filtroCampana : true)
     .filter(m => {
       if (!busqueda) return true
@@ -271,7 +271,7 @@ export default function MovimientosPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-campo-900">Movimientos</h1>
-          <p className="text-campo-500 text-sm mt-0.5">Compras, aplicaciones y devoluciones</p>
+          <p className="text-campo-500 text-sm mt-0.5">Compras, devoluciones y ajustes de stock</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
           className="bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
@@ -538,6 +538,11 @@ export default function MovimientosPage() {
           </button>
         ))}
       </div>
+      {!filtroTipo && (
+        <p className="text-xs text-campo-400 -mt-2">
+          Las aplicaciones no se muestran por defecto — se ven con más detalle (por lote, cultivo y costo) en la pestaña Aplicaciones. Para verlas acá igual, tocá el filtro "Aplicacion".
+        </p>
+      )}
 
       {/* Tabla */}
       <div className="card overflow-hidden p-0">
