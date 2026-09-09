@@ -40,6 +40,7 @@ export default function MovimientosPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState('')
+  const [mostrarAplicaciones, setMostrarAplicaciones] = useState(false)
   const [filtroCampana, setFiltroCampana] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [saving, setSaving] = useState(false)
@@ -235,7 +236,8 @@ export default function MovimientosPage() {
   }
 
   const movFiltrados = movimientos
-    .filter(m => filtroTipo ? m.tipo === filtroTipo : (m.tipo !== 'ajuste' && m.tipo !== 'aplicacion'))
+    .filter(m => filtroTipo ? m.tipo === filtroTipo : true)
+    .filter(m => mostrarAplicaciones || filtroTipo === 'aplicacion' ? true : m.tipo !== 'aplicacion')
     .filter(m => filtroCampana ? m.campaña === filtroCampana : true)
     .filter(m => {
       if (!busqueda) return true
@@ -538,11 +540,11 @@ export default function MovimientosPage() {
           </button>
         ))}
       </div>
-      {!filtroTipo && (
-        <p className="text-xs text-campo-400 -mt-2">
-          Las aplicaciones no se muestran por defecto — se ven con más detalle (por lote, cultivo y costo) en la pestaña Aplicaciones. Para verlas acá igual, tocá el filtro "Aplicacion".
-        </p>
-      )}
+      <label className="flex items-center gap-2 text-xs text-campo-500 -mt-2 cursor-pointer w-fit">
+        <input type="checkbox" checked={mostrarAplicaciones} onChange={e => setMostrarAplicaciones(e.target.checked)}
+          className="rounded border-campo-300 text-emerald-700 focus:ring-emerald-400" />
+        Incluir aplicaciones acá (se ven con más detalle — por lote, cultivo y costo — en la pestaña Aplicaciones)
+      </label>
 
       {/* Tabla */}
       <div className="card overflow-hidden p-0">
