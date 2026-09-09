@@ -23,24 +23,19 @@ type Movimiento = {
 
 type Producto = { id: number; nombre: string; unidad: string; marca: string; tipo: string }
 type Proveedor = { id: string; nombre: string }
-type Lote = { id: string; nombre: string; establecimiento: string }
-type Cultivo = { id: string; nombre: string }
 type Campana = { id: number; nombre: string }
 
-const TIPOS = ['compra', 'aplicacion', 'devolucion', 'ajuste']
+const TIPOS = ['compra', 'devolucion', 'ajuste']
 
 export default function MovimientosPage() {
   const supabase = createClient()
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [proveedores, setProveedores] = useState<Proveedor[]>([])
-  const [lotes, setLotes] = useState<Lote[]>([])
-  const [cultivos, setCultivos] = useState<Cultivo[]>([])
   const [campanas, setCampanas] = useState<Campana[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState('')
-  const [mostrarAplicaciones, setMostrarAplicaciones] = useState(false)
   const [filtroCampana, setFiltroCampana] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [saving, setSaving] = useState(false)
@@ -73,17 +68,13 @@ export default function MovimientosPage() {
   }
 
   async function cargarMaestros() {
-    const [{ data: prods }, { data: provs }, { data: ls }, { data: cs }, { data: caps }] = await Promise.all([
+    const [{ data: prods }, { data: provs }, { data: caps }] = await Promise.all([
       supabase.from('agroquimicos_productos').select('id, nombre, unidad, marca, tipo').eq('activo', true).order('tipo').order('nombre'),
       supabase.from('proveedores').select('id, nombre').eq('activo', true).order('nombre'),
-      supabase.from('lotes').select('id, nombre, establecimiento').order('establecimiento').order('nombre'),
-      supabase.from('cultivos').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('campanas').select('id, nombre').eq('activo', true).order('nombre', { ascending: false }),
     ])
     setProductos(prods ?? [])
     setProveedores(provs ?? [])
-    setLotes(ls ?? [])
-    setCultivos(cs ?? [])
     setCampanas(caps ?? [])
     if (caps && caps.length > 0) setForm(f => ({ ...f, campaña: caps[0].nombre }))
   }
@@ -188,11 +179,6 @@ export default function MovimientosPage() {
       payload.numero_remito = form.numero_remito || null
       payload.numero_factura = form.numero_factura || null
     }
-    if (form.tipo === 'aplicacion') {
-      payload.lote = form.lote || null
-      payload.cultivo = form.cultivo || null
-      payload.campaña = form.campaña || null
-    }
     const { error } = editandoId
       ? await supabase.from('agroquimicos_movimientos').update(payload).eq('id', editandoId)
       : await supabase.from('agroquimicos_movimientos').insert(payload)
@@ -236,8 +222,8 @@ export default function MovimientosPage() {
   }
 
   const movFiltrados = movimientos
+    .filter(m => m.tipo !== 'aplicacion')
     .filter(m => filtroTipo ? m.tipo === filtroTipo : true)
-    .filter(m => mostrarAplicaciones || filtroTipo === 'aplicacion' ? true : m.tipo !== 'aplicacion')
     .filter(m => filtroCampana ? m.campaña === filtroCampana : true)
     .filter(m => {
       if (!busqueda) return true
@@ -257,16 +243,9 @@ export default function MovimientosPage() {
   const fmt = (n: number) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 })
   const badgeColor = (tipo: string) => {
     if (tipo === 'compra')     return 'bg-blue-100 text-blue-700'
-    if (tipo === 'aplicacion') return 'bg-orange-100 text-orange-700'
     if (tipo === 'devolucion') return 'bg-purple-100 text-purple-700'
     return 'bg-campo-100 text-campo-600'
   }
-
-  const lotesPorCampo = lotes.reduce((acc: Record<string, Lote[]>, l) => {
-    if (!acc[l.establecimiento]) acc[l.establecimiento] = []
-    acc[l.establecimiento].push(l)
-    return acc
-  }, {})
 
   return (
     <div className="space-y-6">
@@ -447,41 +426,6 @@ export default function MovimientosPage() {
               </>
             )}
 
-            {/* Campos específicos de APLICACION */}
-            {form.tipo === 'aplicacion' && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-campo-700 mb-1">Lote</label>
-                  <select value={form.lote} onChange={e => setForm(f => ({ ...f, lote: e.target.value }))}
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                    <option value="">Seleccioná un lote</option>
-                    {Object.entries(lotesPorCampo).map(([campo, ls]) => (
-                      <optgroup key={campo} label={campo}>
-                        {ls.map(l => <option key={l.id} value={l.nombre}>{l.nombre}</option>)}
-                      </optgroup>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-campo-700 mb-1">Cultivo</label>
-                  <select value={form.cultivo} onChange={e => setForm(f => ({ ...f, cultivo: e.target.value }))}
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                    <option value="">Seleccioná un cultivo</option>
-                    {cultivos.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-campo-700 mb-1">Campaña</label>
-                  <select value={form.campaña} onChange={e => setForm(f => ({ ...f, campaña: e.target.value }))}
-                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                    {campanas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
-                  </select>
-                </div>
-              </>
-            )}
-
             <div className="sm:col-span-2 lg:col-span-3">
               <label className="block text-xs font-medium text-campo-700 mb-1">Observaciones</label>
               <input type="text" value={form.observaciones}
@@ -540,11 +484,6 @@ export default function MovimientosPage() {
           </button>
         ))}
       </div>
-      <label className="flex items-center gap-2 text-xs text-campo-500 -mt-2 cursor-pointer w-fit">
-        <input type="checkbox" checked={mostrarAplicaciones} onChange={e => setMostrarAplicaciones(e.target.checked)}
-          className="rounded border-campo-300 text-emerald-700 focus:ring-emerald-400" />
-        Incluir aplicaciones acá (se ven con más detalle — por lote, cultivo y costo — en la pestaña Aplicaciones)
-      </label>
 
       {/* Tabla */}
       <div className="card overflow-hidden p-0">
