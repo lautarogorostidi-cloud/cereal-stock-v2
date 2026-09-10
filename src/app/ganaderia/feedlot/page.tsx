@@ -16,6 +16,7 @@ type FeedlotSalida = {
   id: string; ingreso_id: string; campania: string; fecha_salida: string
   cantidad_cabezas: number; motivo: string; observaciones: string | null
   precio_por_kg_usd: number | null; peso_promedio_kg: number | null; ingreso_total_usd: number | null
+  peso_bruto_kg: number | null; desbaste_pct: number | null
 }
 
 type OtroAlimento = { nombre: string; cantidad_tn: number; precio_usd_tn: number }
@@ -110,6 +111,7 @@ export default function FeedlotPage() {
   const [sCabezas, setSCabezas] = useState('')
   const [sMotivo, setSMotivo] = useState('venta')
   const [sPrecioPorKg, setSPrecioPorKg] = useState('')
+  const [sPesoBruto, setSPesoBruto] = useState('')
   const [sPesoPromedio, setSPesoPromedio] = useState('')
   const [sObs, setSObs] = useState('')
   const [sGuardando, setSGuardando] = useState(false)
@@ -153,6 +155,7 @@ export default function FeedlotPage() {
   const [esCabezas, setEsCabezas] = useState('')
   const [esMotivo, setEsMotivo] = useState('venta')
   const [esPrecioPorKg, setEsPrecioPorKg] = useState('')
+  const [esPesoBruto, setEsPesoBruto] = useState('')
   const [esPesoPromedio, setEsPesoPromedio] = useState('')
   const [esObs, setEsObs] = useState('')
   const [esGuardando, setEsGuardando] = useState(false)
@@ -235,16 +238,19 @@ export default function FeedlotPage() {
       const cabezas = Number(sCabezas)
       const precioPorKg = sMotivo === 'venta' ? Number(sPrecioPorKg) : null
       const pesoPromedio = sMotivo === 'venta' ? Number(sPesoPromedio) : null
+      const pesoBruto = sMotivo === 'venta' && sPesoBruto ? Number(sPesoBruto) : null
+      const desbastePct = pesoBruto && pesoPromedio ? (pesoBruto - pesoPromedio) / pesoBruto * 100 : null
       const ingresoTotal = precioPorKg && pesoPromedio ? cabezas * pesoPromedio * precioPorKg : null
       const { error } = await supabase.from('feedlot_salidas').insert({
         ingreso_id: ingresoSel.id, campania: sCampania, fecha_salida: sFechaSalida,
         cantidad_cabezas: cabezas, motivo: sMotivo,
         precio_por_kg_usd: precioPorKg, peso_promedio_kg: pesoPromedio,
+        peso_bruto_kg: pesoBruto, desbaste_pct: desbastePct,
         ingreso_total_usd: ingresoTotal,
         observaciones: sObs || null,
       })
       if (error) throw error
-      setSCabezas(''); setSObs(''); setSPrecioPorKg(''); setSPesoPromedio('')
+      setSCabezas(''); setSObs(''); setSPrecioPorKg(''); setSPesoBruto(''); setSPesoPromedio('')
       setShowSalida(false)
       cargarDetalle(ingresoSel); setRefreshKey(k => k + 1); cargarIngresos()
     } catch (err: any) { setSError(err.message) }
@@ -326,6 +332,7 @@ export default function FeedlotPage() {
   const abrirEditSalida = (s: FeedlotSalida) => {
     setEditSalida(s); setEsFechaSalida(s.fecha_salida); setEsCampania(s.campania); setEsCabezas(String(s.cantidad_cabezas))
     setEsMotivo(s.motivo); setEsPrecioPorKg(s.precio_por_kg_usd ? String(s.precio_por_kg_usd) : '')
+    setEsPesoBruto(s.peso_bruto_kg ? String(s.peso_bruto_kg) : '')
     setEsPesoPromedio(s.peso_promedio_kg ? String(s.peso_promedio_kg) : '')
     setEsObs(s.observaciones ?? ''); setEsError(null)
   }
@@ -336,10 +343,13 @@ export default function FeedlotPage() {
     try {
       const precioPorKg = esMotivo === 'venta' && esPrecioPorKg ? Number(esPrecioPorKg) : null
       const pesoPromedio = esMotivo === 'venta' && esPesoPromedio ? Number(esPesoPromedio) : null
+      const pesoBruto = esMotivo === 'venta' && esPesoBruto ? Number(esPesoBruto) : null
+      const desbastePct = pesoBruto && pesoPromedio ? (pesoBruto - pesoPromedio) / pesoBruto * 100 : null
       const ingresoTotal = precioPorKg && pesoPromedio ? Number(esCabezas) * pesoPromedio * precioPorKg : null
       const { error } = await supabase.from('feedlot_salidas').update({
         fecha_salida: esFechaSalida, campania: esCampania, cantidad_cabezas: Number(esCabezas),
         motivo: esMotivo, precio_por_kg_usd: precioPorKg,
+        peso_bruto_kg: pesoBruto, desbaste_pct: desbastePct,
         peso_promedio_kg: pesoPromedio, ingreso_total_usd: ingresoTotal,
         observaciones: esObs || null,
       }).eq('id', editSalida.id)
@@ -383,6 +393,9 @@ export default function FeedlotPage() {
   // Preview salida venta
   const ingresoTotalPreview = sMotivo === 'venta' && sCabezas && sPrecioPorKg && sPesoPromedio
     ? Number(sCabezas) * Number(sPesoPromedio) * Number(sPrecioPorKg) : null
+  const desbastePreview = sMotivo === 'venta' && sPesoBruto && sPesoPromedio && Number(sPesoBruto) > 0
+    ? { kg: Number(sPesoBruto) - Number(sPesoPromedio), pct: (Number(sPesoBruto) - Number(sPesoPromedio)) / Number(sPesoBruto) * 100 }
+    : null
 
   // Preview carga
   const totalMezclaForm = (Number(cMaizTn)||0) + (Number(cNucleoTn)||0) + (Number(cExpellerTn)||0) + cOtros.reduce((s,o) => s + o.cantidad_tn, 0)
@@ -636,7 +649,7 @@ export default function FeedlotPage() {
                     <input type="number" min={1} max={cabActivas} value={sCabezas} onChange={e => setSCabezas(e.target.value)} className={inputCls} /></div>
 
                   <div><label className={labelCls}>Motivo</label>
-                    <select value={sMotivo} onChange={e => { setSMotivo(e.target.value); setSPrecioPorKg(''); setSPesoPromedio('') }} className={inputCls}>
+                    <select value={sMotivo} onChange={e => { setSMotivo(e.target.value); setSPrecioPorKg(''); setSPesoBruto(''); setSPesoPromedio('') }} className={inputCls}>
                       <option value="venta">Venta</option>
                       <option value="muerte">Muerte</option>
                       <option value="otro">Otro</option>
@@ -646,11 +659,18 @@ export default function FeedlotPage() {
                     <div className="space-y-3 rounded-md bg-green-50 p-3">
                       <p className="text-xs font-semibold text-stone-600 uppercase">Datos de la venta</p>
                       <div className="grid grid-cols-2 gap-3">
-                        <div><label className={labelCls}>Peso promedio/cab (kg)</label>
+                        <div><label className={labelCls}>Peso bruto/cab (kg)</label>
+                          <input type="number" min={0} step="0.1" value={sPesoBruto} onChange={e => setSPesoBruto(e.target.value)} placeholder="Ej: 395" className={inputCls} /></div>
+                        <div><label className={labelCls}>Peso neto/cab (kg)</label>
                           <input type="number" min={0} step="0.1" value={sPesoPromedio} onChange={e => setSPesoPromedio(e.target.value)} placeholder="Ej: 380" className={inputCls} /></div>
-                        <div><label className={labelCls}>Precio (USD/kg)</label>
-                          <input type="number" min={0} step="0.001" value={sPrecioPorKg} onChange={e => setSPrecioPorKg(e.target.value)} placeholder="Ej: 1.85" className={inputCls} /></div>
                       </div>
+                      <div><label className={labelCls}>Precio (USD/kg, sobre peso neto)</label>
+                        <input type="number" min={0} step="0.001" value={sPrecioPorKg} onChange={e => setSPrecioPorKg(e.target.value)} placeholder="Ej: 1.85" className={inputCls} /></div>
+                      {desbastePreview && (
+                        <div className="rounded-md bg-amber-100 px-3 py-2 text-xs text-amber-800">
+                          Desbaste: <span className="font-bold">{fmt(desbastePreview.kg, 1)} kg/cab</span> ({fmt(desbastePreview.pct, 1)}%)
+                        </div>
+                      )}
                       {ingresoTotalPreview && (
                         <div className="rounded-md bg-green-100 px-3 py-2 text-xs text-green-800 space-y-0.5">
                           <div>Peso total: <span className="font-medium">{fmt(Number(sCabezas) * Number(sPesoPromedio), 0)} kg</span></div>
@@ -737,7 +757,16 @@ export default function FeedlotPage() {
                             <td className="px-3 py-2 text-stone-500 text-xs">{s.campania}</td>
                             <td className="px-3 py-2 text-right font-medium">{s.cantidad_cabezas}</td>
                             <td className="px-3 py-2 text-stone-600 capitalize">{s.motivo}</td>
-                            <td className="px-3 py-2 text-right">{s.peso_promedio_kg ? fmt(s.peso_promedio_kg, 0) + ' kg' : '—'}</td>
+                            <td className="px-3 py-2 text-right">
+                              {s.peso_promedio_kg ? (
+                                <>
+                                  <div>{fmt(s.peso_promedio_kg, 0)} kg</div>
+                                  {s.peso_bruto_kg != null && (
+                                    <div className="text-xs text-stone-400">bruto {fmt(s.peso_bruto_kg, 0)} kg · desbaste {fmt(s.desbaste_pct ?? 0, 1)}%</div>
+                                  )}
+                                </>
+                              ) : '—'}
+                            </td>
                             <td className="px-3 py-2 text-right">{s.precio_por_kg_usd ? 'USD ' + fmt(s.precio_por_kg_usd, 3) : '—'}</td>
                             <td className="px-3 py-2 text-right font-medium text-green-700">{s.ingreso_total_usd ? 'USD ' + fmt(s.ingreso_total_usd) : '—'}</td>
                             <td className="px-3 py-2">
@@ -842,7 +871,7 @@ export default function FeedlotPage() {
           <div><label className={labelCls}>Cantidad de cabezas</label>
             <input type="number" min={1} value={esCabezas} onChange={e => setEsCabezas(e.target.value)} className={inputCls} /></div>
           <div><label className={labelCls}>Motivo</label>
-            <select value={esMotivo} onChange={e => { setEsMotivo(e.target.value); setEsPrecioPorKg(''); setEsPesoPromedio('') }} className={inputCls}>
+            <select value={esMotivo} onChange={e => { setEsMotivo(e.target.value); setEsPrecioPorKg(''); setEsPesoBruto(''); setEsPesoPromedio('') }} className={inputCls}>
               <option value="venta">Venta</option>
               <option value="muerte">Muerte</option>
               <option value="otro">Otro</option>
@@ -851,11 +880,18 @@ export default function FeedlotPage() {
             <div className="space-y-3 rounded-md bg-green-50 p-3">
               <p className="text-xs font-semibold text-stone-600 uppercase">Datos de la venta</p>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className={labelCls}>Peso promedio/cab (kg)</label>
+                <div><label className={labelCls}>Peso bruto/cab (kg)</label>
+                  <input type="number" min={0} step="0.1" value={esPesoBruto} onChange={e => setEsPesoBruto(e.target.value)} className={inputCls} /></div>
+                <div><label className={labelCls}>Peso neto/cab (kg)</label>
                   <input type="number" min={0} step="0.1" value={esPesoPromedio} onChange={e => setEsPesoPromedio(e.target.value)} className={inputCls} /></div>
-                <div><label className={labelCls}>Precio (USD/kg)</label>
-                  <input type="number" min={0} step="0.001" value={esPrecioPorKg} onChange={e => setEsPrecioPorKg(e.target.value)} className={inputCls} /></div>
               </div>
+              <div><label className={labelCls}>Precio (USD/kg, sobre peso neto)</label>
+                <input type="number" min={0} step="0.001" value={esPrecioPorKg} onChange={e => setEsPrecioPorKg(e.target.value)} className={inputCls} /></div>
+              {esPesoBruto && esPesoPromedio && Number(esPesoBruto) > 0 && (
+                <div className="rounded-md bg-amber-100 px-3 py-2 text-xs text-amber-800">
+                  Desbaste: <span className="font-bold">{fmt(Number(esPesoBruto) - Number(esPesoPromedio), 1)} kg/cab</span> ({fmt((Number(esPesoBruto) - Number(esPesoPromedio)) / Number(esPesoBruto) * 100, 1)}%)
+                </div>
+              )}
               {esCabezas && esPrecioPorKg && esPesoPromedio && (
                 <div className="rounded-md bg-green-100 px-3 py-2 text-xs text-green-800">
                   Ingreso total: <span className="font-bold">USD {fmt(Number(esCabezas) * Number(esPesoPromedio) * Number(esPrecioPorKg))}</span>
