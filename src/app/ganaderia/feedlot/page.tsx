@@ -13,7 +13,7 @@ type FeedlotIngreso = {
 }
 
 type FeedlotSalida = {
-  id: string; ingreso_id: string; fecha_salida: string
+  id: string; ingreso_id: string; campania: string; fecha_salida: string
   cantidad_cabezas: number; motivo: string; observaciones: string | null
   precio_por_kg_usd: number | null; peso_promedio_kg: number | null; ingreso_total_usd: number | null
 }
@@ -54,6 +54,20 @@ function diasDesde(fecha: string): number {
   return Math.max(0, Math.round((new Date().getTime() - new Date(fecha + 'T00:00:00').getTime()) / 86400000))
 }
 
+// Campaña real según la fecha del evento (año fiscal sep-ago), no la del
+// ingreso — así una jaula que sigue en el feedlot al cambiar de campaña
+// puede tener cargas y salidas en la campaña nueva.
+function campaniaPorFecha(fecha: string): string {
+  const d = new Date(fecha + 'T00:00:00')
+  const anio = d.getFullYear()
+  const mes = d.getMonth() + 1
+  if (mes >= 9) {
+    return `${String(anio).slice(2)}-${String(anio + 1).slice(2)}`
+  } else {
+    return `${String(anio - 1).slice(2)}-${String(anio).slice(2)}`
+  }
+}
+
 function costoTotalCarga(c: FeedlotCarga): number {
   const base = c.maiz_tn * c.maiz_precio_usd_tn + c.nucleo_tn * c.nucleo_precio_usd_tn + c.expeller_tn * c.expeller_precio_usd_tn
   const otros = (c.otros_alimentos ?? []).reduce((s, o) => s + o.cantidad_tn * o.precio_usd_tn, 0)
@@ -92,6 +106,7 @@ export default function FeedlotPage() {
   // Formulario salida
   const [showSalida, setShowSalida] = useState(false)
   const [sFechaSalida, setSFechaSalida] = useState(new Date().toISOString().slice(0, 10))
+  const [sCampania, setSCampania] = useState(campaniaPorFecha(new Date().toISOString().slice(0, 10)))
   const [sCabezas, setSCabezas] = useState('')
   const [sMotivo, setSMotivo] = useState('venta')
   const [sPrecioPorKg, setSPrecioPorKg] = useState('')
@@ -103,6 +118,7 @@ export default function FeedlotPage() {
   // Formulario carga
   const [showCarga, setShowCarga] = useState(false)
   const [cFecha, setCFecha] = useState(new Date().toISOString().slice(0, 10))
+  const [cCampania, setCCampania] = useState(campaniaPorFecha(new Date().toISOString().slice(0, 10)))
   const [cMaizTn, setCMaizTn] = useState('')
   const [cMaizPrecio, setCMaizPrecio] = useState('')
   const [cNucleoTn, setCNucleoTn] = useState('')
@@ -118,6 +134,7 @@ export default function FeedlotPage() {
   // Modal editar carga
   const [editCarga, setEditCarga] = useState<FeedlotCarga | null>(null)
   const [ecFecha, setEcFecha] = useState('')
+  const [ecCampania, setEcCampania] = useState('')
   const [ecMaizTn, setEcMaizTn] = useState('')
   const [ecMaizPrecio, setEcMaizPrecio] = useState('')
   const [ecNucleoTn, setEcNucleoTn] = useState('')
@@ -132,6 +149,7 @@ export default function FeedlotPage() {
   // Modal editar salida
   const [editSalida, setEditSalida] = useState<FeedlotSalida | null>(null)
   const [esFechaSalida, setEsFechaSalida] = useState('')
+  const [esCampania, setEsCampania] = useState('')
   const [esCabezas, setEsCabezas] = useState('')
   const [esMotivo, setEsMotivo] = useState('venta')
   const [esPrecioPorKg, setEsPrecioPorKg] = useState('')
@@ -219,7 +237,7 @@ export default function FeedlotPage() {
       const pesoPromedio = sMotivo === 'venta' ? Number(sPesoPromedio) : null
       const ingresoTotal = precioPorKg && pesoPromedio ? cabezas * pesoPromedio * precioPorKg : null
       const { error } = await supabase.from('feedlot_salidas').insert({
-        ingreso_id: ingresoSel.id, fecha_salida: sFechaSalida,
+        ingreso_id: ingresoSel.id, campania: sCampania, fecha_salida: sFechaSalida,
         cantidad_cabezas: cabezas, motivo: sMotivo,
         precio_por_kg_usd: precioPorKg, peso_promedio_kg: pesoPromedio,
         ingreso_total_usd: ingresoTotal,
@@ -242,7 +260,7 @@ export default function FeedlotPage() {
     setCGuardando(true)
     try {
       const { error } = await supabase.from('feedlot_cargas').insert({
-        ingreso_id: ingresoSel.id, campania: ingresoSel.campania, fecha_carga: cFecha,
+        ingreso_id: ingresoSel.id, campania: cCampania, fecha_carga: cFecha,
         maiz_tn: Number(cMaizTn) || 0, maiz_precio_usd_tn: Number(cMaizPrecio) || 0,
         nucleo_tn: Number(cNucleoTn) || 0, nucleo_precio_usd_tn: Number(cNucleoPrecio) || 0,
         expeller_tn: Number(cExpellerTn) || 0, expeller_precio_usd_tn: Number(cExpellerPrecio) || 0,
@@ -280,7 +298,7 @@ export default function FeedlotPage() {
   }
 
   const abrirEditCarga = (c: FeedlotCarga) => {
-    setEditCarga(c); setEcFecha(c.fecha_carga)
+    setEditCarga(c); setEcFecha(c.fecha_carga); setEcCampania(c.campania)
     setEcMaizTn(String(c.maiz_tn)); setEcMaizPrecio(String(c.maiz_precio_usd_tn))
     setEcNucleoTn(String(c.nucleo_tn)); setEcNucleoPrecio(String(c.nucleo_precio_usd_tn))
     setEcExpellerTn(String(c.expeller_tn)); setEcExpellerPrecio(String(c.expeller_precio_usd_tn))
@@ -292,7 +310,7 @@ export default function FeedlotPage() {
     setEcGuardando(true)
     try {
       const { error } = await supabase.from('feedlot_cargas').update({
-        fecha_carga: ecFecha,
+        fecha_carga: ecFecha, campania: ecCampania,
         maiz_tn: Number(ecMaizTn) || 0, maiz_precio_usd_tn: Number(ecMaizPrecio) || 0,
         nucleo_tn: Number(ecNucleoTn) || 0, nucleo_precio_usd_tn: Number(ecNucleoPrecio) || 0,
         expeller_tn: Number(ecExpellerTn) || 0, expeller_precio_usd_tn: Number(ecExpellerPrecio) || 0,
@@ -306,7 +324,7 @@ export default function FeedlotPage() {
   }
 
   const abrirEditSalida = (s: FeedlotSalida) => {
-    setEditSalida(s); setEsFechaSalida(s.fecha_salida); setEsCabezas(String(s.cantidad_cabezas))
+    setEditSalida(s); setEsFechaSalida(s.fecha_salida); setEsCampania(s.campania); setEsCabezas(String(s.cantidad_cabezas))
     setEsMotivo(s.motivo); setEsPrecioPorKg(s.precio_por_kg_usd ? String(s.precio_por_kg_usd) : '')
     setEsPesoPromedio(s.peso_promedio_kg ? String(s.peso_promedio_kg) : '')
     setEsObs(s.observaciones ?? ''); setEsError(null)
@@ -320,7 +338,7 @@ export default function FeedlotPage() {
       const pesoPromedio = esMotivo === 'venta' && esPesoPromedio ? Number(esPesoPromedio) : null
       const ingresoTotal = precioPorKg && pesoPromedio ? Number(esCabezas) * pesoPromedio * precioPorKg : null
       const { error } = await supabase.from('feedlot_salidas').update({
-        fecha_salida: esFechaSalida, cantidad_cabezas: Number(esCabezas),
+        fecha_salida: esFechaSalida, campania: esCampania, cantidad_cabezas: Number(esCabezas),
         motivo: esMotivo, precio_por_kg_usd: precioPorKg,
         peso_promedio_kg: pesoPromedio, ingreso_total_usd: ingresoTotal,
         observaciones: esObs || null,
@@ -524,8 +542,16 @@ export default function FeedlotPage() {
                   {cError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{cError}</div>}
                   {cExito && <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{cExito}</div>}
 
-                  <div><label className={labelCls}>Fecha de carga</label>
-                    <input type="date" value={cFecha} onChange={e => setCFecha(e.target.value)} className={inputCls} /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className={labelCls}>Fecha de carga</label>
+                      <input type="date" value={cFecha}
+                        onChange={e => { setCFecha(e.target.value); setCCampania(campaniaPorFecha(e.target.value)) }}
+                        className={inputCls} /></div>
+                    <div><label className={labelCls}>Campaña</label>
+                      <select value={cCampania} onChange={e => setCCampania(e.target.value)} className={inputCls}>
+                        {campanias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+                      </select></div>
+                  </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3 rounded-md bg-stone-50 p-3">
@@ -595,8 +621,16 @@ export default function FeedlotPage() {
                   <p className="text-sm text-stone-500">Cabezas activas: <span className="font-semibold text-stone-900">{cabActivas}</span></p>
                   {sError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{sError}</div>}
 
-                  <div><label className={labelCls}>Fecha de salida</label>
-                    <input type="date" value={sFechaSalida} onChange={e => setSFechaSalida(e.target.value)} className={inputCls} /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className={labelCls}>Fecha de salida</label>
+                      <input type="date" value={sFechaSalida}
+                        onChange={e => { setSFechaSalida(e.target.value); setSCampania(campaniaPorFecha(e.target.value)) }}
+                        className={inputCls} /></div>
+                    <div><label className={labelCls}>Campaña</label>
+                      <select value={sCampania} onChange={e => setSCampania(e.target.value)} className={inputCls}>
+                        {campanias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+                      </select></div>
+                  </div>
 
                   <div><label className={labelCls}>Cantidad de cabezas</label>
                     <input type="number" min={1} max={cabActivas} value={sCabezas} onChange={e => setSCabezas(e.target.value)} className={inputCls} /></div>
@@ -644,6 +678,7 @@ export default function FeedlotPage() {
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
                         <th className="px-3 py-2 font-medium">Fecha</th>
+                        <th className="px-3 py-2 font-medium">Campaña</th>
                         <th className="px-3 py-2 text-right font-medium">Maíz</th>
                         <th className="px-3 py-2 text-right font-medium">Núcleo</th>
                         <th className="px-3 py-2 text-right font-medium">Otros</th>
@@ -655,6 +690,7 @@ export default function FeedlotPage() {
                         {cargas.map(c => (
                           <tr key={c.id} className="border-t border-stone-100">
                             <td className="px-3 py-2 text-stone-700">{new Date(c.fecha_carga + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                            <td className="px-3 py-2 text-stone-500 text-xs">{c.campania}</td>
                             <td className="px-3 py-2 text-right">{c.maiz_tn > 0 ? fmt(c.maiz_tn, 3) + ' tn' : '—'}</td>
                             <td className="px-3 py-2 text-right">{c.nucleo_tn > 0 ? fmt(c.nucleo_tn, 3) + ' tn' : '—'}</td>
                             <td className="px-3 py-2 text-right text-xs text-stone-500">
@@ -686,6 +722,7 @@ export default function FeedlotPage() {
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
                         <th className="px-3 py-2 font-medium">Fecha</th>
+                        <th className="px-3 py-2 font-medium">Campaña</th>
                         <th className="px-3 py-2 text-right font-medium">Cabezas</th>
                         <th className="px-3 py-2 font-medium">Motivo</th>
                         <th className="px-3 py-2 text-right font-medium">Peso prom.</th>
@@ -697,6 +734,7 @@ export default function FeedlotPage() {
                         {salidas.map(s => (
                           <tr key={s.id} className="border-t border-stone-100">
                             <td className="px-3 py-2 text-stone-700">{new Date(s.fecha_salida + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                            <td className="px-3 py-2 text-stone-500 text-xs">{s.campania}</td>
                             <td className="px-3 py-2 text-right font-medium">{s.cantidad_cabezas}</td>
                             <td className="px-3 py-2 text-stone-600 capitalize">{s.motivo}</td>
                             <td className="px-3 py-2 text-right">{s.peso_promedio_kg ? fmt(s.peso_promedio_kg, 0) + ' kg' : '—'}</td>
@@ -724,8 +762,16 @@ export default function FeedlotPage() {
       {editCarga && (
         <Modal title="Editar carga de ración" onClose={() => setEditCarga(null)}>
           {ecError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{ecError}</div>}
-          <div><label className={labelCls}>Fecha de carga</label>
-            <input type="date" value={ecFecha} onChange={e => setEcFecha(e.target.value)} className={inputCls} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={labelCls}>Fecha de carga</label>
+              <input type="date" value={ecFecha}
+                onChange={e => { setEcFecha(e.target.value); setEcCampania(campaniaPorFecha(e.target.value)) }}
+                className={inputCls} /></div>
+            <div><label className={labelCls}>Campaña</label>
+              <select value={ecCampania} onChange={e => setEcCampania(e.target.value)} className={inputCls}>
+                {campanias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+              </select></div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2 rounded-md bg-stone-50 p-3">
               <p className="text-xs font-semibold text-stone-600 uppercase">Maíz</p>
@@ -783,8 +829,16 @@ export default function FeedlotPage() {
       {editSalida && (
         <Modal title="Editar salida" onClose={() => setEditSalida(null)}>
           {esError && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{esError}</div>}
-          <div><label className={labelCls}>Fecha de salida</label>
-            <input type="date" value={esFechaSalida} onChange={e => setEsFechaSalida(e.target.value)} className={inputCls} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={labelCls}>Fecha de salida</label>
+              <input type="date" value={esFechaSalida}
+                onChange={e => { setEsFechaSalida(e.target.value); setEsCampania(campaniaPorFecha(e.target.value)) }}
+                className={inputCls} /></div>
+            <div><label className={labelCls}>Campaña</label>
+              <select value={esCampania} onChange={e => setEsCampania(e.target.value)} className={inputCls}>
+                {campanias.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+              </select></div>
+          </div>
           <div><label className={labelCls}>Cantidad de cabezas</label>
             <input type="number" min={1} value={esCabezas} onChange={e => setEsCabezas(e.target.value)} className={inputCls} /></div>
           <div><label className={labelCls}>Motivo</label>
