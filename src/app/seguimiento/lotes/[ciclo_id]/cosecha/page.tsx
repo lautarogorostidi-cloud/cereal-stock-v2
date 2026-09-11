@@ -33,7 +33,7 @@ export default function NuevaCosechaPage() {
   const [cosechaId, setCosechaId] = useState<number | null>(null)
   const [clientes, setClientes] = useState<{id: string; razon_social: string}[]>([])
   const [destinos, setDestinos] = useState<{id: string; ubicacion: 'campo'|'acopio'; acopio_cliente_id: string; toneladas: string; nombre: string}[]>([
-    {id: '1', ubicacion: 'campo', acopio_cliente_id: '', toneladas: '', nombre: ''}
+    {id: '1', ubicacion: 'acopio', acopio_cliente_id: '', toneladas: '', nombre: ''}
   ])
   const [showNuevoAcopio, setShowNuevoAcopio] = useState<string | null>(null)
   const [nuevoAcopioNombre, setNuevoAcopioNombre] = useState('')
@@ -261,7 +261,7 @@ export default function NuevaCosechaPage() {
         }
       }
     } else {
-      // Sin destinos configurados: todo al campo
+      // Sin destinos configurados: todo a acopio (sin destino específico)
       const toneladas = kgTotal / 1000
       await supabase.from('movimientos_cereal').insert({
         tipo: 'cosecha', fecha,
@@ -272,7 +272,7 @@ export default function NuevaCosechaPage() {
         humedad: form.humedad_pct ? Number(form.humedad_pct) : null,
         ciclo_id: Number(ciclo_id),
         usuario_id: usuarioId,
-        ubicacion: 'campo',
+        ubicacion: 'acopio',
         acopio_cliente_id: null,
         descripcion_movimiento: `Cosecha desde seguimiento — ${ciclo?.lote} ${ciclo?.cultivo} ${ciclo?.campana}`,
       })
@@ -347,7 +347,7 @@ export default function NuevaCosechaPage() {
   }
 
   function agregarDestino() {
-    setDestinos(prev => [...prev, {id: Date.now().toString(), ubicacion: 'campo', acopio_cliente_id: '', toneladas: '', nombre: ''}])
+    setDestinos(prev => [...prev, {id: Date.now().toString(), ubicacion: 'acopio', acopio_cliente_id: '', toneladas: '', nombre: ''}])
   }
 
   function quitarDestino(id: string) {
@@ -473,16 +473,6 @@ export default function NuevaCosechaPage() {
                     <button type="button" onClick={() => quitarDestino(dest.id)}
                       className="text-xs text-red-400 hover:text-red-600">× Quitar</button>
                   )}
-                </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => actualizarDestino(dest.id, 'ubicacion', 'campo')}
-                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${dest.ubicacion === 'campo' ? 'border-campo-700 bg-campo-700 text-white' : 'border-campo-200 text-campo-700 hover:bg-campo-100'}`}>
-                    🌾 Campo / bolsa
-                  </button>
-                  <button type="button" onClick={() => actualizarDestino(dest.id, 'ubicacion', 'acopio')}
-                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${dest.ubicacion === 'acopio' ? 'border-blue-600 bg-blue-600 text-white' : 'border-campo-200 text-campo-700 hover:bg-campo-100'}`}>
-                    🏭 Acopio
-                  </button>
                 </div>
                 {dest.ubicacion === 'campo' && (
                   <div>
