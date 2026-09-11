@@ -261,7 +261,8 @@ export default function NuevaCosechaPage() {
         }
       }
     } else {
-      // Sin destinos configurados: todo a acopio (sin destino específico)
+      // Sin destinos configurados (no se cargó ningún acopio todavía): queda
+      // como stock físico sin asignar, "en campo", hasta que se defina el acopio.
       const toneladas = kgTotal / 1000
       await supabase.from('movimientos_cereal').insert({
         tipo: 'cosecha', fecha,
@@ -272,7 +273,7 @@ export default function NuevaCosechaPage() {
         humedad: form.humedad_pct ? Number(form.humedad_pct) : null,
         ciclo_id: Number(ciclo_id),
         usuario_id: usuarioId,
-        ubicacion: 'acopio',
+        ubicacion: 'campo',
         acopio_cliente_id: null,
         descripcion_movimiento: `Cosecha desde seguimiento — ${ciclo?.lote} ${ciclo?.cultivo} ${ciclo?.campana}`,
       })
@@ -291,6 +292,8 @@ export default function NuevaCosechaPage() {
   async function handleSubmit() {
     setError(null)
     if (!form.superficie_ha) { setError('La superficie es obligatoria.'); return }
+    const destinoSinAcopio = destinos.find(d => Number(d.toneladas) > 0 && d.ubicacion === 'acopio' && !d.acopio_cliente_id)
+    if (destinoSinAcopio) { setError('Elegí un acopio para cada destino con toneladas cargadas.'); return }
     setSaving(true)
 
     const payload: any = {
@@ -468,7 +471,7 @@ export default function NuevaCosechaPage() {
             {destinos.map((dest, idx) => (
               <div key={dest.id} className="rounded-lg border border-campo-200 bg-white p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-campo-600">Destino {idx + 1}</span>
+                  <span className="text-xs font-semibold text-campo-600">Acopio {idx + 1}</span>
                   {destinos.length > 1 && (
                     <button type="button" onClick={() => quitarDestino(dest.id)}
                       className="text-xs text-red-400 hover:text-red-600">× Quitar</button>
