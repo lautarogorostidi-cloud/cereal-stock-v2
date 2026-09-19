@@ -79,6 +79,7 @@ export default function ResumenCampaniaPage() {
     }
 
     // 4. Feedlot
+    // Entradas (jaulas) que ingresaron en esta campaña — para "cabezas ingresadas" por categoría.
     const { data: ingresosData } = await supabase
       .from('feedlot_ingresos')
       .select('id, cantidad_cabezas, categorias_hacienda(nombre)')
@@ -89,14 +90,42 @@ export default function ResumenCampaniaPage() {
     let totalCabezasVendidas = 0
     let feedlotDetalle: any[] = []
 
-    if (ingresosData && ingresosData.length > 0) {
-      const ids = ingresosData.map((i: any) => i.id)
-      const [{ data: cargasData }, { data: salidasData }] = await Promise.all([
-        supabase.from('feedlot_cargas').select('ingreso_id, maiz_tn, maiz_precio_usd_tn, nucleo_tn, nucleo_precio_usd_tn, expeller_tn, expeller_precio_usd_tn, otros_alimentos').in('ingreso_id', ids),
-        supabase.from('feedlot_salidas').select('ingreso_id, cantidad_cabezas, motivo, ingreso_total_usd').in('ingreso_id', ids),
-      ])
+    // Ración y ventas: por la campaña REAL del evento (columna propia de cada
+    // carga/salida), no por la campaña del ingreso original. Un animal puede
+    // haber entrado en una campaña y recibir ración o venderse en la siguiente
+    // — si filtráramos por ingreso_id de esta campaña, esas cargas/ventas
+    // quedarían atadas a la campaña vieja en vez de a la campaña en que
+    // realmente ocurrieron.
+    const [{ data: cargasData }, { data: salidasData }] = await Promise.all([
+      supabase.from('feedlot_cargas').select('ingreso_id, maiz_tn, maiz_precio_usd_tn, nucleo_tn, nucleo_precio_usd_tn, expeller_tn, expeller_precio_usd_tn, otros_alimentos').eq('campania', campania),
+      supabase.from('feedlot_salidas').select('ingreso_id, cantidad_cabezas, motivo, ingreso_total_usd').eq('campania', campania),
+    ])
 
-      feedlotDetalle = ingresosData.map((ing: any) => {
+    const idsIngreso = new Set((ingresosData ?? []).map((i: any) => i.id))
+    const idsConActividad = new Set<string>([
+      ...(cargasData ?? []).map((c: any) => c.ingreso_id),
+      ...(salidasData ?? []).map((s: any) => s.ingreso_id),
+    ])
+    const idsFaltantes = Array.from(idsConActividad).filter(id => !idsIngreso.has(id))
+
+    // Categoría de los ingresos "de otra campaña" que tuvieron ración o venta
+    // en ESTA campaña, para poder mostrarlos igual en la tabla.
+    let ingresosExtra: any[] = []
+    if (idsFaltantes.length > 0) {
+      const { data } = await supabase
+        .from('feedlot_ingresos')
+        .select('id, categorias_hacienda(nombre)')
+        .in('id', idsFaltantes)
+      ingresosExtra = data ?? []
+    }
+
+    const todosIngresos = [
+      ...(ingresosData ?? []).map((i: any) => ({ id: i.id, categoria: i.categorias_hacienda?.nombre, cantidad_cabezas: i.cantidad_cabezas })),
+      ...ingresosExtra.map((i: any) => ({ id: i.id, categoria: i.categorias_hacienda?.nombre, cantidad_cabezas: 0 })),
+    ]
+
+    if (todosIngresos.length > 0) {
+      feedlotDetalle = todosIngresos.map((ing: any) => {
         const cargas = (cargasData ?? []).filter((c: any) => c.ingreso_id === ing.id)
         const salidas = (salidasData ?? []).filter((s: any) => s.ingreso_id === ing.id)
         const costoRacion = cargas.reduce((s: number, c: any) => {
@@ -109,7 +138,7 @@ export default function ResumenCampaniaPage() {
         totalRacion += costoRacion
         totalVentasFeedlot += ingresoVentas
         totalCabezasVendidas += cabVendidas
-        return { categoria: ing.categorias_hacienda?.nombre, cantidad_cabezas: ing.cantidad_cabezas, cabVendidas, costoRacion, ingresoVentas }
+        return { categoria: ing.categoria, cantidad_cabezas: ing.cantidad_cabezas, cabVendidas, costoRacion, ingresoVentas }
       })
     }
 
