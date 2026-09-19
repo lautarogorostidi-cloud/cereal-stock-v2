@@ -83,6 +83,18 @@ function fmt(n: number, dec = 2) {
   return n.toLocaleString('es-AR', { minimumFractionDigits: dec, maximumFractionDigits: dec })
 }
 
+// Campaña agropecuaria por fecha (ciclo sep-ago), misma convención que en /ganaderia/feedlot
+function campaniaPorFecha(fecha: string): string {
+  const d = new Date(fecha + 'T00:00:00')
+  const anio = d.getFullYear()
+  const mes = d.getMonth() + 1
+  if (mes >= 9) {
+    return `${String(anio).slice(2)}-${String(anio + 1).slice(2)}`
+  } else {
+    return `${String(anio - 1).slice(2)}-${String(anio).slice(2)}`
+  }
+}
+
 export default function CostosSanidadPage() {
   const supabase = createClient()
   const [tab, setTab] = useState<Tab>('costos')
@@ -242,7 +254,9 @@ export default function CostosSanidadPage() {
         categoria_id: categoriaId || null,
         lote_feedlot_id: asociacion === 'feedlot' ? loteId : null,
         campo_id: null,
-        campania: asociacion === 'general' && campania ? campania : null,
+        // La campaña siempre sale de la fecha propia del costo (misma convención sep-ago
+        // que en feedlot). Si es "General" y el usuario eligió una campaña a mano, se respeta esa.
+        campania: asociacion === 'general' && campania ? campania : campaniaPorFecha(fecha),
         observaciones: observaciones || null,
       })
       if (error) throw error
@@ -274,7 +288,7 @@ export default function CostosSanidadPage() {
         monto_usd: Number(eMonto), categoria_id: eCatId || null,
         lote_feedlot_id: eAsoc === 'feedlot' ? eLoteId : null,
         campo_id: eAsoc === 'general' ? null : editCosto.campo_id,
-        campania: eAsoc === 'general' && eCampania ? eCampania : null,
+        campania: eAsoc === 'general' && eCampania ? eCampania : campaniaPorFecha(eFecha),
         observaciones: eObs || null,
       }).eq('id', editCosto.id)
       if (error) throw error
@@ -523,7 +537,7 @@ export default function CostosSanidadPage() {
                         <td className="px-3 py-2 text-stone-700">{c.descripcion ?? '—'}</td>
                         <td className="px-3 py-2">
                           {c.feedlot_ingresos
-                            ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Feedlot · {c.feedlot_ingresos.campania} · {c.feedlot_ingresos.categorias_hacienda?.nombre}</span>
+                            ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Feedlot · {c.campania ?? c.feedlot_ingresos.campania} · {c.feedlot_ingresos.categorias_hacienda?.nombre}</span>
                             : <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">General{c.campania ? ' · ' + c.campania : ''}</span>}
                         </td>
                         <td className="px-3 py-2 text-right font-medium text-stone-900">USD {fmt(c.monto_usd)}</td>
