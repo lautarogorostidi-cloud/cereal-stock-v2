@@ -29,6 +29,21 @@ type Campana = { id: number; nombre: string }
 
 const TIPOS = ['ingreso', 'consumo', 'ajuste']
 
+// Campaña agropecuaria por fecha (ciclo sep-ago), misma convención que en /ganaderia/feedlot
+function campaniaPorFecha(fecha: string): string {
+  const d = new Date(fecha + 'T00:00:00')
+  const anio = d.getFullYear()
+  const mes = d.getMonth() + 1
+  return mes >= 9 ? `${String(anio).slice(2)}-${String(anio + 1).slice(2)}` : `${String(anio - 1).slice(2)}-${String(anio).slice(2)}`
+}
+
+// Acá la campaña se guarda por id (campania_id), así que hay que buscar el id cuyo nombre matchea la fecha
+function campaniaIdPorFecha(fecha: string, lista: Campana[]): string {
+  const nombre = campaniaPorFecha(fecha)
+  const match = lista.find(c => c.nombre === nombre)
+  return match ? String(match.id) : (lista[0] ? String(lista[0].id) : '')
+}
+
 export default function MovimientosCombustiblePage() {
   const supabase = createClient()
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
@@ -83,7 +98,7 @@ export default function MovimientosCombustiblePage() {
     setMaquinas(ms ?? [])
     setProveedores(ps ?? [])
     setCampanas(caps ?? [])
-    if (caps && caps.length > 0) setForm(f => ({ ...f, campania_id: String(caps[0].id) }))
+    if (caps && caps.length > 0) setForm(f => ({ ...f, campania_id: campaniaIdPorFecha(f.fecha, caps) }))
   }
 
   useEffect(() => { cargar(); cargarMaestros() }, [])
@@ -188,7 +203,7 @@ export default function MovimientosCombustiblePage() {
     } else {
       setShowForm(false)
       setEditandoId(null)
-      setForm(vacio)
+      setForm({ ...vacio, campania_id: campaniaIdPorFecha(vacio.fecha, campanas) })
       cargar()
     }
     setSaving(false)
@@ -249,7 +264,7 @@ export default function MovimientosCombustiblePage() {
           <h1 className="text-2xl font-bold text-campo-900">Movimientos</h1>
           <p className="text-campo-500 text-sm mt-0.5">Ingresos (compras) y consumos de combustible</p>
         </div>
-        <button onClick={() => { setShowForm(!showForm); setEditandoId(null); setForm(vacio) }}
+        <button onClick={() => { setShowForm(!showForm); setEditandoId(null); setForm({ ...vacio, campania_id: campaniaIdPorFecha(vacio.fecha, campanas) }) }}
           className="bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
           + Nuevo movimiento
         </button>
@@ -274,7 +289,7 @@ export default function MovimientosCombustiblePage() {
             {/* Fecha */}
             <div>
               <label className="block text-xs font-medium text-campo-700 mb-1">Fecha *</label>
-              <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+              <input type="date" value={form.fecha} onChange={e => { const nf = e.target.value; setForm(f => ({ ...f, fecha: nf, campania_id: campaniaIdPorFecha(nf, campanas) })) }}
                 className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
             </div>
 
@@ -460,7 +475,7 @@ export default function MovimientosCombustiblePage() {
               className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-60 text-white text-sm font-medium px-5 py-2 rounded-lg transition-colors">
               {saving ? 'Guardando...' : editandoId ? 'Guardar cambios' : 'Guardar'}
             </button>
-            <button onClick={() => { setShowForm(false); setError(null); setEditandoId(null); setForm(vacio) }}
+            <button onClick={() => { setShowForm(false); setError(null); setEditandoId(null); setForm({ ...vacio, campania_id: campaniaIdPorFecha(vacio.fecha, campanas) }) }}
               className="text-sm text-campo-500 hover:text-campo-700 px-4 py-2 rounded-lg hover:bg-campo-100 transition-colors">
               Cancelar
             </button>

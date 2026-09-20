@@ -26,6 +26,14 @@ type Campana = { id: number; nombre: string }
 
 const TIPOS = ['compra', 'devolucion', 'ajuste']
 
+// Campaña agropecuaria por fecha (ciclo sep-ago), misma convención que en /ganaderia/feedlot
+function campaniaPorFecha(fecha: string): string {
+  const d = new Date(fecha + 'T00:00:00')
+  const anio = d.getFullYear()
+  const mes = d.getMonth() + 1
+  return mes >= 9 ? `${String(anio).slice(2)}-${String(anio + 1).slice(2)}` : `${String(anio - 1).slice(2)}-${String(anio).slice(2)}`
+}
+
 export default function MovimientosSemillasPage() {
   const supabase = createClient()
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
@@ -76,7 +84,7 @@ export default function MovimientosSemillasPage() {
     setProveedores(provs ?? [])
     setCultivos(cs ?? [])
     setCampanas(caps ?? [])
-    if (caps && caps.length > 0) setForm(f => ({ ...f, campania: caps[0].nombre }))
+    setForm(f => ({ ...f, campania: campaniaPorFecha(f.fecha) }))
   }
 
   useEffect(() => {
@@ -198,7 +206,7 @@ export default function MovimientosSemillasPage() {
       }
       setShowForm(false)
       setEditandoId(null)
-      setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', precio_unitario: '', proveedor_id: '', campania: campanas[0]?.nombre ?? '', numero_remito: '', numero_factura: '', observaciones: '' })
+      setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', precio_unitario: '', proveedor_id: '', campania: campaniaPorFecha(new Date().toISOString().split('T')[0]), numero_remito: '', numero_factura: '', observaciones: '' })
       cargar()
     }
     setSaving(false)
@@ -354,7 +362,7 @@ export default function MovimientosSemillasPage() {
             {/* Fecha */}
             <div>
               <label className="block text-xs font-medium text-campo-700 mb-1">Fecha *</label>
-              <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+              <input type="date" value={form.fecha} onChange={e => { const nf = e.target.value; setForm(f => ({ ...f, fecha: nf, campania: campaniaPorFecha(nf) })) }}
                 className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
             </div>
 
