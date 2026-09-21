@@ -149,10 +149,30 @@ export default function ResumenCampaniaPage() {
     const totalVerdeoFijos = verdeos.reduce((s: number, v: any) => s + Number(v.costo_fijos_usd), 0)
     const totalVerdeo = totalVerdeoInsumos + totalVerdeoServicios + totalVerdeoFijos
 
+    // 5. Costos fijos (arrendamiento, etc.) de lotes ganaderos sin ciclo agronómico esta campaña.
+    // vw_distribucion_costos_fijos reparte el costo fijo de cada campo entre TODOS sus lotes
+    // según hectáreas, incluidos los puramente ganaderos. Si esos lotes no tienen un ciclo
+    // cargado en seguimiento agronómico esta campaña, esa porción no aparece en "Verdeos"
+    // (que sale de vw_sa_resumen_ciclo) — la recuperamos acá para que no quede afuera del
+    // resumen ganadero. Se recalcula solo, así que sigue el monto real del arrendamiento
+    // aunque cambie de una campaña a otra.
+    const { data: distribucionData } = await supabase
+      .from('vw_distribucion_costos_fijos')
+      .select('ha_lote, ha_lote_agricolas, costo_ciclo')
+      .eq('campana', campania)
+      .is('ciclo_id', null)
+
+    const costoFijosLotesGanaderosSinCiclo = (distribucionData ?? [])
+      .filter((d: any) => Number(d.ha_lote) - Number(d.ha_lote_agricolas ?? 0) > 0)
+      .reduce((s: number, d: any) => s + Number(d.costo_ciclo ?? 0), 0)
+
     // Totales costos manuales por tipo
     const costos = (costosData ?? [])
     const costosPorTipo = costos.reduce((acc: any, c: any) => { acc[c.tipo] = (acc[c.tipo] ?? 0) + c.monto_usd; return acc }, {})
-    const totalCostosManual = costos.reduce((s: number, c: any) => s + c.monto_usd, 0)
+    if (costoFijosLotesGanaderosSinCiclo > 0) {
+      costosPorTipo['arrendamiento_prorrateo'] = (costosPorTipo['arrendamiento_prorrateo'] ?? 0) + costoFijosLotesGanaderosSinCiclo
+    }
+    const totalCostosManual = costos.reduce((s: number, c: any) => s + c.monto_usd, 0) + costoFijosLotesGanaderosSinCiclo
 
     const totalCostos = totalVerdeo + totalSanidad + totalRacion + totalCostosManual
     const totalIngresos = totalVentasFeedlot
@@ -169,7 +189,8 @@ export default function ResumenCampaniaPage() {
 
   const TIPO_LABELS: Record<string, string> = {
     sanidad: 'Sanidad', racion: 'Ración', flete: 'Flete', guia_senasa: 'Guía SENASA',
-    caravanas: 'Caravanas', arrendamiento: 'Arrendamiento', mano_obra: 'Mano de obra', otro: 'Otro'
+    caravanas: 'Caravanas', arrendamiento: 'Arrendamiento', mano_obra: 'Mano de obra', otro: 'Otro',
+    arrendamiento_prorrateo: 'Arrendamiento (lotes ganaderos sin ciclo)',
   }
 
   return (
