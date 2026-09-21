@@ -56,7 +56,7 @@ type Fertilizacion = { ciclo_id: number; fecha: string | null; tipo_fertilizante
 type Cosecha = { ciclo_id: number; fecha: string | null; superficie_ha: number | null; costo_cosecha_usd_ha: number | null }
 type Resiembra = { ciclo_id: number; fecha: string | null; superficie_ha: number | null }
 type CostoFijoDirecto = { ciclo_id: number; tipo: string | null; costo_total_usd: number | null }
-type CostoFijoDistribuido = { ciclo_id: number; tipo: string | null; costo_ciclo: number | null }
+type CostoFijoDistribuido = { ciclo_id: number | null; tipo: string | null; costo_ciclo: number | null; establecimiento: string; campana: string }
 
 type DetalleItem = {
   ciclo_id: number
@@ -147,7 +147,7 @@ export default function SeguimientoDashboard() {
         fetchAll<Cosecha>('sa_cosechas', 'ciclo_id, fecha, superficie_ha, costo_cosecha_usd_ha'),
         fetchAll<Resiembra>('sa_resiembras', 'ciclo_id, fecha, superficie_ha'),
         fetchAll<CostoFijoDirecto>('sa_costos_fijos', 'ciclo_id, tipo, costo_total_usd'),
-        fetchAll<CostoFijoDistribuido>('vw_distribucion_costos_fijos', 'ciclo_id, tipo, costo_ciclo'),
+        fetchAll<CostoFijoDistribuido>('vw_distribucion_costos_fijos', 'ciclo_id, tipo, costo_ciclo, establecimiento, campana'),
       ])
       const nombres = Array.from(new Set((caps ?? []).map((c: any) => c.nombre))).sort().reverse()
       setCiclos(cs ?? [])
@@ -188,6 +188,33 @@ export default function SeguimientoDashboard() {
   const cicloInfo: Record<number, { lote: string; campo: string; cultivo: string }> = {}
   ciclosCampana.forEach(r => { cicloInfo[r.ciclo_id] = { lote: r.lote, campo: r.campo, cultivo: r.cultivo } })
 
+  // ── Costos fijos de lotes sin ciclo cargado esta campaña (p. ej. lotes puramente
+  // ganaderos): vw_distribucion_costos_fijos igual les calcula su parte proporcional del
+  // arrendamiento/seguro/asesoramiento del campo según hectáreas, pero al no tener ciclo
+  // esa porción no entraba en ningún total. La sumamos igual, para que Costo Total y
+  // Costos Fijos siempre coincidan con lo cargado en la pantalla de Costos Fijos. Solo
+  // aplica viendo "Todos los cultivos" y "Agrícola y ganadero" (un lote sin ciclo no
+  // pertenece a ningún cultivo/actividad puntual), y respeta el filtro de Campo.
+  const sinCicloAplica = cultivoFiltro === 'Todos' && actividadFiltro === 'Todos'
+  const distribucionSinCiclo = sinCicloAplica
+    ? distribucionCostosFijos.filter(d =>
+        d.ciclo_id == null &&
+        d.campana === campanaActual &&
+        (campoFiltro === 'Todos' || d.establecimiento === campoFiltro))
+    : []
+  // Un ciclo_id sintético (negativo) por establecimiento, para poder mostrarlo también en
+  // el detalle por lote de "Costos Fijos", agrupado como "(sin ciclo)".
+  const cicloSinCicloPorCampo: Record<string, number> = {}
+  distribucionSinCiclo.forEach(d => {
+    if (!(d.establecimiento in cicloSinCicloPorCampo)) {
+      const idSintetico = -(Object.keys(cicloSinCicloPorCampo).length + 1)
+      cicloSinCicloPorCampo[d.establecimiento] = idSintetico
+      cicloInfo[idSintetico] = { lote: '(sin ciclo)', campo: d.establecimiento, cultivo: '—' }
+      cicloIds.add(idSintetico)
+    }
+  })
+  const totalFijosSinCiclo = distribucionSinCiclo.reduce((acc, d) => acc + Number(d.costo_ciclo ?? 0), 0)
+
   function agruparPorCiclo(items: { ciclo_id: number; valor: number; fecha?: string | null }[]): DetalleItem[] {
     const acc: Record<number, DetalleItem> = {}
     items.forEach(it => {
@@ -210,7 +237,7 @@ export default function SeguimientoDashboard() {
   const costoTotal = ciclosCampana.reduce((acc, r) =>
     acc + Number(r.costo_semillas_usd ?? 0) + Number(r.costo_insumos_usd ?? 0) +
     Number(r.costo_fertilizantes_usd ?? 0) + Number(r.costo_servicios_usd ?? 0) +
-    Number(r.costo_fijos_usd ?? 0), 0)
+    Number(r.costo_fijos_usd ?? 0), 0) + totalFijosSinCiclo
 
   // ── Hectáreas trabajadas: suma de toda la actividad de la campaña ──
   const haAcondicionadas = acondicionamientos.filter(a => cicloIds.has(a.ciclo_id)).reduce((acc, a) => acc + Number(a.superficie_ha ?? 0), 0)
@@ -393,7 +420,8 @@ export default function SeguimientoDashboard() {
   }
 
   costosFijosDirectos.forEach(c => sumarCostoFijo(c.tipo, c.ciclo_id, Number(c.costo_total_usd ?? 0)))
-  distribucionCostosFijos.forEach(d => sumarCostoFijo(d.tipo, d.ciclo_id, Number(d.costo_ciclo ?? 0)))
+  distribucionCostosFijos.forEach(d => { if (d.ciclo_id != null) sumarCostoFijo(d.tipo, d.ciclo_id, Number(d.costo_ciclo ?? 0)) })
+  distribucionSinCiclo.forEach(d => sumarCostoFijo(d.tipo, cicloSinCicloPorCampo[d.establecimiento], Number(d.costo_ciclo ?? 0)))
 
   const totalCostoFijosDesglose = Object.values(costoFijos).reduce((a, b) => a + b, 0)
   const categoriasCostoFijos = Object.keys(costoFijos).sort((a, b) => costoFijos[b] - costoFijos[a])
