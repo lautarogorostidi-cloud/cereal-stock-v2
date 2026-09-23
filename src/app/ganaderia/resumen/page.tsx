@@ -222,6 +222,7 @@ export default function ResumenCampaniaPage() {
     const margen = totalIngresos - totalCostos
 
     setDatos({
+      campaniaCargada: campania,
       verdeos, totalVerdeo, totalVerdeoInsumos, totalVerdeoServicios, totalVerdeoFijos,
       totalSanidad, totalRacion, costosPorTipo, totalCostosManual,
       comprasHaciendaDetalle, totalComprasHacienda, cabezasCompradas,
@@ -248,7 +249,7 @@ export default function ResumenCampaniaPage() {
       <div className="flex items-end gap-3">
         <div>
           <label className="mb-1 block text-sm font-medium text-stone-700">Campaña</label>
-          <select value={campania} onChange={e => setCampania(e.target.value)} className={inputCls}>
+          <select value={campania} onChange={e => { setCampania(e.target.value); setDatos(null) }} className={inputCls}>
             <option value="">Seleccionar campaña...</option>
             {campanias.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -435,7 +436,7 @@ export default function ResumenCampaniaPage() {
           {/* Columna derecha: resumen final */}
           <div className="space-y-4">
             <div className="rounded-lg border-2 border-stone-200 bg-white p-5 sticky top-6">
-              <h2 className="text-base font-bold text-stone-900 mb-4">Campaña {campania}</h2>
+              <h2 className="text-base font-bold text-stone-900 mb-4">Campaña {datos.campaniaCargada}</h2>
 
               <div className="space-y-0.5 mb-4">
                 <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Costos</p>
