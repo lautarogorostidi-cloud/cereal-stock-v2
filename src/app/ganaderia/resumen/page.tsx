@@ -200,14 +200,32 @@ export default function ResumenCampaniaPage() {
     const totalComprasHacienda = comprasHaciendaDetalle.reduce((s: number, c: any) => s + c.monto, 0)
     const cabezasCompradas = comprasHaciendaDetalle.reduce((s: number, c: any) => s + c.cantidad, 0)
 
+    // 7. Ventas directas de hacienda (sin pasar por feedlot), mismo hueco que las compras:
+    // el módulo Hacienda permite cargar 'venta' con precio, pero no tiene campaña propia.
+    const { data: ventasHaciendaData } = await supabase
+      .from('movimientos_hacienda')
+      .select('cantidad, monto_total_usd, categorias_hacienda(nombre)')
+      .eq('tipo_movimiento', 'venta')
+      .gte('fecha', desde)
+      .lte('fecha', hasta)
+
+    const ventasHaciendaDetalle = (ventasHaciendaData ?? []).map((c: any) => ({
+      categoria: c.categorias_hacienda?.nombre ?? 'Sin categoría',
+      cantidad: Number(c.cantidad ?? 0),
+      monto: Number(c.monto_total_usd ?? 0),
+    }))
+    const totalVentasHacienda = ventasHaciendaDetalle.reduce((s: number, c: any) => s + c.monto, 0)
+    const cabezasVendidasDirecto = ventasHaciendaDetalle.reduce((s: number, c: any) => s + c.cantidad, 0)
+
     const totalCostos = totalVerdeo + totalSanidad + totalRacion + totalCostosManual + totalComprasHacienda
-    const totalIngresos = totalVentasFeedlot
+    const totalIngresos = totalVentasFeedlot + totalVentasHacienda
     const margen = totalIngresos - totalCostos
 
     setDatos({
       verdeos, totalVerdeo, totalVerdeoInsumos, totalVerdeoServicios, totalVerdeoFijos,
       totalSanidad, totalRacion, costosPorTipo, totalCostosManual,
       comprasHaciendaDetalle, totalComprasHacienda, cabezasCompradas,
+      ventasHaciendaDetalle, totalVentasHacienda, cabezasVendidasDirecto,
       totalCostos, totalIngresos, totalVentasFeedlot, totalCabezasVendidas,
       margen, feedlotDetalle,
     })
@@ -356,6 +374,36 @@ export default function ResumenCampaniaPage() {
               </div>
             )}
 
+            {/* Ventas directas de hacienda */}
+            {datos.ventasHaciendaDetalle.length > 0 && (
+              <div>
+                <h2 className="text-base font-semibold text-stone-900 mb-3">Ventas directas de hacienda <span className="text-sm font-normal text-stone-500">(Módulo Hacienda, sin feedlot)</span></h2>
+                <div className="overflow-hidden rounded-lg border border-stone-200">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
+                      <th className="px-4 py-2 font-medium">Categoría</th>
+                      <th className="px-4 py-2 text-right font-medium">Cabezas</th>
+                      <th className="px-4 py-2 text-right font-medium">Total USD</th>
+                    </tr></thead>
+                    <tbody>
+                      {datos.ventasHaciendaDetalle.map((c: any, i: number) => (
+                        <tr key={i} className="border-t border-stone-100">
+                          <td className="px-4 py-2 text-stone-700">{c.categoria}</td>
+                          <td className="px-4 py-2 text-right text-stone-700">{c.cantidad}</td>
+                          <td className="px-4 py-2 text-right font-medium text-stone-900">USD {fmt(c.monto)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot><tr className="border-t-2 border-stone-200 bg-stone-50 font-semibold">
+                      <td className="px-4 py-2">Total ({datos.cabezasVendidasDirecto} cab.)</td>
+                      <td></td>
+                      <td className="px-4 py-2 text-right">USD {fmt(datos.totalVentasHacienda)}</td>
+                    </tr></tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Costos manuales */}
             {Object.keys(datos.costosPorTipo).length > 0 && (
               <div>
@@ -405,7 +453,10 @@ export default function ResumenCampaniaPage() {
 
               <div className="space-y-0.5 mb-4">
                 <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-2">Ingresos</p>
-                <Fila label="Ventas de hacienda" valor={`USD ${fmt(datos.totalVentasFeedlot)}`} color="text-green-700" />
+                <Fila label="Ventas de hacienda (feedlot)" valor={`USD ${fmt(datos.totalVentasFeedlot)}`} color="text-green-700" />
+                {datos.totalVentasHacienda > 0 && (
+                  <Fila label="Ventas directas de hacienda" valor={`USD ${fmt(datos.totalVentasHacienda)}`} color="text-green-700" />
+                )}
                 <Fila label="TOTAL INGRESOS" valor={`USD ${fmt(datos.totalIngresos)}`} color="text-green-700" bold />
               </div>
 
