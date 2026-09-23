@@ -11,6 +11,13 @@ function fmt(n: number, dec = 0) {
   return n.toLocaleString('es-AR', { minimumFractionDigits: dec, maximumFractionDigits: dec })
 }
 
+function rangoCampania(nombre: string): { desde: string; hasta: string } {
+  const [aa, bb] = nombre.split('-').map(s => parseInt(s, 10))
+  const anioInicio = 2000 + aa
+  const anioFin = 2000 + bb
+  return { desde: `${anioInicio}-09-01`, hasta: `${anioFin}-08-31` }
+}
+
 function Fila({ label, valor, color = 'text-stone-900', bold = false }: { label: string; valor: string; color?: string; bold?: boolean }) {
   return (
     <div className={`flex justify-between py-1.5 ${bold ? 'border-t border-stone-300 mt-1 pt-2.5' : ''}`}>
@@ -174,13 +181,33 @@ export default function ResumenCampaniaPage() {
     }
     const totalCostosManual = costos.reduce((s: number, c: any) => s + c.monto_usd, 0) + costoFijosLotesGanaderosSinCiclo
 
-    const totalCostos = totalVerdeo + totalSanidad + totalRacion + totalCostosManual
+    // 6. Compras de hacienda (inversión en cabezas), cargadas desde el módulo Hacienda.
+    // movimientos_hacienda no tiene columna de campaña propia, así que se ubica por la
+    // fecha del movimiento dentro del rango de la campaña seleccionada (sep-ago).
+    const { desde, hasta } = rangoCampania(campania)
+    const { data: comprasHaciendaData } = await supabase
+      .from('movimientos_hacienda')
+      .select('cantidad, monto_total_usd, categorias_hacienda(nombre)')
+      .eq('tipo_movimiento', 'compra')
+      .gte('fecha', desde)
+      .lte('fecha', hasta)
+
+    const comprasHaciendaDetalle = (comprasHaciendaData ?? []).map((c: any) => ({
+      categoria: c.categorias_hacienda?.nombre ?? 'Sin categoría',
+      cantidad: Number(c.cantidad ?? 0),
+      monto: Number(c.monto_total_usd ?? 0),
+    }))
+    const totalComprasHacienda = comprasHaciendaDetalle.reduce((s: number, c: any) => s + c.monto, 0)
+    const cabezasCompradas = comprasHaciendaDetalle.reduce((s: number, c: any) => s + c.cantidad, 0)
+
+    const totalCostos = totalVerdeo + totalSanidad + totalRacion + totalCostosManual + totalComprasHacienda
     const totalIngresos = totalVentasFeedlot
     const margen = totalIngresos - totalCostos
 
     setDatos({
       verdeos, totalVerdeo, totalVerdeoInsumos, totalVerdeoServicios, totalVerdeoFijos,
       totalSanidad, totalRacion, costosPorTipo, totalCostosManual,
+      comprasHaciendaDetalle, totalComprasHacienda, cabezasCompradas,
       totalCostos, totalIngresos, totalVentasFeedlot, totalCabezasVendidas,
       margen, feedlotDetalle,
     })
@@ -299,6 +326,36 @@ export default function ResumenCampaniaPage() {
               </div>
             )}
 
+            {/* Compras de hacienda */}
+            {datos.comprasHaciendaDetalle.length > 0 && (
+              <div>
+                <h2 className="text-base font-semibold text-stone-900 mb-3">Compras de hacienda <span className="text-sm font-normal text-stone-500">(Módulo Hacienda)</span></h2>
+                <div className="overflow-hidden rounded-lg border border-stone-200">
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
+                      <th className="px-4 py-2 font-medium">Categoría</th>
+                      <th className="px-4 py-2 text-right font-medium">Cabezas</th>
+                      <th className="px-4 py-2 text-right font-medium">Total USD</th>
+                    </tr></thead>
+                    <tbody>
+                      {datos.comprasHaciendaDetalle.map((c: any, i: number) => (
+                        <tr key={i} className="border-t border-stone-100">
+                          <td className="px-4 py-2 text-stone-700">{c.categoria}</td>
+                          <td className="px-4 py-2 text-right text-stone-700">{c.cantidad}</td>
+                          <td className="px-4 py-2 text-right font-medium text-stone-900">USD {fmt(c.monto)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot><tr className="border-t-2 border-stone-200 bg-stone-50 font-semibold">
+                      <td className="px-4 py-2">Total ({datos.cabezasCompradas} cab.)</td>
+                      <td></td>
+                      <td className="px-4 py-2 text-right">USD {fmt(datos.totalComprasHacienda)}</td>
+                    </tr></tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Costos manuales */}
             {Object.keys(datos.costosPorTipo).length > 0 && (
               <div>
@@ -337,6 +394,9 @@ export default function ResumenCampaniaPage() {
                 <Fila label="Verdeos / pasturas" valor={`USD ${fmt(datos.totalVerdeo)}`} />
                 <Fila label="Sanidad" valor={`USD ${fmt(datos.totalSanidad)}`} />
                 <Fila label="Ración feedlot" valor={`USD ${fmt(datos.totalRacion)}`} />
+                {datos.totalComprasHacienda > 0 && (
+                  <Fila label="Compra de hacienda" valor={`USD ${fmt(datos.totalComprasHacienda)}`} />
+                )}
                 {Object.entries(datos.costosPorTipo).map(([tipo, total]: any) => (
                   <Fila key={tipo} label={TIPO_LABELS[tipo] ?? tipo} valor={`USD ${fmt(total)}`} />
                 ))}
