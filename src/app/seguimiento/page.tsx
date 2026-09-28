@@ -408,12 +408,19 @@ export default function SeguimientoDashboard() {
   }
 
   // ── Costos fijos (seguro, asesoramiento, arrendamiento, etc.) ──
+  // Etiquetas especiales para tipos que no se resuelven bien solo capitalizando
+  // (p. ej. "indemnizacion_seguro", que además se carga con monto NEGATIVO porque
+  // es un crédito que reduce el costo de seguro, no un costo en sí).
+  const ETIQUETAS_COSTO_FIJO: Record<string, string> = {
+    indemnizacion_seguro: 'Indemnización seguro',
+  }
   const costoFijos: Record<string, number> = {}
   const rawCostoFijos: Record<string, { ciclo_id: number; valor: number; fecha: string | null }[]> = {}
 
   function sumarCostoFijo(tipo: string | null | undefined, ciclo_id: number, valor: number) {
     if (!tipo || !cicloIds.has(ciclo_id) || !valor) return
-    const label = tipo.trim().charAt(0).toUpperCase() + tipo.trim().slice(1)
+    const tipoNorm = tipo.trim().toLowerCase()
+    const label = ETIQUETAS_COSTO_FIJO[tipoNorm] ?? (tipo.trim().charAt(0).toUpperCase() + tipo.trim().slice(1))
     costoFijos[label] = (costoFijos[label] ?? 0) + valor
     if (!rawCostoFijos[label]) rawCostoFijos[label] = []
     rawCostoFijos[label].push({ ciclo_id, valor, fecha: null })
@@ -733,7 +740,7 @@ export default function SeguimientoDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {categoriasCostoFijos.filter(k => costoFijos[k] > 0).map(k =>
+                {categoriasCostoFijos.filter(k => costoFijos[k] !== 0).map(k =>
                   filaCategoriaLote('fijos', k, costoFijos[k], totalCostoFijosDesglose, detalleCostoFijos[k] ?? [], fmtUsd)
                 )}
                 {totalCostoFijosDesglose === 0 && (
