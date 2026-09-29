@@ -430,10 +430,19 @@ export default function SeguimientoDashboard() {
   distribucionCostosFijos.forEach(d => { if (d.ciclo_id != null) sumarCostoFijo(d.tipo, d.ciclo_id, Number(d.costo_ciclo ?? 0)) })
   distribucionSinCiclo.forEach(d => sumarCostoFijo(d.tipo, cicloSinCicloPorCampo[d.establecimiento], Number(d.costo_ciclo ?? 0)))
 
+  // Total neto (incluye créditos como indemnización de seguro) — es el que se muestra
+  // en la tarjeta "Costos Fijos" de arriba, para que coincida con Costo Total.
   const totalCostoFijosDesglose = Object.values(costoFijos).reduce((a, b) => a + b, 0)
   const categoriasCostoFijos = Object.keys(costoFijos).sort((a, b) => costoFijos[b] - costoFijos[a])
   const detalleCostoFijos: Record<string, DetalleItem[]> = {}
   categoriasCostoFijos.forEach(k => { detalleCostoFijos[k] = agruparPorCiclo(rawCostoFijos[k] ?? []) })
+
+  // La tabla "Costos Fijos por Categoría" reparte el % solo entre los costos reales
+  // (positivos). Los créditos (ej. indemnización de seguro, en negativo) se muestran
+  // aparte, como ajuste, sin %, para no ensuciar el reparto porcentual con negativos.
+  const categoriasCostoFijosPositivas = categoriasCostoFijos.filter(k => costoFijos[k] > 0)
+  const categoriasCostoFijosCredito = categoriasCostoFijos.filter(k => costoFijos[k] < 0)
+  const totalCostoFijosPositivos = categoriasCostoFijosPositivas.reduce((acc, k) => acc + costoFijos[k], 0)
 
   const porCultivo = ciclosCampana.reduce((acc: Record<string, any>, r) => {
     if (!acc[r.cultivo]) acc[r.cultivo] = { lotes: 0, haSembrada: 0, haCosechada: 0, kg: 0, costo: 0 }
@@ -740,8 +749,18 @@ export default function SeguimientoDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {categoriasCostoFijos.filter(k => costoFijos[k] !== 0).map(k =>
-                  filaCategoriaLote('fijos', k, costoFijos[k], totalCostoFijosDesglose, detalleCostoFijos[k] ?? [], fmtUsd)
+                {categoriasCostoFijosPositivas.map(k =>
+                  filaCategoriaLote('fijos', k, costoFijos[k], totalCostoFijosPositivos, detalleCostoFijos[k] ?? [], fmtUsd)
+                )}
+                {categoriasCostoFijosCredito.length > 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-5 py-1.5 bg-campo-50/60 text-[11px] font-medium text-campo-400 uppercase tracking-wide">
+                      Créditos / ajustes (no suman al %)
+                    </td>
+                  </tr>
+                )}
+                {categoriasCostoFijosCredito.map(k =>
+                  filaCategoriaLote('fijos', k, costoFijos[k], 0, detalleCostoFijos[k] ?? [], fmtUsd)
                 )}
                 {totalCostoFijosDesglose === 0 && (
                   <tr><td colSpan={3} className="px-5 py-8 text-center text-campo-400">Sin datos para esta campaña</td></tr>
