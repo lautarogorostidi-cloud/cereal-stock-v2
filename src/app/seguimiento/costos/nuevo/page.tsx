@@ -116,19 +116,38 @@ export default function NuevoCostoPage() {
   async function cargarLotesAsesor() {
     setLoadingLotesAsesor(true)
     const campanaNombre = campanas.find(c => c.id.toString() === form.campana_id)?.nombre
-    const { data } = await supabase
+
+    // Base: TODOS los lotes activos del campo (no solo los que tienen un ciclo cargado esa campaña)
+    const { data: lotesData } = await supabase
+      .from('lotes')
+      .select('id, nombre, hectareas_agricolas')
+      .eq('establecimiento', form.establecimiento)
+      .eq('activo', true)
+
+    // Superficie realmente sembrada esa campaña, por lote (para sugerir la ha por defecto)
+    const { data: ciclosData } = await supabase
       .from('vw_sa_resumen_ciclo')
-      .select('lote_id, lote, cultivo, actividad, sup_sembrada, campo, campana')
+      .select('lote_id, actividad, sup_sembrada, campo, campana')
       .eq('campo', form.establecimiento)
-    const porLote: Record<string, LoteAsesor> = {}
-    ;(data ?? [])
+    const supSembradaPorLote: Record<string, number> = {}
+    ;(ciclosData ?? [])
       .filter((r: any) => r.campana === campanaNombre && r.actividad === 'agricola')
       .forEach((r: any) => {
-        if (!porLote[r.lote_id]) porLote[r.lote_id] = { lote_id: r.lote_id, lote: r.lote, sup_sembrada: 0, seleccionado: true, ha: '0' }
-        porLote[r.lote_id].sup_sembrada += Number(r.sup_sembrada ?? 0)
+        supSembradaPorLote[r.lote_id] = (supSembradaPorLote[r.lote_id] ?? 0) + Number(r.sup_sembrada ?? 0)
       })
-    const lista = Object.values(porLote)
-      .map(l => ({ ...l, ha: String(l.sup_sembrada) }))
+
+    const lista: LoteAsesor[] = (lotesData ?? [])
+      .map((l: any) => {
+        const sembrada = supSembradaPorLote[l.id]
+        const haPorDefecto = sembrada != null ? sembrada : Number(l.hectareas_agricolas ?? 0)
+        return {
+          lote_id: l.id,
+          lote: l.nombre,
+          sup_sembrada: sembrada ?? 0,
+          seleccionado: Number(l.hectareas_agricolas ?? 0) > 0,
+          ha: String(haPorDefecto),
+        }
+      })
       .sort((a, b) => a.lote.localeCompare(b.lote))
     setLotesAsesor(lista)
     setLoadingLotesAsesor(false)
