@@ -42,8 +42,6 @@ const PERIODOS = [
   { value: 'anual', label: 'Anual', cuotas: 1 },
 ]
 
-const CULTIVOS_ASESORAMIENTO = ['Trigo', 'Soja 1', 'Soja 2', 'Maíz Temprano', 'Maíz 1', 'Maíz 2', 'Maíz Tardío', 'Girasol']
-
 // Tipos que van al sistema viejo (sa_costos_fijos) por ciclo, con selector de lotes
 const TIPOS_POR_CICLO = ['seguro', 'indemnizacion_seguro']
 // Mapeo al tipo que acepta sa_costos_fijos (constraint)
@@ -120,11 +118,11 @@ export default function NuevoCostoPage() {
     const campanaNombre = campanas.find(c => c.id.toString() === form.campana_id)?.nombre
     const { data } = await supabase
       .from('vw_sa_resumen_ciclo')
-      .select('lote_id, lote, cultivo, sup_sembrada, campo, campana')
+      .select('lote_id, lote, cultivo, actividad, sup_sembrada, campo, campana')
       .eq('campo', form.establecimiento)
     const porLote: Record<string, LoteAsesor> = {}
     ;(data ?? [])
-      .filter((r: any) => r.campana === campanaNombre && CULTIVOS_ASESORAMIENTO.includes(r.cultivo))
+      .filter((r: any) => r.campana === campanaNombre && r.actividad === 'agricola')
       .forEach((r: any) => {
         if (!porLote[r.lote_id]) porLote[r.lote_id] = { lote_id: r.lote_id, lote: r.lote, sup_sembrada: 0, seleccionado: true, ha: '0' }
         porLote[r.lote_id].sup_sembrada += Number(r.sup_sembrada ?? 0)
