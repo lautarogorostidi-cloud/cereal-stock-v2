@@ -16,6 +16,14 @@ type CicloOpcion = {
   ha_aseguradas: string  // editable, default = sup_sembrada
 }
 
+type LoteAsesor = {
+  lote_id: string
+  lote: string
+  sup_sembrada: number
+  seleccionado: boolean
+  ha: string  // editable, default = sup_sembrada
+}
+
 const TIPOS = [
   { value: 'arrendamiento', label: 'Arrendamiento' },
   { value: 'seguro', label: 'Seguro' },
@@ -70,8 +78,8 @@ export default function NuevoCostoPage() {
 
   // Asesoramiento
   const [asesor, setAsesor] = useState({ kg_soja_ha: '', precio_soja_usd_ton: '' })
-  const [haSembradas, setHaSembradas] = useState<number | null>(null)
-  const [loadingHa, setLoadingHa] = useState(false)
+  const [lotesAsesor, setLotesAsesor] = useState<LoteAsesor[]>([])
+  const [loadingLotesAsesor, setLoadingLotesAsesor] = useState(false)
 
   // Seguro / Indemnización (por ciclo)
   const [ciclosDisponibles, setCiclosDisponibles] = useState<CicloOpcion[]>([])
@@ -98,28 +106,51 @@ export default function NuevoCostoPage() {
   const esPorCiclo = TIPOS_POR_CICLO.includes(form.tipo)
   const esIndemnizacion = form.tipo === 'indemnizacion_seguro'
 
-  // ── ASESORAMIENTO: calcular ha sembradas agrícolas ──
+  // ── ASESORAMIENTO: cargar lotes agrícolas del campo/campaña para elegir cuáles vincular ──
   useEffect(() => {
     if (!esAsesoramiento || !form.establecimiento || !form.campana_id) {
-      setHaSembradas(null)
+      setLotesAsesor([])
       return
     }
-    calcularHaSembradas()
+    cargarLotesAsesor()
   }, [form.tipo, form.establecimiento, form.campana_id])
 
-  async function calcularHaSembradas() {
-    setLoadingHa(true)
+  async function cargarLotesAsesor() {
+    setLoadingLotesAsesor(true)
+    const campanaNombre = campanas.find(c => c.id.toString() === form.campana_id)?.nombre
     const { data } = await supabase
       .from('vw_sa_resumen_ciclo')
-      .select('sup_sembrada, cultivo, campo, campana')
+      .select('lote_id, lote, cultivo, sup_sembrada, campo, campana')
       .eq('campo', form.establecimiento)
-    const campanaNombre = campanas.find(c => c.id.toString() === form.campana_id)?.nombre
-    const total = (data ?? [])
+    const porLote: Record<string, LoteAsesor> = {}
+    ;(data ?? [])
       .filter((r: any) => r.campana === campanaNombre && CULTIVOS_ASESORAMIENTO.includes(r.cultivo))
-      .reduce((acc: number, r: any) => acc + Number(r.sup_sembrada ?? 0), 0)
-    setHaSembradas(total)
-    setLoadingHa(false)
+      .forEach((r: any) => {
+        if (!porLote[r.lote_id]) porLote[r.lote_id] = { lote_id: r.lote_id, lote: r.lote, sup_sembrada: 0, seleccionado: true, ha: '0' }
+        porLote[r.lote_id].sup_sembrada += Number(r.sup_sembrada ?? 0)
+      })
+    const lista = Object.values(porLote)
+      .map(l => ({ ...l, ha: String(l.sup_sembrada) }))
+      .sort((a, b) => a.lote.localeCompare(b.lote))
+    setLotesAsesor(lista)
+    setLoadingLotesAsesor(false)
   }
+
+  function toggleLoteAsesor(lote_id: string) {
+    setLotesAsesor(prev => prev.map(l => l.lote_id === lote_id ? { ...l, seleccionado: !l.seleccionado } : l))
+  }
+
+  function toggleTodosLotesAsesor() {
+    const todos = lotesAsesor.every(l => l.seleccionado)
+    setLotesAsesor(prev => prev.map(l => ({ ...l, seleccionado: !todos })))
+  }
+
+  function handleHaLoteAsesor(lote_id: string, value: string) {
+    setLotesAsesor(prev => prev.map(l => l.lote_id === lote_id ? { ...l, ha: value } : l))
+  }
+
+  const lotesAsesorSeleccionados = lotesAsesor.filter(l => l.seleccionado)
+  const haSembradas = esAsesoramiento ? lotesAsesorSeleccionados.reduce((acc, l) => acc + (Number(l.ha) || 0), 0) : null
 
   const costoUsdHa = asesor.kg_soja_ha && asesor.precio_soja_usd_ton
     ? (Number(asesor.kg_soja_ha) * Number(asesor.precio_soja_usd_ton) / 1000)
@@ -190,7 +221,7 @@ export default function NuevoCostoPage() {
     if (name === 'tipo') {
       // Limpiar estados según el tipo nuevo
       setAsesor({ kg_soja_ha: '', precio_soja_usd_ton: '' })
-      setHaSembradas(null)
+      setLotesAsesor([])
       setCiclosDisponibles([])
       setMontoUsdHa('')
       setVencimientos([])
@@ -278,6 +309,10 @@ export default function NuevoCostoPage() {
       setError('Completá fecha y monto de todos los vencimientos.')
       return
     }
+    if (esAsesoramiento && lotesAsesor.length > 0 && lotesAsesorSeleccionados.length === 0) {
+      setError('Seleccioná al menos un lote para vincular el asesoramiento.')
+      return
+    }
 
     setSaving(true)
 
@@ -297,6 +332,8 @@ export default function NuevoCostoPage() {
         periodo: form.periodo,
         monto_total: montoTotal,
         observaciones: obs,
+        asesor_kg_soja_ha: esAsesoramiento && asesor.kg_soja_ha ? Number(asesor.kg_soja_ha) : null,
+        asesor_precio_soja_usd_ton: esAsesoramiento && asesor.precio_soja_usd_ton ? Number(asesor.precio_soja_usd_ton) : null,
       })
       .select('id')
       .single()
@@ -317,11 +354,24 @@ export default function NuevoCostoPage() {
         es_estimado: v.es_estimado,
       })))
 
-    setSaving(false)
     if (errVenc) {
+      setSaving(false)
       setError(`Error al guardar vencimientos: ${errVenc.message}`)
       return
     }
+
+    if (esAsesoramiento && lotesAsesorSeleccionados.length > 0) {
+      const { error: errLotes } = await supabase
+        .from('costos_fijos_lotes')
+        .insert(lotesAsesorSeleccionados.map(l => ({ costo_id: costo.id, lote_id: l.lote_id, ha: Number(l.ha) || l.sup_sembrada })))
+      if (errLotes) {
+        setSaving(false)
+        setError(`El costo se guardó, pero no se pudieron vincular los lotes: ${errLotes.message}`)
+        return
+      }
+    }
+
+    setSaving(false)
     router.push('/seguimiento/costos')
   }
 
@@ -483,23 +533,67 @@ export default function NuevoCostoPage() {
                   className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 bg-white" />
               </div>
             </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-campo-600">Lotes a vincular</span>
+                {lotesAsesor.length > 0 && (
+                  <button type="button" onClick={toggleTodosLotesAsesor}
+                    className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                    {lotesAsesor.every(l => l.seleccionado) ? 'Quitar todos' : 'Seleccionar todos'}
+                  </button>
+                )}
+              </div>
+              {!form.establecimiento ? (
+                <p className="text-xs text-campo-400">Seleccioná un campo para ver sus lotes.</p>
+              ) : loadingLotesAsesor ? (
+                <p className="text-xs text-campo-400">Cargando lotes...</p>
+              ) : lotesAsesor.length === 0 ? (
+                <p className="text-xs text-amber-600">⚠️ No hay cultivos agrícolas sembrados en este campo/campaña.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {lotesAsesor.map(l => (
+                    <div key={l.lote_id}
+                      className={`flex items-center gap-3 p-2 rounded-lg border ${l.seleccionado ? 'bg-white border-lime-300' : 'bg-white/50 border-campo-100'}`}>
+                      <input type="checkbox" checked={l.seleccionado}
+                        onChange={() => toggleLoteAsesor(l.lote_id)}
+                        className="accent-lime-500 w-4 h-4 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-campo-800">{l.lote}</span>
+                        {Number(l.ha) !== l.sup_sembrada && (
+                          <span className="text-xs text-campo-400 ml-1.5">(sembradas: {l.sup_sembrada.toLocaleString('es-AR')} ha)</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <input type="number" value={l.ha}
+                          onChange={e => handleHaLoteAsesor(l.lote_id, e.target.value)}
+                          disabled={!l.seleccionado}
+                          step="0.01" min="0"
+                          className="w-20 rounded border border-campo-200 px-2 py-1 text-xs text-campo-900 focus:outline-none focus:ring-1 focus:ring-lime-400 disabled:bg-campo-50 disabled:text-campo-400" />
+                        <span className="text-xs text-campo-400">ha</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-campo-400 mt-1">
+                Por defecto vienen todos los lotes agrícolas del campo en esta campaña, con su superficie sembrada real. Desmarcá los que no correspondan, o corregí la cantidad de ha de un lote si hace falta.
+              </p>
+            </div>
+
             <div className="grid grid-cols-3 gap-3 pt-2 border-t border-lime-200">
               <div>
                 <div className="text-xs text-campo-500">Costo USD/ha</div>
                 <div className="text-lg font-bold text-campo-900">{costoUsdHa > 0 ? costoUsdHa.toFixed(2) : '—'}</div>
               </div>
               <div>
-                <div className="text-xs text-campo-500">Ha sembradas agríc.</div>
-                <div className="text-lg font-bold text-campo-900">{loadingHa ? '...' : haSembradas != null ? haSembradas.toLocaleString('es-AR') : '—'}</div>
+                <div className="text-xs text-campo-500">Ha vinculadas</div>
+                <div className="text-lg font-bold text-campo-900">{loadingLotesAsesor ? '...' : haSembradas != null ? haSembradas.toLocaleString('es-AR') : '—'}</div>
               </div>
               <div>
                 <div className="text-xs text-campo-500">Monto total</div>
                 <div className="text-lg font-bold text-lime-700">{montoTotalAsesor > 0 ? fmtUsd(montoTotalAsesor) : '—'}</div>
               </div>
             </div>
-            {haSembradas === 0 && (
-              <p className="text-xs text-amber-600">⚠️ No hay cultivos agrícolas sembrados en este campo/campaña.</p>
-            )}
             <p className="text-xs text-campo-400">El vencimiento se genera automáticamente al 31/08 (fin de campaña).</p>
           </div>
         )}

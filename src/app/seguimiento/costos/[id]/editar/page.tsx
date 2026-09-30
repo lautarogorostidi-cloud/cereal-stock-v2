@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
@@ -24,6 +24,16 @@ const PERIODOS = [
   { value: 'semestral', label: 'Semestral', cuotas: 2 },
   { value: 'anual', label: 'Anual', cuotas: 1 },
 ]
+
+const CULTIVOS_ASESORAMIENTO = ['Trigo', 'Soja 1', 'Soja 2', 'Maíz Temprano', 'Maíz 1', 'Maíz 2', 'Maíz Tardío', 'Girasol']
+
+type LoteAsesor = {
+  lote_id: string
+  lote: string
+  sup_sembrada: number
+  seleccionado: boolean
+  ha: string  // editable, default = sup_sembrada (o el valor ya guardado)
+}
 
 type Vencimiento = {
   id?: number
@@ -54,15 +64,23 @@ export default function EditarCostoPage() {
 
   const [vencimientos, setVencimientos] = useState<Vencimiento[]>([])
 
+  // Asesoramiento
+  const [asesor, setAsesor] = useState({ kg_soja_ha: '', precio_soja_usd_ton: '' })
+  const [lotesAsesor, setLotesAsesor] = useState<LoteAsesor[]>([])
+  const [loadingLotesAsesor, setLoadingLotesAsesor] = useState(false)
+  // Lotes ya vinculados a este costo (lote_id -> ha guardada), para aplicar una sola vez al cargar
+  const lotesGuardadosRef = useRef<Record<string, number> | null>(null)
+
   useEffect(() => { cargar() }, [id])
 
   async function cargar() {
     setLoading(true)
-    const [{ data: camps }, { data: lotes }, { data: costoData }, { data: vencData }] = await Promise.all([
+    const [{ data: camps }, { data: lotes }, { data: costoData }, { data: vencData }, { data: lotesData }] = await Promise.all([
       supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false }),
       supabase.from('lotes').select('establecimiento').eq('activo', true),
       supabase.from('costos_fijos_campo').select('*').eq('id', Number(id)).single(),
       supabase.from('costos_fijos_vencimientos').select('*').eq('costo_id', Number(id)).order('fecha_vencimiento'),
+      supabase.from('costos_fijos_lotes').select('lote_id, ha').eq('costo_id', Number(id)),
     ])
 
     setCampanas(camps ?? [])
@@ -77,6 +95,18 @@ export default function EditarCostoPage() {
         periodo: costoData.periodo ?? '',
         observaciones: costoData.observaciones ?? '',
       })
+      setAsesor({
+        kg_soja_ha: costoData.asesor_kg_soja_ha?.toString() ?? '',
+        precio_soja_usd_ton: costoData.asesor_precio_soja_usd_ton?.toString() ?? '',
+      })
+    }
+
+    if (lotesData && lotesData.length > 0) {
+      const mapa: Record<string, number> = {}
+      lotesData.forEach((l: any) => { mapa[l.lote_id] = Number(l.ha) })
+      lotesGuardadosRef.current = mapa
+    } else {
+      lotesGuardadosRef.current = null
     }
 
     setVencimientos((vencData ?? []).map((v: any) => ({
@@ -89,6 +119,72 @@ export default function EditarCostoPage() {
 
     setLoading(false)
   }
+
+  const esAsesoramiento = form.tipo === 'asesoramiento'
+
+  // ── ASESORAMIENTO: cargar lotes agrícolas del campo/campaña, aplicando la selección ya guardada (si hay) ──
+  useEffect(() => {
+    if (!esAsesoramiento || !form.establecimiento || !form.campana_id) {
+      setLotesAsesor([])
+      return
+    }
+    cargarLotesAsesor()
+  }, [form.tipo, form.establecimiento, form.campana_id])
+
+  async function cargarLotesAsesor() {
+    setLoadingLotesAsesor(true)
+    const campanaNombre = campanas.find(c => c.id.toString() === form.campana_id)?.nombre
+    const { data } = await supabase
+      .from('vw_sa_resumen_ciclo')
+      .select('lote_id, lote, cultivo, sup_sembrada, campo, campana')
+      .eq('campo', form.establecimiento)
+    const porLote: Record<string, LoteAsesor> = {}
+    ;(data ?? [])
+      .filter((r: any) => r.campana === campanaNombre && CULTIVOS_ASESORAMIENTO.includes(r.cultivo))
+      .forEach((r: any) => {
+        if (!porLote[r.lote_id]) porLote[r.lote_id] = { lote_id: r.lote_id, lote: r.lote, sup_sembrada: 0, seleccionado: true, ha: '0' }
+        porLote[r.lote_id].sup_sembrada += Number(r.sup_sembrada ?? 0)
+      })
+
+    const guardados = lotesGuardadosRef.current
+    const lista = Object.values(porLote)
+      .map(l => {
+        if (guardados) {
+          const yaVinculado = Object.prototype.hasOwnProperty.call(guardados, l.lote_id)
+          return { ...l, seleccionado: yaVinculado, ha: String(yaVinculado ? guardados[l.lote_id] : l.sup_sembrada) }
+        }
+        return { ...l, ha: String(l.sup_sembrada) }
+      })
+      .sort((a, b) => a.lote.localeCompare(b.lote))
+    lotesGuardadosRef.current = null // aplicar la selección guardada solo la primera vez
+    setLotesAsesor(lista)
+    setLoadingLotesAsesor(false)
+  }
+
+  function toggleLoteAsesor(lote_id: string) {
+    setLotesAsesor(prev => prev.map(l => l.lote_id === lote_id ? { ...l, seleccionado: !l.seleccionado } : l))
+  }
+
+  function toggleTodosLotesAsesor() {
+    const todos = lotesAsesor.every(l => l.seleccionado)
+    setLotesAsesor(prev => prev.map(l => ({ ...l, seleccionado: !todos })))
+  }
+
+  function handleHaLoteAsesor(lote_id: string, value: string) {
+    setLotesAsesor(prev => prev.map(l => l.lote_id === lote_id ? { ...l, ha: value } : l))
+  }
+
+  function handleAsesorChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const { name, value } = e.target
+    setAsesor(a => ({ ...a, [name]: value }))
+  }
+
+  const lotesAsesorSeleccionados = lotesAsesor.filter(l => l.seleccionado)
+  const haVinculadas = esAsesoramiento ? lotesAsesorSeleccionados.reduce((acc, l) => acc + (Number(l.ha) || 0), 0) : null
+  const costoUsdHaAsesor = asesor.kg_soja_ha && asesor.precio_soja_usd_ton
+    ? (Number(asesor.kg_soja_ha) * Number(asesor.precio_soja_usd_ton) / 1000)
+    : 0
+  const montoTotalAsesor = costoUsdHaAsesor && haVinculadas ? costoUsdHaAsesor * haVinculadas : 0
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, value } = e.target
@@ -129,6 +225,10 @@ export default function EditarCostoPage() {
       setError('Completá fecha y monto de todos los vencimientos.')
       return
     }
+    if (esAsesoramiento && lotesAsesor.length > 0 && lotesAsesorSeleccionados.length === 0) {
+      setError('Seleccioná al menos un lote para vincular el asesoramiento.')
+      return
+    }
 
     setSaving(true)
 
@@ -143,6 +243,8 @@ export default function EditarCostoPage() {
         periodo: form.periodo,
         monto_total: montoTotal,
         observaciones: form.observaciones || null,
+        asesor_kg_soja_ha: esAsesoramiento && asesor.kg_soja_ha ? Number(asesor.kg_soja_ha) : null,
+        asesor_precio_soja_usd_ton: esAsesoramiento && asesor.precio_soja_usd_ton ? Number(asesor.precio_soja_usd_ton) : null,
       })
       .eq('id', Number(id))
 
@@ -165,13 +267,32 @@ export default function EditarCostoPage() {
         es_estimado: v.es_estimado,
       })))
 
-    setSaving(false)
     if (errVenc) {
+      setSaving(false)
       setError(`Error al guardar vencimientos: ${errVenc.message}`)
       return
     }
 
+    // Actualizar lotes vinculados (solo aplica a Asesoramiento)
+    await supabase.from('costos_fijos_lotes').delete().eq('costo_id', Number(id))
+    if (esAsesoramiento && lotesAsesorSeleccionados.length > 0) {
+      const { error: errLotes } = await supabase
+        .from('costos_fijos_lotes')
+        .insert(lotesAsesorSeleccionados.map(l => ({ costo_id: Number(id), lote_id: l.lote_id, ha: Number(l.ha) || l.sup_sembrada })))
+      if (errLotes) {
+        setSaving(false)
+        setError(`El costo se guardó, pero no se pudieron actualizar los lotes vinculados: ${errLotes.message}`)
+        return
+      }
+    }
+
+    setSaving(false)
     router.push('/seguimiento/costos')
+  }
+
+  function aplicarMontoCalculado() {
+    if (vencimientos.length !== 1 || montoTotalAsesor <= 0) return
+    setVencimientos(prev => prev.map((v, i) => i === 0 ? { ...v, monto: montoTotalAsesor.toFixed(2) } : v))
   }
 
   const fmtUsd = (n: number) => `USD ${Math.round(n).toLocaleString('es-AR')}`
@@ -227,6 +348,96 @@ export default function EditarCostoPage() {
             </select>
           </div>
         </div>
+
+        {/* ─── BLOQUE ASESORAMIENTO: recálculo y lotes vinculados ─── */}
+        {esAsesoramiento && (
+          <div className="rounded-lg border border-lime-200 bg-lime-50/50 p-4 space-y-3">
+            <div className="text-sm font-semibold text-lime-800">Cálculo del asesoramiento</div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Kg de soja / ha</label>
+                <input type="number" name="kg_soja_ha" value={asesor.kg_soja_ha} onChange={handleAsesorChange}
+                  step="0.01" min="0" placeholder="40"
+                  className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 bg-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Precio soja (USD/ton)</label>
+                <input type="number" name="precio_soja_usd_ton" value={asesor.precio_soja_usd_ton} onChange={handleAsesorChange}
+                  step="0.01" min="0" placeholder="317.73"
+                  className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400 bg-white" />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-campo-600">Lotes vinculados</span>
+                {lotesAsesor.length > 0 && (
+                  <button type="button" onClick={toggleTodosLotesAsesor}
+                    className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                    {lotesAsesor.every(l => l.seleccionado) ? 'Quitar todos' : 'Seleccionar todos'}
+                  </button>
+                )}
+              </div>
+              {!form.establecimiento ? (
+                <p className="text-xs text-campo-400">Seleccioná un campo para ver sus lotes.</p>
+              ) : loadingLotesAsesor ? (
+                <p className="text-xs text-campo-400">Cargando lotes...</p>
+              ) : lotesAsesor.length === 0 ? (
+                <p className="text-xs text-amber-600">⚠️ No hay cultivos agrícolas sembrados en este campo/campaña.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {lotesAsesor.map(l => (
+                    <div key={l.lote_id}
+                      className={`flex items-center gap-3 p-2 rounded-lg border ${l.seleccionado ? 'bg-white border-lime-300' : 'bg-white/50 border-campo-100'}`}>
+                      <input type="checkbox" checked={l.seleccionado}
+                        onChange={() => toggleLoteAsesor(l.lote_id)}
+                        className="accent-lime-500 w-4 h-4 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-campo-800">{l.lote}</span>
+                        {Number(l.ha) !== l.sup_sembrada && (
+                          <span className="text-xs text-campo-400 ml-1.5">(sembradas: {l.sup_sembrada.toLocaleString('es-AR')} ha)</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <input type="number" value={l.ha}
+                          onChange={e => handleHaLoteAsesor(l.lote_id, e.target.value)}
+                          disabled={!l.seleccionado}
+                          step="0.01" min="0"
+                          className="w-20 rounded border border-campo-200 px-2 py-1 text-xs text-campo-900 focus:outline-none focus:ring-1 focus:ring-lime-400 disabled:bg-campo-50 disabled:text-campo-400" />
+                        <span className="text-xs text-campo-400">ha</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-campo-400 mt-1">
+                Desmarcá los lotes que no correspondan, o corregí la cantidad de ha de un lote si hace falta.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 pt-2 border-t border-lime-200">
+              <div>
+                <div className="text-xs text-campo-500">Costo USD/ha</div>
+                <div className="text-lg font-bold text-campo-900">{costoUsdHaAsesor > 0 ? costoUsdHaAsesor.toFixed(2) : '—'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-campo-500">Ha vinculadas</div>
+                <div className="text-lg font-bold text-campo-900">{loadingLotesAsesor ? '...' : haVinculadas != null ? haVinculadas.toLocaleString('es-AR') : '—'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-campo-500">Monto calculado</div>
+                <div className="text-lg font-bold text-lime-700">{montoTotalAsesor > 0 ? fmtUsd(montoTotalAsesor) : '—'}</div>
+              </div>
+            </div>
+            {montoTotalAsesor > 0 && vencimientos.length === 1 && (
+              <button type="button" onClick={aplicarMontoCalculado}
+                className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                ↓ Aplicar este monto al vencimiento
+              </button>
+            )}
+            <p className="text-xs text-campo-400">Este recálculo no se aplica solo — usá el botón de arriba o editá el monto del vencimiento a mano.</p>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-campo-700 mb-1">Observaciones</label>
