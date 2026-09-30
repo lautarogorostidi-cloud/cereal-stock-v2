@@ -84,6 +84,7 @@ export default function CostosPage() {
   const [campanaSeleccionada, setCampanaSeleccionada] = useState<number | null>(null)
   const [establecimientos, setEstablecimientos] = useState<string[]>([])
   const [filtroEstablecimiento, setFiltroEstablecimiento] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState('')
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [distribucion, setDistribucion] = useState<Distribucion[]>([])
@@ -147,9 +148,10 @@ export default function CostosPage() {
     return costos.filter(c => {
       if (campanaSeleccionada && c.campana_id !== campanaSeleccionada) return false
       if (filtroEstablecimiento && c.establecimiento !== filtroEstablecimiento) return false
+      if (filtroTipo && c.tipo !== filtroTipo) return false
       return true
     })
-  }, [costos, campanaSeleccionada, filtroEstablecimiento])
+  }, [costos, campanaSeleccionada, filtroEstablecimiento, filtroTipo])
 
   const campanaActual = campanas.find(c => c.id === campanaSeleccionada)
 
@@ -196,6 +198,20 @@ export default function CostosPage() {
             {establecimientos.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
         </div>
+        <div>
+          <label className="text-xs font-medium text-campo-600 mr-2">Tipo de costo</label>
+          <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
+            className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
+            <option value="">Todos</option>
+            {Object.entries(TIPO_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+        {(filtroEstablecimiento || filtroTipo) && (
+          <button onClick={() => { setFiltroEstablecimiento(''); setFiltroTipo('') }}
+            className="text-xs text-campo-500 hover:text-campo-800 font-medium underline underline-offset-2">
+            Limpiar filtros
+          </button>
+        )}
       </div>
 
       {/* KPIs */}
