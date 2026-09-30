@@ -144,6 +144,7 @@ export default function ReportesSeguimientoPage() {
       'Rinde (kg/ha)': f.haCosechada > 0 ? Math.round(f.kg / f.haCosechada) : '',
       'Costo Total (USD)': Math.round(f.costoTotal),
       'Costo/ha (USD)': f.haSembrada > 0 ? Math.round(f.costoTotal / f.haSembrada) : '',
+      'Precio Indiferencia (USD/tn)': f.kg > 0 ? Math.round(f.costoTotal / (f.kg / 1000)) : '',
     }))
   )
 
@@ -154,7 +155,8 @@ export default function ReportesSeguimientoPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-campo-900">Reportes — Evolución por Cultivo</h1>
-          <p className="text-campo-500 text-sm mt-0.5">Costo/ha y rinde de cada cultivo, comparados entre campañas</p>
+          <p className="text-campo-500 text-sm mt-0.5">Costo/ha, rinde y precio de indiferencia de cada cultivo, comparados entre campañas</p>
+          <p className="text-campo-400 text-xs mt-1">Precio de indiferencia = Costo Total ÷ Producción — el precio neto al que habría que vender toda la cosecha para que el margen dé cero. No incluye flete ni comisión de venta (esos gastos se descuentan aparte al vender, así que el precio a pactar en el contrato debería ser algo mayor a este).</p>
         </div>
         <button onClick={() => descargarCSV(datosCSV, 'evolucion_por_cultivo.csv')}
           className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-700 text-white hover:bg-emerald-800 transition-colors">
@@ -169,6 +171,7 @@ export default function ReportesSeguimientoPage() {
           {cultivos.map(c => {
             const evolucionCostoHa = c.porCampana.map(f => ({ campana: f.campana, valor: f.haSembrada > 0 ? f.costoTotal / f.haSembrada : 0, haSembrada: f.haSembrada }))
             const evolucionRinde = c.porCampana.map(f => ({ campana: f.campana, valor: f.haCosechada > 0 ? f.kg / f.haCosechada : 0, haSembrada: f.haSembrada }))
+            const evolucionPrecioIndif = c.porCampana.map(f => ({ campana: f.campana, valor: f.kg > 0 ? f.costoTotal / (f.kg / 1000) : 0, haSembrada: f.haSembrada }))
             return (
               <div key={c.cultivo} className="card p-5">
                 <h2 className="font-semibold text-campo-900 mb-4">{c.cultivo}</h2>
@@ -181,6 +184,10 @@ export default function ReportesSeguimientoPage() {
                     <div className="text-xs font-semibold text-campo-500 uppercase tracking-wide mb-2">Rinde (kg/ha)</div>
                     <BarraEvolucion valores={evolucionRinde} formato={fmtEntero} />
                   </div>
+                  <div>
+                    <div className="text-xs font-semibold text-campo-500 uppercase tracking-wide mb-2">Precio de Indiferencia (USD/tn)</div>
+                    <BarraEvolucion valores={evolucionPrecioIndif} formato={fmtUsd} />
+                  </div>
                 </div>
                 <div className="mt-4 pt-4 border-t border-campo-100 overflow-x-auto">
                   <table className="w-full text-xs">
@@ -192,6 +199,7 @@ export default function ReportesSeguimientoPage() {
                         <th className="text-right py-1 font-medium">Ha Cosech.</th>
                         <th className="text-right py-1 font-medium">Prod. (tn)</th>
                         <th className="text-right py-1 font-medium">Costo Total</th>
+                        <th className="text-right py-1 font-medium">Precio Indif. (USD/tn)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -203,6 +211,7 @@ export default function ReportesSeguimientoPage() {
                           <td className="py-1.5 text-right text-campo-700">{f.haCosechada > 0 ? fmt(f.haCosechada) : '—'}</td>
                           <td className="py-1.5 text-right text-campo-700">{f.kg > 0 ? fmt(f.kg / 1000) : '—'}</td>
                           <td className="py-1.5 text-right text-campo-700">{fmtUsd(f.costoTotal)}</td>
+                          <td className="py-1.5 text-right font-medium text-campo-900">{f.kg > 0 ? fmtUsd(f.costoTotal / (f.kg / 1000)) : '—'}</td>
                         </tr>
                       ))}
                     </tbody>
