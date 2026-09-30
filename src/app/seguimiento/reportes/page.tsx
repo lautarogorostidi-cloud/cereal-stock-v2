@@ -144,7 +144,7 @@ export default function ReportesSeguimientoPage() {
       'Rinde (kg/ha)': f.haCosechada > 0 ? Math.round(f.kg / f.haCosechada) : '',
       'Costo Total (USD)': Math.round(f.costoTotal),
       'Costo/ha (USD)': f.haSembrada > 0 ? Math.round(f.costoTotal / f.haSembrada) : '',
-      'Precio Indiferencia (USD/tn)': f.kg > 0 ? Math.round(f.costoTotal / (f.kg / 1000)) : '',
+      'Precio Indiferencia Neto (USD/tn)': f.kg > 0 ? Math.round(f.costoTotal / (f.kg / 1000)) : '',
     }))
   )
 
@@ -155,8 +155,8 @@ export default function ReportesSeguimientoPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-campo-900">Reportes — Evolución por Cultivo</h1>
-          <p className="text-campo-500 text-sm mt-0.5">Costo/ha, rinde y precio de indiferencia de cada cultivo, comparados entre campañas</p>
-          <p className="text-campo-400 text-xs mt-1">Precio de indiferencia = Costo Total ÷ Producción — el precio neto al que habría que vender toda la cosecha para que el margen dé cero. No incluye flete ni comisión de venta (esos gastos se descuentan aparte al vender, así que el precio a pactar en el contrato debería ser algo mayor a este).</p>
+          <p className="text-campo-500 text-sm mt-0.5">Costo/ha, rinde y precio de indiferencia neto de cada cultivo, comparados entre campañas</p>
+          <p className="text-campo-400 text-xs mt-1">Precio de indiferencia NETO = Costo Total ÷ Producción — es lo que necesitás cobrar neto, en el bolsillo, por tonelada, para que el margen dé cero. No es el precio bruto/FOB que figura en el contrato: de ese precio bruto todavía se descuentan flete y comisión de venta antes de que te llegue el neto, así que el precio a pactar tiene que ser mayor a este.</p>
         </div>
         <button onClick={() => descargarCSV(datosCSV, 'evolucion_por_cultivo.csv')}
           className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-700 text-white hover:bg-emerald-800 transition-colors">
@@ -185,7 +185,7 @@ export default function ReportesSeguimientoPage() {
                     <BarraEvolucion valores={evolucionRinde} formato={fmtEntero} />
                   </div>
                   <div>
-                    <div className="text-xs font-semibold text-campo-500 uppercase tracking-wide mb-2">Precio de Indiferencia (USD/tn)</div>
+                    <div className="text-xs font-semibold text-campo-500 uppercase tracking-wide mb-2">Precio de Indiferencia Neto (USD/tn)</div>
                     <BarraEvolucion valores={evolucionPrecioIndif} formato={fmtUsd} />
                   </div>
                 </div>
@@ -199,7 +199,7 @@ export default function ReportesSeguimientoPage() {
                         <th className="text-right py-1 font-medium">Ha Cosech.</th>
                         <th className="text-right py-1 font-medium">Prod. (tn)</th>
                         <th className="text-right py-1 font-medium">Costo Total</th>
-                        <th className="text-right py-1 font-medium">Precio Indif. (USD/tn)</th>
+                        <th className="text-right py-1 font-medium">Precio Indif. Neto (USD/tn)</th>
                       </tr>
                     </thead>
                     <tbody>
