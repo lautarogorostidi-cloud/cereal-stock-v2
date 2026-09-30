@@ -33,6 +33,12 @@ type TarifarioItem = {
   fecha_vigencia: string
 }
 
+type FertilizanteCatalogo = {
+  id: number
+  nombre: string
+  unidad: string
+}
+
 const FORMAS = ['Voleo', 'Localizado', 'Fertirrigación', 'Foliar']
 
 export default function NuevaFertilizacionPage() {
@@ -43,6 +49,7 @@ export default function NuevaFertilizacionPage() {
   const [fertilizaciones, setFertilizaciones] = useState<Fertilizacion[]>([])
   const [tarifario, setTarifario] = useState<TarifarioItem[]>([])
   const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
+  const [catalogoFertilizantes, setCatalogoFertilizantes] = useState<FertilizanteCatalogo[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,16 +75,18 @@ export default function NuevaFertilizacionPage() {
   async function cargar() {
     setLoading(true)
     const id = Number(ciclo_id)
-    const [{ data: cicloData }, { data: fertData }, { data: tarifData }, { data: servData }] = await Promise.all([
+    const [{ data: cicloData }, { data: fertData }, { data: tarifData }, { data: servData }, { data: catalogoData }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', id).single(),
       supabase.from('sa_fertilizaciones').select('*').eq('ciclo_id', id).order('numero'),
       supabase.from('tarifario_insumos').select('insumo, precio_usd, fecha_vigencia').eq('tipo_insumo', 'Fertilizante'),
       supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
+      supabase.from('fertilizantes_productos').select('id, nombre, unidad').eq('activo', true).order('nombre'),
     ])
     setCiclo(cicloData ?? null)
     setFertilizaciones(fertData ?? [])
     setTarifario(tarifData ?? [])
     setTarifarioServicios(servData ?? [])
+    setCatalogoFertilizantes((catalogoData ?? []) as any)
     const supDefault = cicloData?.sup_sembrada ?? cicloData?.hectareas ?? 0
     setForm(f => ({ ...f, superficie_ha: supDefault.toString() }))
     setLoading(false)
@@ -104,10 +113,6 @@ export default function NuevaFertilizacionPage() {
       s.vigencia_desde <= fecha
     ).sort((a: any, b: any) => b.vigencia_desde.localeCompare(a.vigencia_desde))
     return registros.length > 0 ? registros[0].costo_usd_ha : null
-  }
-
-  function getFertilizantesDisponibles(): string[] {
-    return Array.from(new Set(tarifario.map(t => t.insumo))).sort()
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
@@ -186,6 +191,50 @@ export default function NuevaFertilizacionPage() {
     if (!form.superficie_ha) { setError('La superficie es obligatoria.'); return }
     setSaving(true)
 
+    const cantidadHa = Number(form.cantidad_ha || 0)
+    const superficieHa = Number(form.superficie_ha || 0)
+    const cantidadNecesaria = cantidadHa * superficieHa
+
+    // --- Stock: determinar si corresponde validar/descontar ---
+    // Una fertilización nueva siempre pasa por acá. Una existente solo si ya
+    // tenía un movimiento de stock generado (no es un registro histórico
+    // previo a esta funcionalidad) — así no se bloquean ediciones viejas.
+    let aplicarStock = !editandoId
+    let movPrevio: { id: number; producto_id: number; cantidad: number } | null = null
+
+    if (editandoId) {
+      const { data: mov } = await supabase.from('fertilizantes_movimientos')
+        .select('id, producto_id, cantidad').eq('fertilizacion_id', editandoId).maybeSingle()
+      movPrevio = mov as any
+      aplicarStock = !!movPrevio
+    }
+
+    let producto: FertilizanteCatalogo | null = null
+
+    if (aplicarStock && cantidadNecesaria > 0) {
+      producto = catalogoFertilizantes.find(p => p.nombre === form.tipo_fertilizante) ?? null
+      if (!producto) {
+        setError(`"${form.tipo_fertilizante}" no está en el catálogo de Fertilizantes: no se puede descontar stock. Cargalo en Fertilizantes → Movimientos o corregí el nombre.`)
+        setSaving(false)
+        return
+      }
+      if (producto.unidad !== 'kg') {
+        setError(`"${form.tipo_fertilizante}" está cargado en unidad "${producto.unidad}" en el catálogo: no se puede descontar una dosis en kg/ha.`)
+        setSaving(false)
+        return
+      }
+
+      const { data: stockData } = await supabase.from('vw_stock_fertilizantes')
+        .select('stock_actual').eq('producto_id', producto.id).maybeSingle()
+      const devuelto = movPrevio && movPrevio.producto_id === producto.id ? Number(movPrevio.cantidad) : 0
+      const disponible = Number(stockData?.stock_actual ?? 0) + devuelto
+      if (cantidadNecesaria > disponible + 0.001) {
+        setError(`Stock insuficiente de "${producto.nombre}": necesita ${cantidadNecesaria.toFixed(2)} kg, disponible ${disponible.toFixed(2)} kg.`)
+        setSaving(false)
+        return
+      }
+    }
+
     const payload: any = {
       ciclo_id: Number(ciclo_id),
       fecha: form.fecha || null,
@@ -199,13 +248,37 @@ export default function NuevaFertilizacionPage() {
       observaciones: form.observaciones || null,
     }
 
+    let fertilizacionIdFinal = editandoId
+
     if (editandoId) {
       const { error: err } = await supabase.from('sa_fertilizaciones').update(payload).eq('id', editandoId)
       if (err) { setError(`Error: ${err.message}`); setSaving(false); return }
     } else {
       const numero = fertilizaciones.length + 1
-      const { error: err } = await supabase.from('sa_fertilizaciones').insert({ ...payload, numero })
+      const { data: nueva, error: err } = await supabase.from('sa_fertilizaciones').insert({ ...payload, numero }).select('id').single()
       if (err) { setError(`Error: ${err.message}`); setSaving(false); return }
+      fertilizacionIdFinal = nueva.id
+    }
+
+    // --- Stock: reconciliar el movimiento (reemplazar el viejo de este registro por el nuevo) ---
+    if (aplicarStock && fertilizacionIdFinal) {
+      if (editandoId) {
+        const { error: errDel } = await supabase.from('fertilizantes_movimientos').delete().eq('fertilizacion_id', fertilizacionIdFinal)
+        if (errDel) { setError(`La fertilización se guardó, pero hubo un error al actualizar el stock: ${errDel.message}`); setSaving(false); return }
+      }
+      if (producto && cantidadNecesaria > 0) {
+        const { error: errIns } = await supabase.from('fertilizantes_movimientos').insert({
+          producto_id: producto.id,
+          tipo: 'fertilizacion',
+          fecha: form.fecha || new Date().toISOString().slice(0, 10),
+          cantidad: Number(cantidadNecesaria.toFixed(4)),
+          ciclo_id: Number(ciclo_id),
+          fertilizacion_id: fertilizacionIdFinal,
+          precio_unitario: form.costo_usd_ha ? Number(form.costo_usd_ha) : null,
+          observaciones: 'Descuento automático por fertilización.',
+        })
+        if (errIns) { setError(`La fertilización se guardó, pero hubo un error al descontar stock: ${errIns.message}`); setSaving(false); return }
+      }
     }
 
     setSaving(false)
@@ -221,8 +294,6 @@ export default function NuevaFertilizacionPage() {
 
   if (loading) return <div className="text-center text-campo-400 py-20">Cargando...</div>
   if (!ciclo) return <div className="text-center text-campo-400 py-20">Ciclo no encontrado</div>
-
-  const fertilizantesDisponibles = getFertilizantesDisponibles()
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 p-6">
@@ -288,9 +359,9 @@ export default function NuevaFertilizacionPage() {
               Fertilizante *
               {form.costo_usd_ha && form.tipo_fertilizante && <span className="ml-2 text-xs text-lime-600 font-normal">✓ precio del tarifario</span>}
             </label>
-            <BuscadorInsumo
+            <SelectorCatalogoFert
               value={form.tipo_fertilizante}
-              opciones={fertilizantesDisponibles}
+              catalogo={catalogoFertilizantes}
               placeholder="Ej: Urea, FDA, MAP..."
               onChange={handleFertilizanteSelect}
             />
@@ -370,18 +441,23 @@ export default function NuevaFertilizacionPage() {
   )
 }
 
-function BuscadorInsumo({ value, opciones, placeholder, onChange }: {
+// Buscador con autocomplete sobre el catálogo de Stock de fertilizantes. Es
+// texto libre — no obliga a elegir de la lista, así los registros viejos
+// (cargados antes de este catálogo) se siguen mostrando y editando sin
+// romperse — pero al guardar, si el texto coincide exactamente con un
+// producto del catálogo, se usa para descontar el stock.
+function SelectorCatalogoFert({ value, catalogo, placeholder, onChange }: {
   value: string
-  opciones: string[]
+  catalogo: FertilizanteCatalogo[]
   placeholder: string
   onChange: (val: string) => void
 }) {
   const [busqueda, setBusqueda] = useState('')
   const [abierto, setAbierto] = useState(false)
 
-  const filtrados = opciones.filter(o =>
-    o.toLowerCase().includes((value || busqueda).toLowerCase())
-  ).slice(0, 20)
+  const filtrados = catalogo
+    .filter(o => o.nombre.toLowerCase().includes((value || busqueda).toLowerCase()))
+    .slice(0, 20)
 
   return (
     <div className="relative">
@@ -397,9 +473,10 @@ function BuscadorInsumo({ value, opciones, placeholder, onChange }: {
       {abierto && filtrados.length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-campo-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
           {filtrados.map(o => (
-            <button key={o} onMouseDown={() => { onChange(o); setBusqueda(''); setAbierto(false) }}
-              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800">
-              {o}
+            <button key={o.id} onMouseDown={() => { onChange(o.nombre); setBusqueda(''); setAbierto(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800 flex justify-between items-center">
+              <span>{o.nombre}</span>
+              <span className="text-xs text-campo-400 ml-2">{o.unidad}</span>
             </button>
           ))}
         </div>

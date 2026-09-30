@@ -27,6 +27,66 @@ type TarifarioItem = {
   fecha_vigencia: string
 }
 
+type SemillaCatalogo = {
+  id: number
+  nombre: string
+  unidad: string
+  semillas_por_bolsa: number | null
+  kg_por_bolsa: number | null
+}
+
+type FertilizanteCatalogo = {
+  id: number
+  nombre: string
+  unidad: string
+}
+
+// Cuánto hay que descontar de stock de semilla para un híbrido, según cómo
+// esté cargada la densidad (kg/ha o pl/ha) y en qué unidad se lleva el stock
+// de ese producto (kg o bolsas). Si falta el dato de conversión (semillas por
+// bolsa / kg por bolsa) en Semillas → Productos, devuelve un error claro en
+// vez de descontar cualquier cosa.
+function calcularCantidadSemilla(
+  producto: SemillaCatalogo,
+  unidadDensidad: string,
+  densidad: number,
+  supHa: number
+): { cantidad: number; error?: string } {
+  const total = densidad * supHa
+  if (unidadDensidad === 'kg_ha') {
+    if (producto.unidad === 'kg') return { cantidad: total }
+    if (producto.unidad === 'bolsas' && producto.kg_por_bolsa) return { cantidad: total / producto.kg_por_bolsa }
+    return { cantidad: 0, error: `Falta cargar "Kg por bolsa" de "${producto.nombre}" en Semillas → Movimientos para poder descontar el stock.` }
+  }
+  // pl_ha
+  if (producto.unidad === 'bolsas' && producto.semillas_por_bolsa) return { cantidad: total / producto.semillas_por_bolsa }
+  if (producto.unidad === 'kg') {
+    return { cantidad: 0, error: `"${producto.nombre}" está cargado en kg pero la densidad de esta siembra es en plantas/ha: no se puede convertir sin el peso de mil semillas.` }
+  }
+  return { cantidad: 0, error: `Falta cargar "Semillas por bolsa" de "${producto.nombre}" en Semillas → Movimientos para poder descontar el stock.` }
+}
+
+// Precio de referencia por unidad de stock (kg o bolsa), a partir del USD/kg
+// (o USD/planta, si la densidad está en pl/ha) cargado en el híbrido. Solo es
+// informativo para el movimiento de stock — no afecta el costo de la siembra.
+function calcularPrecioUnitarioSemilla(producto: SemillaCatalogo, unidadDensidad: string, cuUsd: number): number | null {
+  if (!cuUsd) return null
+  if (unidadDensidad === 'kg_ha') {
+    if (producto.unidad === 'kg') return cuUsd
+    if (producto.unidad === 'bolsas' && producto.kg_por_bolsa) return cuUsd * producto.kg_por_bolsa
+    return null
+  }
+  if (producto.unidad === 'bolsas' && producto.semillas_por_bolsa) return cuUsd * producto.semillas_por_bolsa
+  return null
+}
+
+type NecesidadStock = {
+  producto: { id: number; nombre: string; unidad: string }
+  cantidad: number
+  precioUnitario: number | null
+  label: string
+}
+
 const SISTEMAS = ['SD', 'SD c/DF', 'SC', 'SC c/DF', 'Laboreo mínimo', 'Otro']
 const TIPOS_SEMILLA = ['Inoculada', 'Curada', 'Inoculada - Curada', 'Sin tratamiento']
 const TIPOS_SEMILLA_TARIFARIO = ['Soja 1', 'Soja 2', 'Maíz Temprano', 'Maíz Tardío', 'Maíz 2', 'Girasol', 'Trigo', 'Centeno', 'Avena', 'Vicia', 'Vicia + Avena', 'Alfalfa', 'Pastura']
@@ -43,6 +103,8 @@ export default function NuevaSiembraPage() {
   const [siembraId, setSiembraId] = useState<number | null>(null)
   const [tarifario, setTarifario] = useState<TarifarioItem[]>([])
   const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
+  const [catalogoSemillas, setCatalogoSemillas] = useState<SemillaCatalogo[]>([])
+  const [catalogoFertilizantes, setCatalogoFertilizantes] = useState<FertilizanteCatalogo[]>([])
 
   const [form, setForm] = useState({
     fecha: '',
@@ -75,16 +137,20 @@ export default function NuevaSiembraPage() {
     setLoading(true)
     const id = Number(ciclo_id)
 
-    const [{ data: cicloData }, { data: siembraData }, { data: tarifarioData }, { data: serviciosData }] = await Promise.all([
+    const [{ data: cicloData }, { data: siembraData }, { data: tarifarioData }, { data: serviciosData }, { data: semillasData }, { data: fertilizantesData }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', id).single(),
       supabase.from('sa_siembras').select('*').eq('ciclo_id', id).maybeSingle(),
       supabase.from('tarifario_insumos').select('tipo_insumo, insumo, unidad, precio_usd, fecha_vigencia'),
       supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
+      supabase.from('semillas_productos').select('id, nombre, unidad, semillas_por_bolsa, kg_por_bolsa').eq('activo', true).order('nombre'),
+      supabase.from('fertilizantes_productos').select('id, nombre, unidad').eq('activo', true).order('nombre'),
     ])
 
     setCiclo(cicloData ?? null)
     setTarifario(tarifarioData ?? [])
     setTarifarioServicios(serviciosData ?? [])
+    setCatalogoSemillas((semillasData ?? []) as any)
+    setCatalogoFertilizantes((fertilizantesData ?? []) as any)
 
     if (siembraData) {
       setEsEdicion(true)
@@ -234,11 +300,151 @@ export default function NuevaSiembraPage() {
 
   const fmtUsd = (n: number) => n > 0 ? `USD ${n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : ''
 
+  // Resuelve, contra el catálogo de Semillas, cuánto stock hay que descontar
+  // por cada híbrido cargado. Si un híbrido no matchea ningún producto del
+  // catálogo (texto libre viejo o mal escrito) o falta un dato de conversión,
+  // devuelve el problema como error en vez de adivinar una cantidad.
+  function resolverNecesidadesSemilla(): { necesidades: NecesidadStock[]; errores: string[] } {
+    const necesidades: NecesidadStock[] = []
+    const errores: string[] = []
+    hibridos.forEach(h => {
+      const supHa = Number(h.sup_ha || 0)
+      if (!h.nombre || supHa <= 0) return
+      const producto = catalogoSemillas.find(p => p.nombre === h.nombre)
+      if (!producto) {
+        errores.push(`"${h.nombre}" no está en el catálogo de Semillas: no se puede descontar stock. Cargalo en Semillas → Movimientos o corregí el nombre.`)
+        return
+      }
+      const { cantidad, error } = calcularCantidadSemilla(producto, form.unidad_densidad, densidad, supHa)
+      if (error) { errores.push(error); return }
+      if (cantidad > 0) {
+        necesidades.push({
+          producto,
+          cantidad,
+          precioUnitario: calcularPrecioUnitarioSemilla(producto, form.unidad_densidad, Number(h.cu_usd || 0)),
+          label: `Híbrido "${h.nombre}"`,
+        })
+      }
+    })
+    return { necesidades, errores }
+  }
+
+  // Ídem para los fertilizantes en siembra (aplicación al voleo/incorporado,
+  // dosis en kg/ha sobre la superficie total sembrada).
+  function resolverNecesidadesFertilizante(): { necesidades: NecesidadStock[]; errores: string[] } {
+    const necesidades: NecesidadStock[] = []
+    const errores: string[] = []
+    const items = [
+      { nombre: form.fertilizante_1, kgHa: Number(form.fertilizante_1_kg_ha || 0), costoKg: Number(form.fertilizante_1_costo_kg || 0), label: 'Fertilizante 1' },
+      { nombre: form.fertilizante_2, kgHa: Number(form.fertilizante_2_kg_ha || 0), costoKg: Number(form.fertilizante_2_costo_kg || 0), label: 'Fertilizante 2' },
+    ]
+    items.forEach(it => {
+      if (!it.nombre || it.kgHa <= 0 || supTotal <= 0) return
+      const producto = catalogoFertilizantes.find(p => p.nombre === it.nombre)
+      if (!producto) {
+        errores.push(`"${it.nombre}" no está en el catálogo de Fertilizantes: no se puede descontar stock. Cargalo en Fertilizantes → Movimientos o corregí el nombre.`)
+        return
+      }
+      if (producto.unidad !== 'kg') {
+        errores.push(`"${it.nombre}" está cargado en unidad "${producto.unidad}" en el catálogo: no se puede descontar una dosis en kg/ha.`)
+        return
+      }
+      const cantidad = it.kgHa * supTotal
+      if (cantidad > 0) necesidades.push({ producto, cantidad, precioUnitario: it.costoKg || null, label: it.label })
+    })
+    return { necesidades, errores }
+  }
+
   async function handleSubmit() {
     setError(null)
     if (!form.fecha) { setError('La fecha es obligatoria.'); return }
     if (!hibridos[0].nombre) { setError('Ingresá al menos un híbrido o variedad.'); return }
     setSaving(true)
+
+    // --- Stock: determinar si corresponde validar/descontar ---
+    // Una siembra nueva siempre pasa por acá. Una siembra existente solo si ya
+    // tenía movimientos de stock generados (es decir, no es un registro viejo
+    // previo a esta funcionalidad) — así no se bloquean ediciones de siembras
+    // históricas que nunca tuvieron descuento de stock.
+    let aplicarStock = !esEdicion
+    let movsSemillaPrevios: { id: number; producto_id: number; cantidad: number }[] = []
+    let movsFertPrevios: { id: number; producto_id: number; cantidad: number }[] = []
+
+    if (esEdicion && siembraId) {
+      const [{ data: msem }, { data: mfert }] = await Promise.all([
+        supabase.from('semillas_movimientos').select('id, producto_id, cantidad').eq('siembra_id', siembraId),
+        supabase.from('fertilizantes_movimientos').select('id, producto_id, cantidad').eq('siembra_id', siembraId),
+      ])
+      movsSemillaPrevios = (msem ?? []) as any
+      movsFertPrevios = (mfert ?? []) as any
+      aplicarStock = movsSemillaPrevios.length > 0 || movsFertPrevios.length > 0
+    }
+
+    let necesidadesSemilla: NecesidadStock[] = []
+    let necesidadesFert: NecesidadStock[] = []
+
+    if (aplicarStock) {
+      const rs = resolverNecesidadesSemilla()
+      const rf = resolverNecesidadesFertilizante()
+      const errores = [...rs.errores, ...rf.errores]
+      if (errores.length > 0) {
+        setError(errores.join(' '))
+        setSaving(false)
+        return
+      }
+      necesidadesSemilla = rs.necesidades
+      necesidadesFert = rf.necesidades
+
+      // Lo que esta misma siembra ya tenía descontado (se suma de vuelta al
+      // stock disponible antes de validar, porque se va a reemplazar).
+      const devueltoSemilla = new Map<number, number>()
+      movsSemillaPrevios.forEach(m => devueltoSemilla.set(m.producto_id, (devueltoSemilla.get(m.producto_id) ?? 0) + Number(m.cantidad)))
+      const devueltoFert = new Map<number, number>()
+      movsFertPrevios.forEach(m => devueltoFert.set(m.producto_id, (devueltoFert.get(m.producto_id) ?? 0) + Number(m.cantidad)))
+
+      const idsSemilla = Array.from(new Set(necesidadesSemilla.map(n => n.producto.id)))
+      const idsFert = Array.from(new Set(necesidadesFert.map(n => n.producto.id)))
+
+      const [stockSemillaRes, stockFertRes] = await Promise.all([
+        idsSemilla.length > 0
+          ? supabase.from('vw_stock_semillas').select('producto_id, stock_actual').in('producto_id', idsSemilla)
+          : Promise.resolve({ data: [] as any[] }),
+        idsFert.length > 0
+          ? supabase.from('vw_stock_fertilizantes').select('producto_id, stock_actual').in('producto_id', idsFert)
+          : Promise.resolve({ data: [] as any[] }),
+      ])
+
+      const stockSemillaMap = new Map<number, number>(((stockSemillaRes.data ?? []) as any[]).map(s => [s.producto_id, Number(s.stock_actual)]))
+      const stockFertMap = new Map<number, number>(((stockFertRes.data ?? []) as any[]).map(s => [s.producto_id, Number(s.stock_actual)]))
+
+      const problemasStock: string[] = []
+
+      const necesarioSemillaPorProducto = new Map<number, number>()
+      necesidadesSemilla.forEach(n => necesarioSemillaPorProducto.set(n.producto.id, (necesarioSemillaPorProducto.get(n.producto.id) ?? 0) + n.cantidad))
+      necesarioSemillaPorProducto.forEach((cant, prodId) => {
+        const producto = necesidadesSemilla.find(n => n.producto.id === prodId)!.producto
+        const disponible = (stockSemillaMap.get(prodId) ?? 0) + (devueltoSemilla.get(prodId) ?? 0)
+        if (cant > disponible + 0.001) {
+          problemasStock.push(`Stock insuficiente de "${producto.nombre}": necesita ${cant.toFixed(2)} ${producto.unidad}, disponible ${disponible.toFixed(2)} ${producto.unidad}.`)
+        }
+      })
+
+      const necesarioFertPorProducto = new Map<number, number>()
+      necesidadesFert.forEach(n => necesarioFertPorProducto.set(n.producto.id, (necesarioFertPorProducto.get(n.producto.id) ?? 0) + n.cantidad))
+      necesarioFertPorProducto.forEach((cant, prodId) => {
+        const producto = necesidadesFert.find(n => n.producto.id === prodId)!.producto
+        const disponible = (stockFertMap.get(prodId) ?? 0) + (devueltoFert.get(prodId) ?? 0)
+        if (cant > disponible + 0.001) {
+          problemasStock.push(`Stock insuficiente de "${producto.nombre}": necesita ${cant.toFixed(2)} kg, disponible ${disponible.toFixed(2)} kg.`)
+        }
+      })
+
+      if (problemasStock.length > 0) {
+        setError(problemasStock.join(' '))
+        setSaving(false)
+        return
+      }
+    }
 
     const payload: any = {
       ciclo_id: Number(ciclo_id),
@@ -270,12 +476,60 @@ export default function NuevaSiembraPage() {
       cu_hibrido_3: hibridos[2]?.cu_usd ? Number(hibridos[2].cu_usd) : null,
     }
 
+    let siembraIdFinal = siembraId
+
     if (esEdicion && siembraId) {
       const { error: err } = await supabase.from('sa_siembras').update(payload).eq('id', siembraId)
       if (err) { setError(`Error: ${err.message}`); setSaving(false); return }
     } else {
-      const { error: err } = await supabase.from('sa_siembras').insert(payload)
+      const { data: nueva, error: err } = await supabase.from('sa_siembras').insert(payload).select('id').single()
       if (err) { setError(`Error: ${err.message}`); setSaving(false); return }
+      siembraIdFinal = nueva.id
+    }
+
+    // --- Stock: reconciliar movimientos (reemplazar los viejos de esta siembra por los nuevos) ---
+    if (aplicarStock && siembraIdFinal) {
+      if (esEdicion) {
+        const [{ error: errDelSem }, { error: errDelFert }] = await Promise.all([
+          supabase.from('semillas_movimientos').delete().eq('siembra_id', siembraIdFinal),
+          supabase.from('fertilizantes_movimientos').delete().eq('siembra_id', siembraIdFinal),
+        ])
+        if (errDelSem || errDelFert) {
+          setError(`La siembra se guardó, pero hubo un error al actualizar el stock: ${(errDelSem ?? errDelFert)?.message}`)
+          setSaving(false)
+          return
+        }
+      }
+
+      if (necesidadesSemilla.length > 0) {
+        const rows = necesidadesSemilla.map(n => ({
+          producto_id: n.producto.id,
+          tipo: 'siembra',
+          fecha: form.fecha,
+          cantidad: Number(n.cantidad.toFixed(4)),
+          ciclo_id: Number(ciclo_id),
+          siembra_id: siembraIdFinal,
+          precio_unitario: n.precioUnitario,
+          observaciones: `Descuento automático por siembra (${n.label}).`,
+        }))
+        const { error: errIns } = await supabase.from('semillas_movimientos').insert(rows)
+        if (errIns) { setError(`La siembra se guardó, pero hubo un error al descontar stock de semillas: ${errIns.message}`); setSaving(false); return }
+      }
+
+      if (necesidadesFert.length > 0) {
+        const rows = necesidadesFert.map(n => ({
+          producto_id: n.producto.id,
+          tipo: 'siembra',
+          fecha: form.fecha,
+          cantidad: Number(n.cantidad.toFixed(4)),
+          ciclo_id: Number(ciclo_id),
+          siembra_id: siembraIdFinal,
+          precio_unitario: n.precioUnitario,
+          observaciones: `Descuento automático por siembra (${n.label}).`,
+        }))
+        const { error: errIns } = await supabase.from('fertilizantes_movimientos').insert(rows)
+        if (errIns) { setError(`La siembra se guardó, pero hubo un error al descontar stock de fertilizantes: ${errIns.message}`); setSaving(false); return }
+      }
     }
 
     setSaving(false)
@@ -369,10 +623,10 @@ export default function NuevaSiembraPage() {
               <div key={i} className="grid grid-cols-12 gap-2 items-end">
                 <div className="col-span-5">
                   {i === 0 && <div className="text-xs text-campo-500 mb-1">Híbrido / Variedad</div>}
-                  <BuscadorInsumo
+                  <SelectorCatalogo
                     value={h.nombre}
-                    opciones={semillasDisponibles}
-                    placeholder="Ej: DM 46 i 20"
+                    catalogo={catalogoSemillas}
+                    placeholder="Ej: LT 723 TRE"
                     onChange={val => handleHibridoChange(i, 'nombre', val)}
                   />
                 </div>
@@ -436,10 +690,10 @@ export default function NuevaSiembraPage() {
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-campo-500 mb-1">Fertilizante 1</label>
-                <BuscadorInsumo
+                <SelectorCatalogo
                   value={form.fertilizante_1}
-                  opciones={fertilizantesDisponibles}
-                  placeholder="Ej: FDA"
+                  catalogo={catalogoFertilizantes}
+                  placeholder="Ej: MAP"
                   onChange={val => handleFormChange({ target: { name: 'fertilizante_1', value: val } } as any)}
                 />
               </div>
@@ -463,10 +717,10 @@ export default function NuevaSiembraPage() {
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-campo-500 mb-1">Fertilizante 2</label>
-                <BuscadorInsumo
+                <SelectorCatalogo
                   value={form.fertilizante_2}
-                  opciones={fertilizantesDisponibles}
-                  placeholder="Ej: Urea"
+                  catalogo={catalogoFertilizantes}
+                  placeholder="Ej: UREA"
                   onChange={val => handleFormChange({ target: { name: 'fertilizante_2', value: val } } as any)}
                 />
               </div>
@@ -514,19 +768,23 @@ export default function NuevaSiembraPage() {
   )
 }
 
-// Componente buscador con autocomplete
-function BuscadorInsumo({ value, opciones, placeholder, onChange }: {
+// Buscador con autocomplete sobre el catálogo de Stock (semilla o
+// fertilizante). Es texto libre — no obliga a elegir de la lista, así los
+// registros viejos (cargados antes de este catálogo) se siguen mostrando y
+// editando sin romperse — pero al guardar, si el texto coincide exactamente
+// con un producto del catálogo, se usa para descontar el stock.
+function SelectorCatalogo({ value, catalogo, placeholder, onChange }: {
   value: string
-  opciones: string[]
+  catalogo: { id: number; nombre: string; unidad: string }[]
   placeholder: string
   onChange: (val: string) => void
 }) {
   const [busqueda, setBusqueda] = useState('')
   const [abierto, setAbierto] = useState(false)
 
-  const filtrados = opciones.filter(o =>
-    o.toLowerCase().includes((value || busqueda).toLowerCase())
-  ).slice(0, 20)
+  const filtrados = catalogo
+    .filter(o => o.nombre.toLowerCase().includes((value || busqueda).toLowerCase()))
+    .slice(0, 20)
 
   return (
     <div className="relative">
@@ -542,9 +800,10 @@ function BuscadorInsumo({ value, opciones, placeholder, onChange }: {
       {abierto && filtrados.length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-campo-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
           {filtrados.map(o => (
-            <button key={o} onMouseDown={() => { onChange(o); setBusqueda(''); setAbierto(false) }}
-              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800">
-              {o}
+            <button key={o.id} onMouseDown={() => { onChange(o.nombre); setBusqueda(''); setAbierto(false) }}
+              className="w-full text-left px-3 py-2 text-sm text-campo-900 hover:bg-lime-50 hover:text-lime-800 flex justify-between items-center">
+              <span>{o.nombre}</span>
+              <span className="text-xs text-campo-400 ml-2">{o.unidad}</span>
             </button>
           ))}
         </div>

@@ -24,6 +24,11 @@ type Proveedor = { id: string; nombre: string }
 type Campana = { id: number; nombre: string }
 
 const TIPOS = ['compra', 'devolucion', 'ajuste']
+// 'siembra' y 'fertilizacion' son movimientos generados automáticamente por
+// las pantallas de Siembra y Fertilizaciones (descuento de stock) — no se
+// pueden crear a mano acá, por eso no están en TIPOS, pero sí se pueden ver y filtrar.
+const TIPOS_AUTOMATICOS = ['siembra', 'fertilizacion']
+const TIPOS_FILTRO = [...TIPOS, ...TIPOS_AUTOMATICOS]
 
 // Campaña agropecuaria por fecha (ciclo sep-ago), misma convención que en /ganaderia/feedlot
 function campaniaPorFecha(fecha: string): string {
@@ -241,8 +246,10 @@ export default function MovimientosFertilizantesPage() {
     })
   const fmt = (n: number) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 1 })
   const badgeColor = (tipo: string) => {
-    if (tipo === 'compra')     return 'bg-blue-100 text-blue-700'
-    if (tipo === 'devolucion') return 'bg-purple-100 text-purple-700'
+    if (tipo === 'compra')       return 'bg-blue-100 text-blue-700'
+    if (tipo === 'devolucion')   return 'bg-purple-100 text-purple-700'
+    if (tipo === 'siembra')      return 'bg-amber-100 text-amber-700'
+    if (tipo === 'fertilizacion') return 'bg-amber-100 text-amber-700'
     return 'bg-campo-100 text-campo-600'
   }
 
@@ -473,7 +480,7 @@ export default function MovimientosFertilizantesPage() {
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${!filtroTipo ? 'bg-emerald-700 text-white' : 'bg-campo-100 text-campo-600 hover:bg-campo-200'}`}>
           Todos
         </button>
-        {TIPOS.map(t => (
+        {TIPOS_FILTRO.map(t => (
           <button key={t} onClick={() => setFiltroTipo(t)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filtroTipo === t ? 'bg-emerald-700 text-white' : 'bg-campo-100 text-campo-600 hover:bg-campo-200'}`}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
