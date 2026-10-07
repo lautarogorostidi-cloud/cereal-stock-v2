@@ -76,4 +76,13 @@ export const MODULOS: Modulo[] = [
     color: 'border-lime-400 bg-lime-500/20 hover:bg-lime-500/30',
     badgeColor: 'bg-lime-400 text-lime-950 font-semibold',
   },
+  {
+    href: '/flujo-de-fondos',
+    icon: '💸',
+    titulo: 'Flujo de fondos',
+    descripcion: 'Todos los costos mes a mes: insumos, servicios, arrendamientos, hacienda y más, con a qué se atribuye cada uno',
+    activo: true,
+    color: 'border-lime-400 bg-lime-500/20 hover:bg-lime-500/30',
+    badgeColor: 'bg-lime-400 text-lime-950 font-semibold',
+  },
 ]
