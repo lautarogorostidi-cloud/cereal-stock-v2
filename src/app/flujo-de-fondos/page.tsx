@@ -111,7 +111,6 @@ export default function FlujoDeFondosPage() {
   const [filtroCampo, setFiltroCampo] = useState('')
   const [filtroAnio, setFiltroAnio] = useState('')
   const [dim, setDim] = useState<Dimension>('categoria')
-  const [incluirSinFecha, setIncluirSinFecha] = useState(true)
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   const [seleccion, setSeleccion] = useState<{ k1: string; k2?: string; mes?: string } | null>(null)
 
@@ -137,9 +136,8 @@ export default function FlujoDeFondosPage() {
     if (filtroCampo && (f.campo || SIN_ASIGNAR) !== filtroCampo) return false
     if (filtroAnio && f.fecha && f.mes.slice(0, 4) !== filtroAnio) return false
     if (filtroAnio && !f.fecha) return false
-    if (!incluirSinFecha && !f.fecha) return false
     return true
-  }), [filas, filtroCampana, filtroCampo, filtroAnio, incluirSinFecha])
+  }), [filas, filtroCampana, filtroCampo, filtroAnio])
 
   // Columnas de meses (continuas entre el primero y el último) + "Sin fecha"
   const meses = useMemo(() => {
@@ -217,7 +215,7 @@ export default function FlujoDeFondosPage() {
     )
   }
 
-  const hayFiltros = filtroCampana || filtroCampo || filtroAnio || !incluirSinFecha
+  const hayFiltros = filtroCampana || filtroCampo || filtroAnio
 
   function exportarResumen() {
     const filasCSV: Record<string, any>[] = []
@@ -311,12 +309,8 @@ export default function FlujoDeFondosPage() {
             {anios.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
-        <label className="flex items-center gap-2 text-sm text-campo-700 pb-1.5">
-          <input type="checkbox" checked={incluirSinFecha} onChange={e => { setIncluirSinFecha(e.target.checked); setSeleccion(null) }} />
-          Incluir costos sin fecha
-        </label>
         {hayFiltros && (
-          <button onClick={() => { setFiltroCampana(''); setFiltroCampo(''); setFiltroAnio(''); setIncluirSinFecha(true); setSeleccion(null) }}
+          <button onClick={() => { setFiltroCampana(''); setFiltroCampo(''); setFiltroAnio(''); setSeleccion(null) }}
             className="text-xs text-campo-500 hover:text-campo-800 underline pb-2">
             Limpiar filtros
           </button>

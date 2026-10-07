@@ -11,6 +11,7 @@ type MovimientoRow = {
   tipo_movimiento: string; fecha: string; precio_cabeza_usd: number | null
   monto_total_usd: number | null; observaciones: string | null
   movimiento_relacionado_id: string | null
+  campania: string | null
   categorias_hacienda: { nombre: string }
 }
 
@@ -25,6 +26,15 @@ const REQUIERE_PRECIO = ['compra', 'venta']
 const LABEL_TIPO: Record<string, string> = {
   compra: 'Compra', venta: 'Venta', nacimiento: 'Nacimiento', muerte: 'Muerte',
   recategorizacion_baja: 'Recategorización', ajuste_positivo: 'Ajuste (+)', ajuste_negativo: 'Ajuste (−)',
+}
+
+// Campaña según la fecha (año fiscal sep-ago), igual que en el resto de la app
+function campaniaPorFecha(fecha: string): string {
+  const d = new Date(fecha + 'T00:00:00')
+  const anio = d.getFullYear()
+  const mes = d.getMonth() + 1
+  if (mes >= 9) return `${String(anio).slice(2)}-${String(anio + 1).slice(2)}`
+  return `${String(anio - 1).slice(2)}-${String(anio).slice(2)}`
 }
 
 const inputCls = 'w-full rounded-md border border-stone-300 px-3 py-2 text-sm focus:border-stone-500 focus:outline-none'
@@ -53,6 +63,8 @@ export default function GanaderiaMovimientosPage() {
   const [cantidad, setCantidad] = useState('')
   const [precioCabeza, setPrecioCabeza] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
+  const [campania, setCampania] = useState(campaniaPorFecha(new Date().toISOString().slice(0, 10)))
+  const [campanias, setCampanias] = useState<{ id: number; nombre: string }[]>([])
   const [observaciones, setObservaciones] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,6 +80,7 @@ export default function GanaderiaMovimientosPage() {
   const [emCantidad, setEmCantidad] = useState('')
   const [emPrecio, setEmPrecio] = useState('')
   const [emFecha, setEmFecha] = useState('')
+  const [emCampania, setEmCampania] = useState('')
   const [emObs, setEmObs] = useState('')
   const [emGuardando, setEmGuardando] = useState(false)
   const [emError, setEmError] = useState<string | null>(null)
@@ -76,6 +89,8 @@ export default function GanaderiaMovimientosPage() {
     const cargar = async () => {
       const { data: cat } = await supabase.from('categorias_hacienda').select('id, nombre, orden').order('orden')
       setCategorias(cat ?? [])
+      const { data: camp } = await supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false })
+      setCampanias(camp ?? [])
     }
     cargar(); cargarStock(); cargarMovimientos()
   }, [])
@@ -129,16 +144,16 @@ export default function GanaderiaMovimientosPage() {
       const precioNum = requierePrecio ? Number(precioCabeza) : null
       if (esRecategorizacion) {
         const { data: baja, error: eBaja } = await supabase.from('movimientos_hacienda')
-          .insert({ categoria_id: categoriaId, cantidad: cantNum, tipo_movimiento: 'recategorizacion_baja', fecha, observaciones: observaciones || null })
+          .insert({ categoria_id: categoriaId, cantidad: cantNum, tipo_movimiento: 'recategorizacion_baja', fecha, campania, observaciones: observaciones || null })
           .select('id').single()
         if (eBaja || !baja) throw eBaja ?? new Error('Error en la baja.')
         const { data: alta, error: eAlta } = await supabase.from('movimientos_hacienda')
-          .insert({ categoria_id: categoriaDestinoId, cantidad: cantNum, tipo_movimiento: 'recategorizacion_alta', fecha, observaciones: observaciones || null, movimiento_relacionado_id: baja.id })
+          .insert({ categoria_id: categoriaDestinoId, cantidad: cantNum, tipo_movimiento: 'recategorizacion_alta', fecha, campania, observaciones: observaciones || null, movimiento_relacionado_id: baja.id })
           .select('id').single()
         if (eAlta || !alta) { await supabase.from('movimientos_hacienda').delete().eq('id', baja.id); throw eAlta ?? new Error('Error en la alta.') }
         await supabase.from('movimientos_hacienda').update({ movimiento_relacionado_id: alta.id }).eq('id', baja.id)
       } else {
-        const { error: eIns } = await supabase.from('movimientos_hacienda').insert({ categoria_id: categoriaId, cantidad: cantNum, tipo_movimiento: tipo, fecha, precio_cabeza_usd: precioNum, observaciones: observaciones || null })
+        const { error: eIns } = await supabase.from('movimientos_hacienda').insert({ categoria_id: categoriaId, cantidad: cantNum, tipo_movimiento: tipo, fecha, campania, precio_cabeza_usd: precioNum, observaciones: observaciones || null })
         if (eIns) throw eIns
       }
       setExito('Movimiento registrado.'); setCategoriaId(''); setCategoriaDestinoId(''); setCantidad(''); setPrecioCabeza(''); setObservaciones('')
@@ -149,7 +164,7 @@ export default function GanaderiaMovimientosPage() {
 
   const abrirEdit = (m: MovimientoRow) => {
     setEditMov(m); setEmCategoriaId(m.categoria_id); setEmCantidad(String(m.cantidad))
-    setEmPrecio(m.precio_cabeza_usd ? String(m.precio_cabeza_usd) : ''); setEmFecha(m.fecha); setEmObs(m.observaciones ?? ''); setEmError(null)
+    setEmPrecio(m.precio_cabeza_usd ? String(m.precio_cabeza_usd) : ''); setEmFecha(m.fecha); setEmCampania(m.campania ?? campaniaPorFecha(m.fecha)); setEmObs(m.observaciones ?? ''); setEmError(null)
   }
 
   const handleGuardarEdit = async () => {
@@ -161,7 +176,7 @@ export default function GanaderiaMovimientosPage() {
       const { error: eUp } = await supabase.from('movimientos_hacienda').update({
         categoria_id: emCategoriaId, cantidad: Number(emCantidad),
         precio_cabeza_usd: REQUIERE_PRECIO.includes(editMov.tipo_movimiento) ? Number(emPrecio) : null,
-        fecha: emFecha, observaciones: emObs || null,
+        fecha: emFecha, campania: emCampania || campaniaPorFecha(emFecha), observaciones: emObs || null,
       }).eq('id', editMov.id)
       if (eUp) throw eUp
       setEditMov(null); cargarStock(); cargarMovimientos()
@@ -219,7 +234,12 @@ export default function GanaderiaMovimientosPage() {
           )}
 
           <div><label className={labelCls}>Fecha</label>
-            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={inputCls} /></div>
+            <input type="date" value={fecha} onChange={(e) => { setFecha(e.target.value); if (e.target.value) setCampania(campaniaPorFecha(e.target.value)) }} className={inputCls} /></div>
+
+          <div><label className={labelCls}>Campaña</label>
+            <select value={campania} onChange={(e) => setCampania(e.target.value)} className={inputCls}>
+              {campanias.map((c) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+            </select></div>
 
           <div><label className={labelCls}>Observaciones</label>
             <textarea value={observaciones} onChange={(e) => setObservaciones(e.target.value)} rows={2} className={inputCls} /></div>
@@ -299,6 +319,7 @@ export default function GanaderiaMovimientosPage() {
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
                     <th className="px-4 py-2 font-medium">Fecha</th>
+                    <th className="px-4 py-2 font-medium">Campaña</th>
                     <th className="px-4 py-2 font-medium">Tipo</th>
                     <th className="px-4 py-2 font-medium">Categoría</th>
                     <th className="px-4 py-2 text-right font-medium">Cabezas</th>
@@ -309,6 +330,7 @@ export default function GanaderiaMovimientosPage() {
                     {movimientos.map((m) => (
                       <tr key={m.id} className="border-t border-stone-100">
                         <td className="px-4 py-2 text-stone-600">{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                        <td className="px-4 py-2 text-stone-600">{m.campania ?? '—'}</td>
                         <td className="px-4 py-2 text-stone-700">{LABEL_TIPO[m.tipo_movimiento] ?? m.tipo_movimiento}</td>
                         <td className="px-4 py-2 text-stone-700">{m.categorias_hacienda?.nombre}</td>
                         <td className="px-4 py-2 text-right font-medium text-stone-900">{m.cantidad.toLocaleString('es-AR')}</td>
@@ -346,7 +368,11 @@ export default function GanaderiaMovimientosPage() {
               <input type="number" min={0} step="0.01" value={emPrecio} onChange={(e) => setEmPrecio(e.target.value)} className={inputCls} /></div>
           )}
           <div><label className={labelCls}>Fecha</label>
-            <input type="date" value={emFecha} onChange={(e) => setEmFecha(e.target.value)} className={inputCls} /></div>
+            <input type="date" value={emFecha} onChange={(e) => { setEmFecha(e.target.value); if (e.target.value) setEmCampania(campaniaPorFecha(e.target.value)) }} className={inputCls} /></div>
+          <div><label className={labelCls}>Campaña</label>
+            <select value={emCampania} onChange={(e) => setEmCampania(e.target.value)} className={inputCls}>
+              {campanias.map((c) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+            </select></div>
           <div><label className={labelCls}>Observaciones</label>
             <textarea value={emObs} onChange={(e) => setEmObs(e.target.value)} rows={2} className={inputCls} /></div>
           <div className="flex gap-3 pt-1">
