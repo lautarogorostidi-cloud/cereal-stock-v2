@@ -179,6 +179,7 @@ export default function FlujoDeFondosPage() {
 
   const totalGeneral = filtradas.reduce((a, f) => a + f.monto_usd, 0)
   const totalSinFecha = filtradas.filter(f => !f.fecha).reduce((a, f) => a + f.monto_usd, 0)
+  const totalEstimado = filtradas.filter(f => f.fecha && f.tipo_fecha === 'estimada').reduce((a, f) => a + f.monto_usd, 0)
   const hoyMes = mesActual()
   const totalFuturo = filtradas.filter(f => f.fecha && f.mes > hoyMes).reduce((a, f) => a + f.monto_usd, 0)
   const totalPendiente = filtradas.filter(f => f.estado === 'Pendiente').reduce((a, f) => a + f.monto_usd, 0)
@@ -331,8 +332,8 @@ export default function FlujoDeFondosPage() {
           <div className="text-xl font-bold text-campo-900">{fmtUsd(totalGeneral)}</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-campo-500">Costos sin fecha</div>
-          <div className="text-xl font-bold text-amber-700">{fmtUsd(totalSinFecha)}</div>
+          <div className="text-xs text-campo-500">Con fecha estimada (*){totalSinFecha !== 0 ? ' · sin fecha: ' + fmtUsd(totalSinFecha) : ''}</div>
+          <div className="text-xl font-bold text-amber-700">{fmtUsd(totalEstimado)}</div>
         </div>
         <div className="card p-4">
           <div className="text-xs text-campo-500">Meses futuros (a vencer)</div>
@@ -400,7 +401,7 @@ export default function FlujoDeFondosPage() {
       )}
 
       <p className="text-xs text-campo-400">
-        Tocá una celda, un nombre o un total para ver a qué se atribuye cada costo. Los meses en azul son futuros (vencimientos a pagar). La columna “Sin fecha” junta costos que se cargaron sin fecha real (por ejemplo arrendamiento, asesor y seguros de las campañas 23-24 y 24-25, y las fertilizaciones históricas).
+        Tocá una celda, un nombre o un total para ver a qué se atribuye cada costo. Los meses en azul son futuros (vencimientos a pagar). Los montos marcados con * en el detalle tienen fecha estimada: arrendamiento y asesor de las campañas viejas siguen el calendario de pagos de la campaña de referencia del mismo campo, los seguros van a la fecha de siembra del lote, la indemnización a la de cosecha y las fertilizaciones sin fecha a la siembra. Si algo no se puede estimar, queda en la columna “Sin fecha”.
       </p>
 
       {seleccion && (
