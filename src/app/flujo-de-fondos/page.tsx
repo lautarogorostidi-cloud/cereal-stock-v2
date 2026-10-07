@@ -178,11 +178,8 @@ export default function FlujoDeFondosPage() {
   }, [filtradas])
 
   const totalGeneral = filtradas.reduce((a, f) => a + f.monto_usd, 0)
-  const totalSinFecha = filtradas.filter(f => !f.fecha).reduce((a, f) => a + f.monto_usd, 0)
-  const totalEstimado = filtradas.filter(f => f.fecha && f.tipo_fecha === 'estimada').reduce((a, f) => a + f.monto_usd, 0)
   const hoyMes = mesActual()
   const totalFuturo = filtradas.filter(f => f.fecha && f.mes > hoyMes).reduce((a, f) => a + f.monto_usd, 0)
-  const totalPendiente = filtradas.filter(f => f.estado === 'Pendiente').reduce((a, f) => a + f.monto_usd, 0)
 
   const detalle = useMemo(() => {
     if (!seleccion) return []
@@ -326,22 +323,14 @@ export default function FlujoDeFondosPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3 max-w-xl">
         <div className="card p-4">
           <div className="text-xs text-campo-500">Total del período</div>
           <div className="text-xl font-bold text-campo-900">{fmtUsd(totalGeneral)}</div>
         </div>
         <div className="card p-4">
-          <div className="text-xs text-campo-500">Con fecha estimada (*){totalSinFecha !== 0 ? ' · sin fecha: ' + fmtUsd(totalSinFecha) : ''}</div>
-          <div className="text-xl font-bold text-amber-700">{fmtUsd(totalEstimado)}</div>
-        </div>
-        <div className="card p-4">
           <div className="text-xs text-campo-500">Meses futuros (a vencer)</div>
           <div className="text-xl font-bold text-campo-900">{fmtUsd(totalFuturo)}</div>
-        </div>
-        <div className="card p-4">
-          <div className="text-xs text-campo-500">Vencimientos pendientes de pago</div>
-          <div className="text-xl font-bold text-campo-900">{fmtUsd(totalPendiente)}</div>
         </div>
       </div>
 
