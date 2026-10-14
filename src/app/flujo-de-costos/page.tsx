@@ -20,6 +20,16 @@ type Fila = {
   fuente: string
 }
 
+type StockInsumo = {
+  categoria: string
+  producto: string
+  unidad: string | null
+  stock_actual: number
+  precio_ultima_compra: number | null
+  fecha_ultima_compra: string | null
+  valor_usd: number | null
+}
+
 type Dimension = 'categoria' | 'campo' | 'campana' | 'cultivo'
 
 const DIM_LABEL: Record<Dimension, string> = {
@@ -113,6 +123,8 @@ export default function FlujoDeCostosPage() {
   const [dim, setDim] = useState<Dimension>('categoria')
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   const [seleccion, setSeleccion] = useState<{ k1: string; k2?: string; mes?: string } | null>(null)
+  const [stock, setStock] = useState<StockInsumo[]>([])
+  const [verStock, setVerStock] = useState(false)
 
   useEffect(() => {
     async function cargar() {
@@ -122,10 +134,34 @@ export default function FlujoDeCostosPage() {
         'fecha, mes, campana, categoria, subcategoria, concepto, campo, lote, cultivo, proveedor, monto_usd, tipo_fecha, estado, fuente'
       )
       setFilas(data.map(f => ({ ...f, monto_usd: Number(f.monto_usd ?? 0) })))
+      const st = await fetchAll<StockInsumo>(
+        supabase, 'vw_stock_insumos_valorizado',
+        'categoria, producto, unidad, stock_actual, precio_ultima_compra, fecha_ultima_compra, valor_usd'
+      )
+      setStock(st.map(x => ({
+        ...x,
+        stock_actual: Number(x.stock_actual ?? 0),
+        precio_ultima_compra: x.precio_ultima_compra == null ? null : Number(x.precio_ultima_compra),
+        valor_usd: x.valor_usd == null ? null : Number(x.valor_usd),
+      })))
       setLoading(false)
     }
     cargar()
   }, [])
+
+  const stockResumen = useMemo(() => {
+    const porCat = new Map<string, { valor: number; productos: number }>()
+    let total = 0
+    let sinPrecio = 0
+    for (const x of stock) {
+      const c = porCat.get(x.categoria) ?? { valor: 0, productos: 0 }
+      c.productos += 1
+      if (x.valor_usd == null) sinPrecio += 1
+      else { c.valor += x.valor_usd; total += x.valor_usd }
+      porCat.set(x.categoria, c)
+    }
+    return { porCat: Array.from(porCat.entries()), total, sinPrecio }
+  }, [stock])
 
   const campanas = useMemo(() => Array.from(new Set(filas.map(f => f.campana || SIN_ASIGNAR))).sort(), [filas])
   const campos = useMemo(() => Array.from(new Set(filas.map(f => f.campo || SIN_ASIGNAR))).sort(), [filas])
@@ -317,7 +353,7 @@ export default function FlujoDeCostosPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 max-w-xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl">
         <div className="card p-4">
           <div className="text-xs text-campo-500">Total del período</div>
           <div className="text-xl font-bold text-campo-900">{fmtUsd(totalGeneral)}</div>
@@ -326,7 +362,76 @@ export default function FlujoDeCostosPage() {
           <div className="text-xs text-campo-500">Meses futuros (a vencer)</div>
           <div className="text-xl font-bold text-campo-900">{fmtUsd(totalFuturo)}</div>
         </div>
+        <button type="button" onClick={() => setVerStock(v => !v)}
+          className={`card p-4 text-left border-l-4 border-l-amber-400 hover:bg-campo-50 transition-colors ${verStock ? 'ring-2 ring-amber-300' : ''}`}>
+          <div className="text-xs text-campo-500">Stock de insumos sin usar</div>
+          <div className="text-xl font-bold text-campo-900">{fmtUsd(stockResumen.total)}</div>
+          <div className="text-[11px] text-campo-400">Comprado y todavía no aplicado · no suma al total · {verStock ? 'ocultar detalle' : 'ver detalle'}</div>
+        </button>
       </div>
+
+      {verStock && (
+        <div className="card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <h2 className="font-semibold text-campo-900">Stock de insumos sin usar</h2>
+              <p className="text-xs text-campo-500">
+                {stock.length} productos · {fmtUsd(stockResumen.total)} valuados al precio de la última compra. No incluido en la tabla mensual: se vuelve costo cuando se aplica o se siembra.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={() => descargarCSV(stock.map(x => ({
+                categoria: x.categoria, producto: x.producto, unidad: x.unidad ?? '', stock_actual: x.stock_actual,
+                precio_ultima_compra_usd: x.precio_ultima_compra ?? '', fecha_ultima_compra: x.fecha_ultima_compra ?? '', valor_usd: x.valor_usd ?? '',
+              })), 'stock_insumos_sin_usar.csv')}
+                className="text-xs text-campo-500 hover:text-campo-800 underline">⬇️ CSV</button>
+              <button onClick={() => setVerStock(false)} className="text-xs text-campo-500 hover:text-campo-800 underline">Cerrar detalle</button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {stockResumen.porCat.map(([cat, v]) => (
+              <span key={cat} className="text-xs bg-campo-50 border border-campo-100 rounded-lg px-2.5 py-1 text-campo-700">
+                {cat}: <b className="text-campo-900">{fmtUsd(v.valor)}</b> <span className="text-campo-400">({v.productos})</span>
+              </span>
+            ))}
+          </div>
+          {stockResumen.sinPrecio > 0 && (
+            <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3">
+              {stockResumen.sinPrecio} producto{stockResumen.sinPrecio === 1 ? '' : 's'} tiene{stockResumen.sinPrecio === 1 ? '' : 'n'} stock pero ninguna compra con precio cargado, por eso no se valúa{stockResumen.sinPrecio === 1 ? '' : 'n'} (aparecen como “sin precio”). El total real es mayor.
+            </p>
+          )}
+          <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-white">
+                <tr className="text-campo-500 text-left">
+                  <th className="py-1.5 pr-3 font-medium">Categoría</th>
+                  <th className="py-1.5 pr-3 font-medium">Producto</th>
+                  <th className="py-1.5 pr-3 font-medium text-right">Stock</th>
+                  <th className="py-1.5 pr-3 font-medium">Unidad</th>
+                  <th className="py-1.5 pr-3 font-medium text-right">Precio última compra</th>
+                  <th className="py-1.5 pr-3 font-medium">Fecha compra</th>
+                  <th className="py-1.5 font-medium text-right">Valor USD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...stock].sort((a, b) => a.categoria.localeCompare(b.categoria) || (b.valor_usd ?? -1) - (a.valor_usd ?? -1)).map((x, i) => (
+                  <tr key={i} className="border-t border-campo-50">
+                    <td className="py-1 pr-3 text-campo-700">{x.categoria}</td>
+                    <td className="py-1 pr-3 text-campo-900">{x.producto}</td>
+                    <td className="py-1 pr-3 text-right text-campo-700">{x.stock_actual.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+                    <td className="py-1 pr-3 text-campo-700">{x.unidad ?? '—'}</td>
+                    <td className="py-1 pr-3 text-right text-campo-700">{x.precio_ultima_compra == null ? '—' : `USD ${x.precio_ultima_compra.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}</td>
+                    <td className="py-1 pr-3 text-campo-700">{x.fecha_ultima_compra ? fmtFecha(x.fecha_ultima_compra) : '—'}</td>
+                    <td className="py-1 text-right font-medium text-campo-900">
+                      {x.valor_usd == null ? <span className="text-amber-600">sin precio</span> : fmt(x.valor_usd)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {meses.length === 0 ? (
         <div className="card p-12 text-center text-campo-400">No hay costos para los filtros elegidos.</div>
@@ -384,7 +489,7 @@ export default function FlujoDeCostosPage() {
       )}
 
       <p className="text-xs text-campo-400">
-        Tocá una celda, un nombre o un total para ver a qué se atribuye cada costo. Los meses en azul son futuros (vencimientos a pagar). Los montos marcados con * en el detalle tienen fecha estimada: arrendamiento y asesor de las campañas viejas siguen el calendario de pagos de la campaña de referencia del mismo campo, los seguros van a la fecha de siembra del lote, la indemnización a la de cosecha y las fertilizaciones sin fecha a la siembra. Si algo no se puede estimar, queda en la columna “Sin fecha”.
+        Tocá una celda, un nombre o un total para ver a qué se atribuye cada costo. Semillas, fertilizantes y agroquímicos se cuentan cuando se usan (aplicación, fertilización o siembra), atribuidos al campo, lote y cultivo donde se aplicaron; las compras de esos insumos no suman acá para no duplicar, y lo comprado que todavía no se usó se ve aparte en la tarjeta “Stock de insumos sin usar”. Los meses en azul son futuros (vencimientos a pagar). Los montos marcados con * en el detalle tienen fecha estimada: arrendamiento y asesor de las campañas viejas siguen el calendario de pagos de la campaña de referencia del mismo campo, los seguros van a la fecha de siembra del lote, la indemnización a la de cosecha y las fertilizaciones sin fecha a la siembra. Si algo no se puede estimar, queda en la columna “Sin fecha”.
       </p>
 
       {seleccion && (
