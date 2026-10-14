@@ -33,8 +33,8 @@ export default function SelectorPage() {
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-campo-600 flex items-center justify-center text-lg">🌾</div>
           <div>
-            <div className="font-bold text-white text-sm leading-tight">Campo</div>
-            <div className="text-campo-400 text-xs leading-tight">Sistema Agropecuario</div>
+            <div className="font-bold text-white text-sm leading-tight">Trazagro</div>
+            <div className="text-campo-400 text-xs leading-tight">Gestión agropecuaria</div>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -75,7 +75,7 @@ export default function SelectorPage() {
             </button>
           ))}
         </div>
-        <p className="text-campo-600 text-xs mt-12">© {new Date().getFullYear()} Sistema Agropecuario</p>
+        <p className="text-campo-600 text-xs mt-12">© {new Date().getFullYear()} Trazagro</p>
       </div>
     </div>
   )

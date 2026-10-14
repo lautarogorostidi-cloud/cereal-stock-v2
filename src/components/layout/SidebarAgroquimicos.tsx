@@ -34,7 +34,7 @@ export default function SidebarAgroquimicos({ perfil }: SidebarProps) {
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-emerald-700 flex items-center justify-center text-base">🧪</div>
           <div>
-            <div className="font-bold text-white text-sm leading-tight">Campo</div>
+            <div className="font-bold text-white text-sm leading-tight">Trazagro</div>
             <div className="text-campo-400 text-xs leading-tight">Agroquímicos</div>
           </div>
         </div>

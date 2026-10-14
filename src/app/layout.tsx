@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Campo | Stock de Cereal',
-  description: 'Sistema agropecuario — módulo de stock y comercialización de cereal',
+  title: 'Trazagro | Gestión agropecuaria',
+  description: 'Gestión agropecuaria integral: stock de cereal, agricultura, ganadería, insumos y costos',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

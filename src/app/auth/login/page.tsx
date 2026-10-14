@@ -47,8 +47,8 @@ export default function LoginPage() {
                 d="M3 10c0 3.93 4.03 7.115 9 7.115S21 13.93 21 10" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Campo</h1>
-          <p className="text-campo-300 text-sm mt-1">Sistema Agropecuario · Stock de Cereal</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Trazagro</h1>
+          <p className="text-campo-300 text-sm mt-1">Gestión agropecuaria</p>
         </div>
 
         <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20 shadow-2xl">
@@ -95,7 +95,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-campo-500 text-xs mt-6">
-          © {new Date().getFullYear()} Sistema Agropecuario
+          © {new Date().getFullYear()} Trazagro
         </p>
       </div>
     </div>
