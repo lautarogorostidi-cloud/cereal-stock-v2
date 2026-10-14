@@ -28,6 +28,7 @@ type StockInsumo = {
   precio_ultima_compra: number | null
   fecha_ultima_compra: string | null
   valor_usd: number | null
+  fuente_precio: 'compra' | 'tarifario' | 'aplicaciones' | null
 }
 
 type Dimension = 'categoria' | 'campo' | 'campana' | 'cultivo'
@@ -136,7 +137,7 @@ export default function FlujoDeCostosPage() {
       setFilas(data.map(f => ({ ...f, monto_usd: Number(f.monto_usd ?? 0) })))
       const st = await fetchAll<StockInsumo>(
         supabase, 'vw_stock_insumos_valorizado',
-        'categoria, producto, unidad, stock_actual, precio_ultima_compra, fecha_ultima_compra, valor_usd'
+        'categoria, producto, unidad, stock_actual, precio_ultima_compra, fecha_ultima_compra, valor_usd, fuente_precio'
       )
       setStock(st.map(x => ({
         ...x,
@@ -376,13 +377,13 @@ export default function FlujoDeCostosPage() {
             <div>
               <h2 className="font-semibold text-campo-900">Stock de insumos sin usar</h2>
               <p className="text-xs text-campo-500">
-                {stock.length} productos · {fmtUsd(stockResumen.total)} valuados al precio de la última compra. No incluido en la tabla mensual: se vuelve costo cuando se aplica o se siembra.
+                {stock.length} productos · {fmtUsd(stockResumen.total)} valuados al precio de la última compra o, si el producto no tiene compras, al del tarifario. No incluido en la tabla mensual: se vuelve costo cuando se aplica o se siembra.
               </p>
             </div>
             <div className="flex items-center gap-3">
               <button onClick={() => descargarCSV(stock.map(x => ({
                 categoria: x.categoria, producto: x.producto, unidad: x.unidad ?? '', stock_actual: x.stock_actual,
-                precio_ultima_compra_usd: x.precio_ultima_compra ?? '', fecha_ultima_compra: x.fecha_ultima_compra ?? '', valor_usd: x.valor_usd ?? '',
+                precio_usd: x.precio_ultima_compra ?? '', origen_precio: x.fuente_precio ?? 'sin precio', fecha_precio: x.fecha_ultima_compra ?? '', valor_usd: x.valor_usd ?? '',
               })), 'stock_insumos_sin_usar.csv')}
                 className="text-xs text-campo-500 hover:text-campo-800 underline">⬇️ CSV</button>
               <button onClick={() => setVerStock(false)} className="text-xs text-campo-500 hover:text-campo-800 underline">Cerrar detalle</button>
@@ -397,7 +398,7 @@ export default function FlujoDeCostosPage() {
           </div>
           {stockResumen.sinPrecio > 0 && (
             <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3">
-              {stockResumen.sinPrecio} producto{stockResumen.sinPrecio === 1 ? '' : 's'} tiene{stockResumen.sinPrecio === 1 ? '' : 'n'} stock pero ninguna compra con precio cargado, por eso no se valúa{stockResumen.sinPrecio === 1 ? '' : 'n'} (aparecen como “sin precio”). El total real es mayor.
+              {stockResumen.sinPrecio} producto{stockResumen.sinPrecio === 1 ? '' : 's'} tiene{stockResumen.sinPrecio === 1 ? '' : 'n'} stock pero no hay compra ni precio en el tarifario (o la unidad no coincide), por eso no se valúa{stockResumen.sinPrecio === 1 ? '' : 'n'} (aparecen como “sin precio”). El total real es mayor.
             </p>
           )}
           <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
@@ -408,8 +409,9 @@ export default function FlujoDeCostosPage() {
                   <th className="py-1.5 pr-3 font-medium">Producto</th>
                   <th className="py-1.5 pr-3 font-medium text-right">Stock</th>
                   <th className="py-1.5 pr-3 font-medium">Unidad</th>
-                  <th className="py-1.5 pr-3 font-medium text-right">Precio última compra</th>
-                  <th className="py-1.5 pr-3 font-medium">Fecha compra</th>
+                  <th className="py-1.5 pr-3 font-medium text-right">Precio USD</th>
+                  <th className="py-1.5 pr-3 font-medium">Origen del precio</th>
+                  <th className="py-1.5 pr-3 font-medium">Fecha</th>
                   <th className="py-1.5 font-medium text-right">Valor USD</th>
                 </tr>
               </thead>
@@ -421,6 +423,9 @@ export default function FlujoDeCostosPage() {
                     <td className="py-1 pr-3 text-right text-campo-700">{x.stock_actual.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
                     <td className="py-1 pr-3 text-campo-700">{x.unidad ?? '—'}</td>
                     <td className="py-1 pr-3 text-right text-campo-700">{x.precio_ultima_compra == null ? '—' : `USD ${x.precio_ultima_compra.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}</td>
+                    <td className="py-1 pr-3 text-campo-700">
+                      {x.fuente_precio === 'compra' ? 'Última compra' : x.fuente_precio === 'tarifario' ? <span className="text-sky-700">Tarifario</span> : x.fuente_precio === 'aplicaciones' ? <span className="text-sky-700">Aplicaciones</span> : '—'}
+                    </td>
                     <td className="py-1 pr-3 text-campo-700">{x.fecha_ultima_compra ? fmtFecha(x.fecha_ultima_compra) : '—'}</td>
                     <td className="py-1 text-right font-medium text-campo-900">
                       {x.valor_usd == null ? <span className="text-amber-600">sin precio</span> : fmt(x.valor_usd)}
