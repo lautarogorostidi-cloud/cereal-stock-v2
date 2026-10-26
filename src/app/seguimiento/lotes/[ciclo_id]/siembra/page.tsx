@@ -17,6 +17,23 @@ type Hibrido = {
   nombre: string
   sup_ha: string
   cu_usd: string
+  origen_precio?: 'compra' | 'tarifario'
+}
+
+type CompraInsumo = {
+  producto_id: number
+  fecha: string
+  precio_unitario: number
+}
+
+// Precio de la compra más cercana (por unidad de stock) de un producto: la
+// última hasta la fecha de siembra o, si no hay ninguna anterior, la más vieja.
+function precioDeCompra(compras: CompraInsumo[], productoId: number, fecha: string): number | null {
+  const lista = compras.filter(c => c.producto_id === productoId)
+  if (lista.length === 0) return null
+  const hasta = fecha ? lista.filter(c => c.fecha <= fecha).sort((a, b) => b.fecha.localeCompare(a.fecha)) : []
+  const elegida = hasta.length > 0 ? hasta[0] : [...lista].sort((a, b) => a.fecha.localeCompare(b.fecha))[0]
+  return elegida.precio_unitario
 }
 
 type TarifarioItem = {
@@ -105,6 +122,8 @@ export default function NuevaSiembraPage() {
   const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
   const [catalogoSemillas, setCatalogoSemillas] = useState<SemillaCatalogo[]>([])
   const [catalogoFertilizantes, setCatalogoFertilizantes] = useState<FertilizanteCatalogo[]>([])
+  const [comprasSemillas, setComprasSemillas] = useState<CompraInsumo[]>([])
+  const [comprasFertilizantes, setComprasFertilizantes] = useState<CompraInsumo[]>([])
 
   const [form, setForm] = useState({
     fecha: '',
@@ -137,13 +156,15 @@ export default function NuevaSiembraPage() {
     setLoading(true)
     const id = Number(ciclo_id)
 
-    const [{ data: cicloData }, { data: siembraData }, { data: tarifarioData }, { data: serviciosData }, { data: semillasData }, { data: fertilizantesData }] = await Promise.all([
+    const [{ data: cicloData }, { data: siembraData }, { data: tarifarioData }, { data: serviciosData }, { data: semillasData }, { data: fertilizantesData }, { data: comprasSemData }, { data: comprasFertData }] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('lote, campo, campana, cultivo, sup_sembrada, hectareas').eq('ciclo_id', id).single(),
       supabase.from('sa_siembras').select('*').eq('ciclo_id', id).maybeSingle(),
       supabase.from('tarifario_insumos').select('tipo_insumo, insumo, unidad, precio_usd, fecha_vigencia'),
       supabase.from('tarifario_servicios').select('*').order('vigencia_desde', { ascending: false }),
       supabase.from('semillas_productos').select('id, nombre, unidad, semillas_por_bolsa, kg_por_bolsa').eq('activo', true).order('nombre'),
       supabase.from('fertilizantes_productos').select('id, nombre, unidad').eq('activo', true).order('nombre'),
+      supabase.from('semillas_movimientos').select('producto_id, fecha, precio_unitario').eq('tipo', 'compra').gt('precio_unitario', 0),
+      supabase.from('fertilizantes_movimientos').select('producto_id, fecha, precio_unitario').eq('tipo', 'compra').gt('precio_unitario', 0),
     ])
 
     setCiclo(cicloData ?? null)
@@ -151,6 +172,8 @@ export default function NuevaSiembraPage() {
     setTarifarioServicios(serviciosData ?? [])
     setCatalogoSemillas((semillasData ?? []) as any)
     setCatalogoFertilizantes((fertilizantesData ?? []) as any)
+    setComprasSemillas(((comprasSemData ?? []) as any[]).map(c => ({ producto_id: c.producto_id, fecha: c.fecha, precio_unitario: Number(c.precio_unitario) })))
+    setComprasFertilizantes(((comprasFertData ?? []) as any[]).map(c => ({ producto_id: c.producto_id, fecha: c.fecha, precio_unitario: Number(c.precio_unitario) })))
 
     if (siembraData) {
       setEsEdicion(true)
@@ -207,6 +230,33 @@ export default function NuevaSiembraPage() {
     return registros[0].precio_usd
   }
 
+  // Precio de la semilla según lo que se compró (stock de Semillas), llevado a
+  // la unidad del formulario: USD/semilla si la densidad es en pl/ha, USD/kg si es en kg/ha.
+  function getPrecioCompraSemilla(nombre: string, fecha: string, unidadDensidad: string): number | null {
+    const producto = catalogoSemillas.find(p => p.nombre === nombre)
+    if (!producto) return null
+    const porUnidadStock = precioDeCompra(comprasSemillas, producto.id, fecha)
+    if (porUnidadStock == null) return null
+    let precio: number | null = null
+    if (unidadDensidad === 'kg_ha') {
+      if (producto.unidad === 'kg') precio = porUnidadStock
+      else if (producto.unidad === 'bolsas' && producto.kg_por_bolsa) precio = porUnidadStock / producto.kg_por_bolsa
+    } else if (producto.unidad === 'bolsas' && producto.semillas_por_bolsa) {
+      precio = porUnidadStock / producto.semillas_por_bolsa
+    }
+    return precio == null ? null : Number(precio.toFixed(8))
+  }
+
+  // Precio USD/kg del fertilizante: primero la última compra, si no el tarifario.
+  function getPrecioFertilizante(nombre: string, fecha: string): number | null {
+    const producto = catalogoFertilizantes.find(p => p.nombre === nombre)
+    if (producto && producto.unidad === 'kg') {
+      const compra = precioDeCompra(comprasFertilizantes, producto.id, fecha)
+      if (compra != null) return compra
+    }
+    return getPrecioVigente(nombre, fecha, ['Fertilizante'])
+  }
+
   // Buscar costo servicio siembra vigente según sistema
   function getCostoServicioSiembra(fecha: string, sistema: string): number | null {
     if (!fecha || !ciclo) return null
@@ -251,23 +301,23 @@ export default function NuevaSiembraPage() {
         // Actualizar precios de fertilizantes si ya están cargados (solo cuando cambia fecha)
         if (name === 'fecha') {
           if (f.fertilizante_1) {
-            const precio = getPrecioVigente(f.fertilizante_1, value, ['Fertilizante'])
+            const precio = getPrecioFertilizante(f.fertilizante_1, value)
             if (precio) updated.fertilizante_1_costo_kg = precio.toString()
           }
           if (f.fertilizante_2) {
-            const precio = getPrecioVigente(f.fertilizante_2, value, ['Fertilizante'])
+            const precio = getPrecioFertilizante(f.fertilizante_2, value)
             if (precio) updated.fertilizante_2_costo_kg = precio.toString()
           }
         }
       }
 
       // Auto-completar costo fertilizante al escribir nombre
-      if (name === 'fertilizante_1' && value && f.fecha) {
-        const precio = getPrecioVigente(value, f.fecha, ['Fertilizante'])
+      if (name === 'fertilizante_1' && value) {
+        const precio = getPrecioFertilizante(value, f.fecha)
         if (precio) updated.fertilizante_1_costo_kg = precio.toString()
       }
-      if (name === 'fertilizante_2' && value && f.fecha) {
-        const precio = getPrecioVigente(value, f.fecha, ['Fertilizante'])
+      if (name === 'fertilizante_2' && value) {
+        const precio = getPrecioFertilizante(value, f.fecha)
         if (precio) updated.fertilizante_2_costo_kg = precio.toString()
       }
 
@@ -280,10 +330,20 @@ export default function NuevaSiembraPage() {
       if (idx !== i) return h
       const updated = { ...h, [field]: value }
       // Auto-completar precio al seleccionar híbrido
-      if (field === 'nombre' && value && form.fecha) {
-        const precio = getPrecioVigente(value, form.fecha, [ciclo?.cultivo ?? ''])
-        if (precio) updated.cu_usd = precio.toString()
+      if (field === 'nombre' && value) {
+        const compra = getPrecioCompraSemilla(value, form.fecha, form.unidad_densidad)
+        if (compra) {
+          updated.cu_usd = compra.toString()
+          updated.origen_precio = 'compra'
+        } else if (form.fecha) {
+          const precio = getPrecioVigente(value, form.fecha, [ciclo?.cultivo ?? ''])
+          if (precio) {
+            updated.cu_usd = precio.toString()
+            updated.origen_precio = 'tarifario'
+          }
+        }
       }
+      if (field === 'cu_usd') updated.origen_precio = undefined
       return updated
     }))
   }
@@ -638,7 +698,7 @@ export default function NuevaSiembraPage() {
                 </div>
                 <div className="col-span-3">
                   {i === 0 && <div className="text-xs text-campo-500 mb-1">
-                    USD/kg {h.cu_usd && h.nombre ? <span className="text-lime-600">✓ tarifario</span> : ''}
+                    {form.unidad_densidad === 'pl_ha' ? 'USD/semilla' : 'USD/kg'} {h.cu_usd && h.nombre ? <span className="text-lime-600">✓ {h.origen_precio === 'compra' ? 'última compra' : 'tarifario'}</span> : ''}
                   </div>}
                   <input type="number" value={h.cu_usd} onChange={e => handleHibridoChange(i, 'cu_usd', e.target.value)}
                     step="0.01" placeholder="0"
