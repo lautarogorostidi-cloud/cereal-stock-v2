@@ -52,6 +52,8 @@ type Siembra = {
   sistema: string | null
   hibrido_1: string | null
   sup_hibrido_1: number | null
+  sup_hibrido_2?: number | null
+  sup_hibrido_3?: number | null
   densidad: number | null
   unidad_densidad: string | null
   costo_servicio_usd_ha: number | null
@@ -329,6 +331,10 @@ export default function FichaCicloPage() {
   }, {})
 
   const unidadDensidad = siembra?.unidad_densidad === 'pl_ha' ? 'pl/ha' : 'kg/ha'
+  // Superficie total sembrada (suma de híbridos): base del costo de fertilizante en siembra
+  const supSembradaTotal = siembra
+    ? Number(siembra.sup_hibrido_1 ?? 0) + Number(siembra.sup_hibrido_2 ?? 0) + Number(siembra.sup_hibrido_3 ?? 0)
+    : 0
 
   return (
     <div className="space-y-6">
@@ -465,8 +471,8 @@ export default function FichaCicloPage() {
                 <div className="font-medium text-campo-900 mt-0.5">
                   {siembra.fertilizante_1}
                   {siembra.fertilizante_1_kg_ha ? ` — ${fmt(siembra.fertilizante_1_kg_ha, 0)} kg/ha` : ''}
-                  {siembra.fertilizante_1_costo_kg && siembra.fertilizante_1_kg_ha && siembra.sup_hibrido_1
-                    ? ` · ${fmtUsd(siembra.fertilizante_1_kg_ha * siembra.sup_hibrido_1 * siembra.fertilizante_1_costo_kg)}`
+                  {siembra.fertilizante_1_costo_kg && siembra.fertilizante_1_kg_ha && supSembradaTotal
+                    ? ` · ${fmtUsd(siembra.fertilizante_1_kg_ha * supSembradaTotal * siembra.fertilizante_1_costo_kg)}`
                     : ''}
                 </div>
               </div>
@@ -477,8 +483,8 @@ export default function FichaCicloPage() {
                 <div className="font-medium text-campo-900 mt-0.5">
                   {siembra.fertilizante_2}
                   {siembra.fertilizante_2_kg_ha ? ` — ${fmt(siembra.fertilizante_2_kg_ha, 0)} kg/ha` : ''}
-                  {siembra.fertilizante_2_costo_kg && siembra.fertilizante_2_kg_ha && siembra.sup_hibrido_1
-                    ? ` · ${fmtUsd(siembra.fertilizante_2_kg_ha * siembra.sup_hibrido_1 * siembra.fertilizante_2_costo_kg)}`
+                  {siembra.fertilizante_2_costo_kg && siembra.fertilizante_2_kg_ha && supSembradaTotal
+                    ? ` · ${fmtUsd(siembra.fertilizante_2_kg_ha * supSembradaTotal * siembra.fertilizante_2_costo_kg)}`
                     : ''}
                 </div>
               </div>

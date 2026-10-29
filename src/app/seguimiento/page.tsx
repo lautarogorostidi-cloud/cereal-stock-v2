@@ -322,7 +322,8 @@ export default function SeguimientoDashboard() {
       sumarProducto(productosSemillas, h.nombre, cantidad, unidadSemilla, costo)
     })
 
-    const supHib1 = Number(s.sup_hibrido_1 ?? 0)
+    // El fertilizante se aplica sobre toda la superficie sembrada (suma de los híbridos), no solo el primero
+    const supHib1 = Number(s.sup_hibrido_1 ?? 0) + Number(s.sup_hibrido_2 ?? 0) + Number(s.sup_hibrido_3 ?? 0)
     let fertSiembra = 0
     if (s.fertilizante_1_kg_ha && s.fertilizante_1_costo_kg) {
       const cant = Number(s.fertilizante_1_kg_ha) * supHib1
