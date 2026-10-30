@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import CostosGenerales from './CostosGenerales'
 
 type Fila = {
   fecha: string | null
@@ -145,10 +146,10 @@ export default function FlujoDeCostosPage() {
   const [seleccion, setSeleccion] = useState<{ k1: string; k2?: string; mes?: string } | null>(null)
   const [stock, setStock] = useState<StockInsumo[]>([])
   const [verStock, setVerStock] = useState(false)
+  const [recarga, setRecarga] = useState(0)
 
   useEffect(() => {
     async function cargar() {
-      setLoading(true)
       const data = await fetchAll<Fila>(
         supabase, 'vw_flujo_fondos',
         'fecha, mes, campana, categoria, subcategoria, concepto, campo, lote, cultivo, proveedor, monto_usd, tipo_fecha, estado, fuente'
@@ -167,7 +168,7 @@ export default function FlujoDeCostosPage() {
       setLoading(false)
     }
     cargar()
-  }, [])
+  }, [recarga])
 
   const stockResumen = useMemo(() => {
     const porCat = new Map<string, { valor: number; productos: number }>()
@@ -374,6 +375,10 @@ export default function FlujoDeCostosPage() {
             ⬇️ CSV detalle
           </button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <CostosGenerales onCambio={() => setRecarga(n => n + 1)} />
       </div>
 
       <div className="card p-4 flex flex-wrap items-end gap-4">
