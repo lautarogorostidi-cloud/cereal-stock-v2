@@ -89,10 +89,28 @@ function valorHijo(f: Fila, dim: Dimension): string {
   return f.categoria
 }
 
+type Vista = 'campanas' | 'calendario'
+
+// Meses genéricos (sin año) en el orden de la campaña: septiembre a agosto
+const ORDEN_CAMPANA = ['09', '10', '11', '12', '01', '02', '03', '04', '05', '06', '07', '08']
+
+// Año en que empieza una campaña ('26-27' → 2026)
+function inicioCampana(campana: string | null): number | null {
+  const m = campana?.match(/^(\d{2})-(\d{2})$/)
+  return m ? 2000 + Number(m[1]) : null
+}
+
+const esAntes = (k: string) => k.length === 3 && k[0] === 'P'
+const esDespues = (k: string) => k.length === 3 && k[0] === 'N'
+const mesDeClave = (k: string) => (k.length === 3 ? k.slice(1) : k)
+
 function nombreMes(m: string): string {
   if (m === SIN_FECHA) return SIN_FECHA
-  const [y, mm] = m.split('-')
   const nombres = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+  if (esAntes(m)) return `${nombres[Number(m.slice(1)) - 1]} (antes)`
+  if (esDespues(m)) return `${nombres[Number(m.slice(1)) - 1]} (después)`
+  if (m.length === 2) return nombres[Number(m) - 1]
+  const [y, mm] = m.split('-')
   return `${nombres[Number(mm) - 1]} ${y.slice(2)}`
 }
 
@@ -118,10 +136,11 @@ export default function FlujoDeCostosPage() {
   const [loading, setLoading] = useState(true)
   const [filas, setFilas] = useState<Fila[]>([])
 
-  const [filtroCampana, setFiltroCampana] = useState('')
+  const [vista, setVista] = useState<Vista>('campanas')
+  const [filtroCampanas, setFiltroCampanas] = useState<string[]>([])
   const [filtroCampo, setFiltroCampo] = useState('')
   const [filtroAnio, setFiltroAnio] = useState('')
-  const [dim, setDim] = useState<Dimension>('categoria')
+  const [dim, setDim] = useState<Dimension>('campana')
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
   const [seleccion, setSeleccion] = useState<{ k1: string; k2?: string; mes?: string } | null>(null)
   const [stock, setStock] = useState<StockInsumo[]>([])
@@ -169,20 +188,46 @@ export default function FlujoDeCostosPage() {
   const anios = useMemo(() => Array.from(new Set(filas.filter(f => f.fecha).map(f => f.mes.slice(0, 4)))).sort(), [filas])
 
   const filtradas = useMemo(() => filas.filter(f => {
-    if (filtroCampana && (f.campana || SIN_ASIGNAR) !== filtroCampana) return false
+    if (filtroCampanas.length > 0 && !filtroCampanas.includes(f.campana || SIN_ASIGNAR)) return false
     if (filtroCampo && (f.campo || SIN_ASIGNAR) !== filtroCampo) return false
-    if (filtroAnio && f.fecha && f.mes.slice(0, 4) !== filtroAnio) return false
-    if (filtroAnio && !f.fecha) return false
+    if (vista === 'calendario') {
+      if (filtroAnio && f.fecha && f.mes.slice(0, 4) !== filtroAnio) return false
+      if (filtroAnio && !f.fecha) return false
+    }
     return true
-  }), [filas, filtroCampana, filtroCampo, filtroAnio])
+  }), [filas, filtroCampanas, filtroCampo, filtroAnio, vista])
 
-  // Columnas de meses (continuas entre el primero y el último) + "Sin fecha"
+  // Columna a la que va cada costo: mes genérico (sin año) en la vista por campaña, mes y año en la línea de tiempo
+  // Los costos anteriores al 1/9 del año en que empieza su campaña (por ejemplo el barbecho) y los
+  // posteriores al fin de la campaña van en columnas aparte, para no mezclarlos con los meses de la campaña.
+  function claveMes(f: Fila): string {
+    if (!f.fecha) return SIN_FECHA
+    if (vista !== 'campanas') return f.mes
+    const mm = f.fecha.slice(5, 7)
+    const y = inicioCampana(f.campana)
+    if (y) {
+      if (f.fecha < `${y}-09-01`) return `P${mm}`
+      if (f.fecha >= `${y + 1}-09-01`) return `N${mm}`
+    }
+    return mm
+  }
+
+  // Columnas de meses + "Sin fecha"
   const meses = useMemo(() => {
-    const conFecha = filtradas.filter(f => f.fecha).map(f => f.mes).sort()
-    const cols = conFecha.length > 0 ? rangoMeses(conFecha[0], conFecha[conFecha.length - 1]) : []
+    let cols: string[]
+    if (vista === 'campanas') {
+      const claves = new Set(filtradas.filter(f => f.fecha).map(f => claveMes(f)))
+      const orden = (k: string) => ORDEN_CAMPANA.indexOf(mesDeClave(k))
+      const antes = Array.from(claves).filter(esAntes).sort((a, b) => orden(a) - orden(b))
+      const despues = Array.from(claves).filter(esDespues).sort((a, b) => orden(a) - orden(b))
+      cols = [...antes, ...ORDEN_CAMPANA, ...despues]
+    } else {
+      const conFecha = filtradas.filter(f => f.fecha).map(f => f.mes).sort()
+      cols = conFecha.length > 0 ? rangoMeses(conFecha[0], conFecha[conFecha.length - 1]) : []
+    }
     if (filtradas.some(f => !f.fecha)) cols.push(SIN_FECHA)
     return cols
-  }, [filtradas])
+  }, [filtradas, vista])
 
   const arbol = useMemo(() => {
     const raiz = new Map<string, Nodo>()
@@ -190,7 +235,7 @@ export default function FlujoDeCostosPage() {
     filtradas.forEach(f => {
       const k1 = valorDim(f, dim)
       const k2 = valorHijo(f, dim)
-      const mes = f.fecha ? f.mes : SIN_FECHA
+      const mes = claveMes(f)
       if (!raiz.has(k1)) raiz.set(k1, nuevo(k1))
       const n1 = raiz.get(k1)!
       if (!n1.hijos.has(k2)) n1.hijos.set(k2, nuevo(k2))
@@ -200,17 +245,21 @@ export default function FlujoDeCostosPage() {
         n.porMes[mes] = (n.porMes[mes] ?? 0) + f.monto_usd
       }
     })
-    return Array.from(raiz.values()).sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
-  }, [filtradas, dim])
+    const lista = Array.from(raiz.values())
+    // Campañas en orden cronológico para compararlas; el resto, de mayor a menor
+    return dim === 'campana'
+      ? lista.sort((a, b) => a.clave.localeCompare(b.clave))
+      : lista.sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
+  }, [filtradas, dim, vista])
 
   const totalPorMes = useMemo(() => {
     const t: Record<string, number> = {}
     filtradas.forEach(f => {
-      const mes = f.fecha ? f.mes : SIN_FECHA
+      const mes = claveMes(f)
       t[mes] = (t[mes] ?? 0) + f.monto_usd
     })
     return t
-  }, [filtradas])
+  }, [filtradas, vista])
 
   const totalGeneral = filtradas.reduce((a, f) => a + f.monto_usd, 0)
   const hoyMes = mesActual()
@@ -222,11 +271,11 @@ export default function FlujoDeCostosPage() {
       .filter(f => {
         if (valorDim(f, dim) !== seleccion.k1) return false
         if (seleccion.k2 && valorHijo(f, dim) !== seleccion.k2) return false
-        if (seleccion.mes && (f.fecha ? f.mes : SIN_FECHA) !== seleccion.mes) return false
+        if (seleccion.mes && claveMes(f) !== seleccion.mes) return false
         return true
       })
       .sort((a, b) => (a.fecha ?? '9999').localeCompare(b.fecha ?? '9999'))
-  }, [seleccion, filtradas, dim])
+  }, [seleccion, filtradas, dim, vista])
 
   const fmt = (n: number) => Math.round(n).toLocaleString('es-AR')
   const fmtUsd = (n: number) => `USD ${Math.round(n).toLocaleString('es-AR')}`
@@ -252,7 +301,20 @@ export default function FlujoDeCostosPage() {
     )
   }
 
-  const hayFiltros = filtroCampana || filtroCampo || filtroAnio
+  const hayFiltros = filtroCampanas.length > 0 || filtroCampo || filtroAnio
+
+  function toggleCampana(c: string) {
+    setFiltroCampanas(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
+    setSeleccion(null)
+  }
+
+  function cambiarVista(v: Vista) {
+    setVista(v)
+    setFiltroAnio('')
+    setSeleccion(null)
+    setExpandidos(new Set())
+    if (v === 'campanas') setDim('campana')
+  }
 
   function exportarResumen() {
     const filasCSV: Record<string, any>[] = []
@@ -316,6 +378,14 @@ export default function FlujoDeCostosPage() {
 
       <div className="card p-4 flex flex-wrap items-end gap-4">
         <div>
+          <label className="block text-xs font-medium text-campo-600 mb-1">Meses</label>
+          <select value={vista} onChange={e => cambiarVista(e.target.value as Vista)}
+            className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
+            <option value="campanas">Por campaña (Sep a Ago)</option>
+            <option value="calendario">Línea de tiempo (mes y año)</option>
+          </select>
+        </div>
+        <div>
           <label className="block text-xs font-medium text-campo-600 mb-1">Ver por</label>
           <select value={dim} onChange={e => { setDim(e.target.value as Dimension); setExpandidos(new Set()); setSeleccion(null) }}
             className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
@@ -323,12 +393,15 @@ export default function FlujoDeCostosPage() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-campo-600 mb-1">Campaña</label>
-          <select value={filtroCampana} onChange={e => { setFiltroCampana(e.target.value); setSeleccion(null) }}
-            className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
-            <option value="">Todas</option>
-            {campanas.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <label className="block text-xs font-medium text-campo-600 mb-1">Campañas {filtroCampanas.length === 0 && <span className="text-campo-400 font-normal">(todas)</span>}</label>
+          <div className="flex flex-wrap gap-1.5">
+            {campanas.map(c => (
+              <button key={c} type="button" onClick={() => toggleCampana(c)}
+                className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${filtroCampanas.includes(c) ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-campo-200 text-campo-700 hover:bg-campo-50'}`}>
+                {c}
+              </button>
+            ))}
+          </div>
         </div>
         <div>
           <label className="block text-xs font-medium text-campo-600 mb-1">Campo</label>
@@ -338,16 +411,16 @@ export default function FlujoDeCostosPage() {
             {campos.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        <div>
+        {vista === 'calendario' && <div>
           <label className="block text-xs font-medium text-campo-600 mb-1">Año</label>
           <select value={filtroAnio} onChange={e => { setFiltroAnio(e.target.value); setSeleccion(null) }}
             className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
             <option value="">Todos</option>
             {anios.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
-        </div>
+        </div>}
         {hayFiltros && (
-          <button onClick={() => { setFiltroCampana(''); setFiltroCampo(''); setFiltroAnio(''); setSeleccion(null) }}
+          <button onClick={() => { setFiltroCampanas([]); setFiltroCampo(''); setFiltroAnio(''); setSeleccion(null) }}
             className="text-xs text-campo-500 hover:text-campo-800 underline pb-2">
             Limpiar filtros
           </button>
@@ -447,7 +520,7 @@ export default function FlujoDeCostosPage() {
               <tr className="bg-campo-50 text-campo-600">
                 <th className="sticky left-0 z-10 bg-campo-50 text-left px-3 py-2 font-semibold min-w-[220px]">{DIM_LABEL[dim]}</th>
                 {meses.map(m => (
-                  <th key={m} className={`px-2 py-2 text-right font-semibold whitespace-nowrap ${m === SIN_FECHA ? 'text-amber-700 bg-amber-50' : m > hoyMes ? 'text-sky-700 bg-sky-50' : ''}`}>
+                  <th key={m} className={`px-2 py-2 text-right font-semibold whitespace-nowrap ${m === SIN_FECHA ? 'text-amber-700 bg-amber-50' : (esAntes(m) || esDespues(m)) ? 'text-campo-500 bg-stone-100' : vista === 'calendario' && m > hoyMes ? 'text-sky-700 bg-sky-50' : ''}`}>
                     {nombreMes(m)}
                   </th>
                 ))}
@@ -494,7 +567,7 @@ export default function FlujoDeCostosPage() {
       )}
 
       <p className="text-xs text-campo-400">
-        Tocá una celda, un nombre o un total para ver a qué se atribuye cada costo. Semillas, fertilizantes y agroquímicos se cuentan cuando se usan (aplicación, fertilización o siembra), atribuidos al campo, lote y cultivo donde se aplicaron; las compras de esos insumos no suman acá para no duplicar, y lo comprado que todavía no se usó se ve aparte en la tarjeta “Stock de insumos sin usar”. Los meses en azul son futuros (vencimientos a pagar). Los montos marcados con * en el detalle tienen fecha estimada: arrendamiento y asesor de las campañas viejas siguen el calendario de pagos de la campaña de referencia del mismo campo, los seguros van a la fecha de siembra del lote, la indemnización a la de cosecha y las fertilizaciones sin fecha a la siembra. Si algo no se puede estimar, queda en la columna “Sin fecha”.
+        Tocá una celda, un nombre o un total para ver a qué se atribuye cada costo. Semillas, fertilizantes y agroquímicos se cuentan cuando se usan (aplicación, fertilización o siembra), atribuidos al campo, lote y cultivo donde se aplicaron; las compras de esos insumos no suman acá para no duplicar, y lo comprado que todavía no se usó se ve aparte en la tarjeta “Stock de insumos sin usar”. {vista === 'campanas' ? 'En esta vista cada fila es una campaña y las columnas son los meses de la campaña (septiembre a agosto), sin año, para comparar cada mes entre campañas; elegí una o varias campañas arriba para compararlas. Las columnas grises (“antes”) son costos de la campaña previos a septiembre de su año de inicio, por ejemplo el barbecho, y las “después” los posteriores a agosto. ' : 'Los meses en azul son futuros (vencimientos a pagar). '}Los montos marcados con * en el detalle tienen fecha estimada: arrendamiento y asesor de las campañas viejas siguen el calendario de pagos de la campaña de referencia del mismo campo, los seguros van a la fecha de siembra del lote, la indemnización a la de cosecha y las fertilizaciones sin fecha a la siembra. Si algo no se puede estimar, queda en la columna “Sin fecha”.
       </p>
 
       {seleccion && (
