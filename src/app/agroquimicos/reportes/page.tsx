@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
+import { campaniaActual } from '@/lib/campania'
+
 
 type Campana = { id: number; nombre: string }
 
@@ -18,7 +20,7 @@ const REPORTES = [
 export default function ReportesAgroquimicosPage() {
   const supabase = createClient()
   const [campanas, setCampanas] = useState<Campana[]>([])
-  const [campanaSeleccionada, setCampanaSeleccionada] = useState<string>('todas')
+  const [campanaSeleccionada, setCampanaSeleccionada] = useState<string>(campaniaActual())
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set())
   const [generando, setGenerando] = useState(false)
   const [generandoId, setGenerandoId] = useState<string | null>(null)

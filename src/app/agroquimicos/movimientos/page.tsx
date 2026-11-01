@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { campaniaActual } from '@/lib/campania'
+
 
 type Movimiento = {
   id: number
@@ -36,7 +38,7 @@ export default function MovimientosPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [filtroTipo, setFiltroTipo] = useState('')
-  const [filtroCampana, setFiltroCampana] = useState('')
+  const [filtroCampana, setFiltroCampana] = useState(campaniaActual())
   const [busqueda, setBusqueda] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -187,7 +189,7 @@ export default function MovimientosPage() {
     } else {
       setShowForm(false)
       setEditandoId(null)
-      setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', precio_unitario: '', proveedor_id: '', lote: '', cultivo: '', campaña: campanas[0]?.nombre ?? '', numero_remito: '', numero_factura: '', observaciones: '' })
+      setForm({ producto_id: '', tipo: 'compra', fecha: new Date().toISOString().split('T')[0], cantidad: '', precio_unitario: '', proveedor_id: '', lote: '', cultivo: '', campaña: campaniaActual(), numero_remito: '', numero_factura: '', observaciones: '' })
       cargar()
     }
     setSaving(false)

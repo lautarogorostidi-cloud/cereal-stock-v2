@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { elegirCampaniaActual } from '@/lib/campania'
+
 
 type Costo = {
   id: number
@@ -102,7 +104,10 @@ export default function CostosPage() {
     ])
 
     setCampanas(camps ?? [])
-    if (camps && camps.length > 0) setCampanaSeleccionada(camps[0].id)
+    if (camps && camps.length > 0) {
+      const nombreActual = elegirCampaniaActual(camps.map((c: any) => c.nombre))
+      setCampanaSeleccionada((camps.find((c: any) => c.nombre === nombreActual) ?? camps[0]).id)
+    }
 
     const establs = Array.from(new Set((lotesData ?? []).map((l: any) => l.establecimiento))).sort() as string[]
     setEstablecimientos(establs)

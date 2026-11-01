@@ -3,6 +3,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import CostosGenerales from './CostosGenerales'
+import { campaniaActual } from '@/lib/campania'
+
 
 type Fila = {
   fecha: string | null
@@ -138,7 +140,7 @@ export default function FlujoDeCostosPage() {
   const [filas, setFilas] = useState<Fila[]>([])
 
   const [vista, setVista] = useState<Vista>('campanas')
-  const [filtroCampanas, setFiltroCampanas] = useState<string[]>([])
+  const [filtroCampanas, setFiltroCampanas] = useState<string[]>([campaniaActual()])
   const [filtroCampo, setFiltroCampo] = useState('')
   const [filtroAnio, setFiltroAnio] = useState('')
   const [dim, setDim] = useState<Dimension>('campana')

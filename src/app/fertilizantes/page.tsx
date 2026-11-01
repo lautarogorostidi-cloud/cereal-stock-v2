@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { campaniaActual } from '@/lib/campania'
+
 
 type StockItem = {
   producto_id: number
@@ -24,7 +26,7 @@ export default function StockFertilizantesPage() {
   const [stock, setStock] = useState<StockItem[]>([])
   const [compras, setCompras] = useState<CompraMov[]>([])
   const [campanas, setCampanas] = useState<Campana[]>([])
-  const [campaniaKpi, setCampaniaKpi] = useState('')
+  const [campaniaKpi, setCampaniaKpi] = useState(campaniaActual())
   const [busqueda, setBusqueda] = useState('')
   const [soloAlertas, setSoloAlertas] = useState(false)
   const [loading, setLoading] = useState(true)

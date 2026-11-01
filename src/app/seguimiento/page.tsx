@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { elegirCampaniaActual } from '@/lib/campania'
+
 
 type Resumen = {
   ciclo_id: number
@@ -152,7 +154,7 @@ export default function SeguimientoDashboard() {
       const nombres = Array.from(new Set((caps ?? []).map((c: any) => c.nombre))).sort().reverse()
       setCiclos(cs ?? [])
       setCampanas(nombres)
-      setCampanaActual(nombres[0] ?? '')
+      setCampanaActual(elegirCampaniaActual(nombres))
       setAcondicionamientos(acon ?? [])
       setSiembras(siem ?? [])
       setAplicaciones(apls ?? [])

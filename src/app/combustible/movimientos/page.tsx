@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { campaniaActual } from '@/lib/campania'
+
 
 type Movimiento = {
   id: number
@@ -57,7 +59,7 @@ export default function MovimientosCombustiblePage() {
   const [error, setError] = useState<string | null>(null)
   const [editandoId, setEditandoId] = useState<number | null>(null)
   const [filtroTipo, setFiltroTipo] = useState('')
-  const [filtroCampana, setFiltroCampana] = useState('')
+  const [filtroCampana, setFiltroCampana] = useState(campaniaActual())
   const [busqueda, setBusqueda] = useState('')
 
   const vacio = {

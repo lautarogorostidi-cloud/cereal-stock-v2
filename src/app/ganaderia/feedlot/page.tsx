@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { campaniaActual } from '@/lib/campania'
+
 
 type Campania = { id: number; nombre: string }
 type CategoriaHacienda = { id: string; nombre: string; orden: number }
@@ -88,7 +90,7 @@ export default function FeedlotPage() {
   const [ingresos, setIngresos] = useState<FeedlotIngreso[]>([])
   const [cargando, setCargando] = useState(true)
   const [showListaIngresos, setShowListaIngresos] = useState(false)
-  const [filtroCampaniaLista, setFiltroCampaniaLista] = useState('')
+  const [filtroCampaniaLista, setFiltroCampaniaLista] = useState(campaniaActual())
   const [ingresoSel, setIngresoSel] = useState<FeedlotIngreso | null>(null)
   const [salidas, setSalidas] = useState<FeedlotSalida[]>([])
   const [cargas, setCargas] = useState<FeedlotCarga[]>([])

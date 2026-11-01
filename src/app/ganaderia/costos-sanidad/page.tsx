@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { campaniaActual } from '@/lib/campania'
+
 
 // =====================================================================
 // Tipos compartidos
@@ -124,7 +126,7 @@ export default function CostosSanidadPage() {
   const [cError, setCError] = useState<string | null>(null)
   const [cExito, setCExito] = useState<string | null>(null)
   const [filtroTipo, setFiltroTipo] = useState('')
-  const [filtroCampania, setFiltroCampania] = useState('')
+  const [filtroCampania, setFiltroCampania] = useState(campaniaActual())
   const [editCosto, setEditCosto] = useState<CostoGanaderia | null>(null)
   const [eFecha, setEFecha] = useState('')
   const [eTipo, setETipo] = useState('')
@@ -163,7 +165,7 @@ export default function CostosSanidadPage() {
   const [npUnidad, setNpUnidad] = useState('ml')
   const [npPrecio, setNpPrecio] = useState('')
   const [npGuardando, setNpGuardando] = useState(false)
-  const [filtroCampaniaSan, setFiltroCampaniaSan] = useState('')
+  const [filtroCampaniaSan, setFiltroCampaniaSan] = useState(campaniaActual())
   const [editSan, setEditSan] = useState<SanidadRow | null>(null)
   const [esCampaniaId, setEsCampaniaId] = useState('')
   const [esCatId, setEsCatId] = useState('')

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { campaniaActual } from '@/lib/campania'
+
 
 type ConsumoMaquina = {
   maquina_id: number
@@ -56,7 +58,7 @@ export default function ReportesCombustiblePage() {
   const [campanas, setCampanas] = useState<Campana[]>([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
-  const [filtroCampana, setFiltroCampana] = useState('')
+  const [filtroCampana, setFiltroCampana] = useState(campaniaActual())
 
   useEffect(() => { cargar() }, [])
 

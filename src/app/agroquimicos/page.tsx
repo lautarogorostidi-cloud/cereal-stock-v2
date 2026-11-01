@@ -7,6 +7,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
 } from 'recharts'
+import { elegirCampaniaActual } from '@/lib/campania'
+
 
 type RegistroInsumo = {
   key: string
@@ -164,7 +166,7 @@ export default function AgroquimicosDashboard() {
       .filter((n: string) => n)
       .sort((a: string, b: string) => campanaSort(a) - campanaSort(b))
     setCampanasDisponibles(campanas)
-    setCampanasSeleccionadas(campanas)
+    setCampanasSeleccionadas(campanas.length > 0 ? [elegirCampaniaActual(campanas)] : [])
 
     // Tipos disponibles — solo los que tienen datos en insumos, en orden canónico
     const tiposEnDatos = new Set(regsInsumos.map(r => r.tipo))

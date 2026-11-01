@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
+import { elegirCampaniaActual } from '@/lib/campania'
+
 
 type Aplicacion = {
   aplicacion_id: number
@@ -48,7 +50,7 @@ export default function AplicacionesAgroquimicosPage() {
     async function cargarCampanas() {
       const { data } = await supabase.from('campanas').select('id, nombre').eq('activo', true).order('nombre', { ascending: false })
       setCampanas(data ?? [])
-      if (data && data.length > 0) setCampanaSeleccionada(data[0].nombre)
+      if (data && data.length > 0) setCampanaSeleccionada(elegirCampaniaActual(data.map((c: any) => c.nombre)))
     }
     cargarCampanas()
   }, [])

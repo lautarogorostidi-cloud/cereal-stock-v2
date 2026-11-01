@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { elegirCampaniaActual } from '@/lib/campania'
+
 
 type CampaniaDisponible = { nombre: string }
 
@@ -47,7 +49,9 @@ export default function ResumenCampaniaPage() {
       results[1].data?.forEach((r: any) => nombres.add(r.campania))
       results[2].data?.forEach((r: any) => nombres.add(r.campania))
       results[3].data?.forEach((r: any) => { if (r.campanas?.nombre) nombres.add(r.campanas.nombre) })
-      setCampanias(Array.from(nombres).sort((a, b) => b.localeCompare(a)))
+      const lista = Array.from(nombres).sort((a, b) => b.localeCompare(a))
+      setCampanias(lista)
+      if (lista.length > 0) setCampania(elegirCampaniaActual(lista))
     }
     cargar()
   }, [])

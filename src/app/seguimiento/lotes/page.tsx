@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import Link from 'next/link'
+import { elegirCampaniaActual } from '@/lib/campania'
+
 
 type Lote = {
   id: string
@@ -114,7 +116,7 @@ export default function LotesCultivosPage() {
 
       const nombres = (caps ?? []).map((c: any) => c.nombre)
       setCampanas(nombres)
-      if (nombres.length > 0) setCampanaSeleccionada(nombres[0])
+      if (nombres.length > 0) setCampanaSeleccionada(elegirCampaniaActual(nombres))
       setLoading(false)
     }
     cargar()
