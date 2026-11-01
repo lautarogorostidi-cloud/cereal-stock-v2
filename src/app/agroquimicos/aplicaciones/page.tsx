@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllRows } from '@/lib/supabase/fetchAll'
 
 type Aplicacion = {
   aplicacion_id: number
@@ -60,7 +61,7 @@ export default function AplicacionesAgroquimicosPage() {
   async function cargar() {
     setLoading(true)
 
-    const { data, error } = await supabase
+    const { data, error } = await fetchAllRows(() => supabase
       .from('sa_aplicacion_productos')
       .select(`
         aplicacion_id,
@@ -86,7 +87,7 @@ export default function AplicacionesAgroquimicosPage() {
       // el lote 15T) quedaban afuera sin ningún aviso. Ordenamos y subimos
       // el límite bien por encima del volumen actual para traer todo.
       .order('aplicacion_id', { ascending: false })
-      .limit(10000)
+      .order('id'))
 
     if (error) {
       console.error('Error cargando aplicaciones:', error)

@@ -14,6 +14,7 @@ type CostoGeneral = {
   proveedor: string | null
   monto_total_usd: number
   observaciones: string | null
+  reparto: 'porcentaje' | 'por_fecha'
   costos_generales_campanas: { campana_id: number; porcentaje: number }[]
   costos_generales_cuotas: { id: number; nro: number; fecha: string; monto_usd: number; pagado: boolean }[]
 }
@@ -46,6 +47,14 @@ function sumarMeses(fecha: string, meses: number): string {
 
 function fmt(n: number) {
   return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+// Campaña (sep a ago) a la que cae una fecha: 2027-01-19 → '26-27'
+function campanaDeFecha(fecha: string): string {
+  const [y, m] = fecha.split('-').map(Number)
+  if (!y || !m) return '—'
+  const ini = m >= 9 ? y : y - 1
+  return `${String(ini % 100).padStart(2, '0')}-${String((ini + 1) % 100).padStart(2, '0')}`
 }
 
 function generarCuotas(total: number, n: number, primera: string, cada: number): CuotaForm[] {
@@ -99,6 +108,7 @@ function FormularioCosto({
     editando?.costos_generales_campanas.forEach(c => { o[c.campana_id] = String(c.porcentaje) })
     return o
   })
+  const [reparto, setReparto] = useState<'porcentaje' | 'por_fecha'>(editando?.reparto ?? 'por_fecha')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [regenerar, setRegenerar] = useState(!editando)
@@ -153,8 +163,8 @@ function FormularioCosto({
     if (!cat) return setError('Elegí una categoría.')
     if (!concepto.trim()) return setError('Poné un concepto (ej: "Cuota crédito Banco Nación").')
     if (!(totalNum > 0)) return setError('Ingresá el monto total en USD.')
-    if (seleccionadas.length === 0) return setError('Elegí al menos una campaña.')
-    if (Math.abs(sumaPorc - 100) > 0.01) return setError(`Los porcentajes de las campañas suman ${sumaPorc.toFixed(2)}%, tienen que sumar 100%.`)
+    if (reparto === 'porcentaje' && seleccionadas.length === 0) return setError('Elegí al menos una campaña.')
+    if (reparto === 'porcentaje' && Math.abs(sumaPorc - 100) > 0.01) return setError(`Los porcentajes de las campañas suman ${sumaPorc.toFixed(2)}%, tienen que sumar 100%.`)
     if (cuotas.length === 0 || cuotas.some(c => !c.fecha || !(Number(c.monto) >= 0))) return setError('Revisá las fechas y montos de los pagos.')
     if (Math.abs(sumaCuotas - totalNum) > 0.01) return setError(`Los pagos suman USD ${fmt(sumaCuotas)} y el total es USD ${fmt(totalNum)}. Usá "Ajustar última cuota".`)
 
@@ -170,6 +180,7 @@ function FormularioCosto({
         proveedor: proveedor.trim() || null,
         monto_total_usd: totalNum,
         observaciones: observaciones.trim() || null,
+        reparto,
       }
       if (costoId) {
         const { error: e } = await supabase.from('costos_generales').update(cabecera).eq('id', costoId)
@@ -183,10 +194,12 @@ function FormularioCosto({
         if (e) throw e
         costoId = data.id as number
       }
-      const { error: e3 } = await supabase.from('costos_generales_campanas').insert(
-        seleccionadas.map(c => ({ costo_id: costoId, campana_id: c.id, porcentaje: Number(porc[c.id]) }))
-      )
-      if (e3) throw e3
+      if (reparto === 'porcentaje') {
+        const { error: e3 } = await supabase.from('costos_generales_campanas').insert(
+          seleccionadas.map(c => ({ costo_id: costoId, campana_id: c.id, porcentaje: Number(porc[c.id]) }))
+        )
+        if (e3) throw e3
+      }
       const { error: e4 } = await supabase.from('costos_generales_cuotas').insert(
         cuotas.map((c, i) => ({ costo_id: costoId, nro: i + 1, fecha: c.fecha, monto_usd: Number(c.monto), pagado: c.pagado }))
       )
@@ -236,7 +249,28 @@ function FormularioCosto({
             </div>
           </div>
 
+          {/* Reparto entre campañas */}
+          <div>
+            <label className="text-xs font-medium text-campo-600">Asignación a campañas *</label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <button type="button" onClick={() => setReparto('por_fecha')}
+                className={`px-3 py-1.5 rounded-lg border text-sm ${reparto === 'por_fecha' ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white text-campo-700 border-campo-200'}`}>
+                Cada pago a la campaña de su fecha
+              </button>
+              <button type="button" onClick={() => setReparto('porcentaje')}
+                className={`px-3 py-1.5 rounded-lg border text-sm ${reparto === 'porcentaje' ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white text-campo-700 border-campo-200'}`}>
+                Repartir cada pago en % entre campañas
+              </button>
+            </div>
+            <p className="text-xs text-campo-400 mt-1">
+              {reparto === 'por_fecha'
+                ? 'Recomendado para créditos y pagos en cuotas: cada cuota va entera a la campaña (sep a ago) en que vence.'
+                : 'Cada pago se divide con los mismos porcentajes entre las campañas que elijas. Sirve para un gasto que beneficia a varias campañas por igual.'}
+            </p>
+          </div>
+
           {/* Campañas */}
+          {reparto === 'porcentaje' && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-medium text-campo-600">Campañas a las que se asocia *</label>
@@ -272,6 +306,7 @@ function FormularioCosto({
               </p>
             )}
           </div>
+          )}
 
           {/* Pagos */}
           <div>
@@ -311,6 +346,7 @@ function FormularioCosto({
                     <tr>
                       <th className="text-left px-3 py-1.5 w-10">#</th>
                       <th className="text-left px-3 py-1.5">Fecha</th>
+                      {reparto === 'por_fecha' && <th className="text-left px-3 py-1.5">Campaña</th>}
                       <th className="text-right px-3 py-1.5">Monto USD</th>
                       <th className="text-center px-3 py-1.5">Pagado</th>
                     </tr>
@@ -324,6 +360,7 @@ function FormularioCosto({
                             onChange={e => { setRegenerar(false); setCuotas(cs => cs.map((x, j) => j === i ? { ...x, fecha: e.target.value } : x)) }}
                             className="rounded border border-campo-200 px-2 py-0.5 text-sm" />
                         </td>
+                        {reparto === 'por_fecha' && <td className="px-3 py-1 text-campo-700 whitespace-nowrap">{campanaDeFecha(c.fecha)}</td>}
                         <td className="px-3 py-1 text-right">
                           <input type="number" step="0.01" value={c.monto}
                             onChange={e => { setRegenerar(false); setCuotas(cs => cs.map((x, j) => j === i ? { ...x, monto: e.target.value } : x)) }}
@@ -338,7 +375,7 @@ function FormularioCosto({
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-campo-200 bg-campo-50">
-                      <td colSpan={2} className="px-3 py-1.5 text-xs text-campo-500">
+                      <td colSpan={reparto === 'por_fecha' ? 3 : 2} className="px-3 py-1.5 text-xs text-campo-500">
                         Las fechas y montos se pueden editar a mano.
                         {Math.abs(sumaCuotas - totalNum) > 0.01 && (
                           <button type="button" onClick={ajustarUltimaCuota} className="ml-2 text-emerald-700 underline">Ajustar última cuota</button>
@@ -392,7 +429,7 @@ export default function CostosGenerales({ onCambio }: { onCambio: () => void }) 
       supabase.from('campanas').select('id, nombre').eq('activo', true).order('nombre'),
       supabase.from('costos_generales_categorias').select('nombre').order('orden').order('nombre'),
       supabase.from('costos_generales')
-        .select('id, categoria, concepto, proveedor, monto_total_usd, observaciones, costos_generales_campanas(campana_id, porcentaje), costos_generales_cuotas(id, nro, fecha, monto_usd, pagado)')
+        .select('id, categoria, concepto, proveedor, monto_total_usd, observaciones, reparto, costos_generales_campanas(campana_id, porcentaje), costos_generales_cuotas(id, nro, fecha, monto_usd, pagado)')
         .order('created_at', { ascending: false }),
     ])
     setCampanas((cps ?? []) as Campana[])
@@ -482,15 +519,17 @@ export default function CostosGenerales({ onCambio }: { onCambio: () => void }) 
                         </td>
                         <td className="py-2 pr-3 text-right font-medium">{fmt(c.monto_total_usd)}</td>
                         <td className="py-2 pr-3 text-campo-700">
-                          {c.costos_generales_campanas.map(x => (
-                            <div key={x.campana_id}>{nombreCampana.get(x.campana_id) ?? x.campana_id}: {x.porcentaje}%</div>
-                          ))}
+                          {c.reparto === 'por_fecha'
+                            ? <div>Según fecha de cada pago<div className="text-xs text-campo-400">{Array.from(new Set(cuotas.map(q => campanaDeFecha(q.fecha)))).join(' · ')}</div></div>
+                            : c.costos_generales_campanas.map(x => (
+                                <div key={x.campana_id}>{nombreCampana.get(x.campana_id) ?? x.campana_id}: {x.porcentaje}%</div>
+                              ))}
                         </td>
                         <td className="py-2 pr-3">
                           {cuotas.map(q => (
                             <label key={q.id} className="flex items-center gap-2 text-xs text-campo-700 cursor-pointer">
                               <input type="checkbox" checked={q.pagado} onChange={e => alternarPagado(c, q.id, e.target.checked)} />
-                              {q.fecha.split('-').reverse().join('/')} · USD {fmt(q.monto_usd)}
+                              {q.fecha.split('-').reverse().join('/')} · USD {fmt(q.monto_usd)}{c.reparto === 'por_fecha' && <span className="text-campo-400"> · {campanaDeFecha(q.fecha)}</span>}
                             </label>
                           ))}
                         </td>

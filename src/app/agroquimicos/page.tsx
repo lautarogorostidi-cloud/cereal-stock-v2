@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -91,10 +92,10 @@ export default function AgroquimicosDashboard() {
       { data: campanasData },
     ] = await Promise.all([
       supabase.from('vw_stock_agroquimicos').select('producto, activo'),
-      supabase
+      fetchAllRows(() => supabase
         .from('sa_aplicacion_productos')
         .select('aplicacion_id, producto, dosis_ha, costo_unitario, sa_aplicaciones!inner(fecha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre), cultivos(nombre)))')
-        .limit(10000),
+        .order('id')),
       supabase
         .from('sa_aplicaciones')
         .select('id, fecha, costo_servicio_usd_ha, superficie_ha, sa_ciclos!inner(campanas!inner(nombre))')
