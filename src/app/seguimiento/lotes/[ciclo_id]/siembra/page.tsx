@@ -104,7 +104,7 @@ type NecesidadStock = {
   label: string
 }
 
-const SISTEMAS = ['SD', 'SD c/DF', 'SC', 'SC c/DF', 'Laboreo mínimo', 'Otro']
+const SISTEMAS = ['SD', 'SD c/FS', 'SD c/DF', 'SC', 'SC c/DF', 'Laboreo mínimo', 'Otro']
 const TIPOS_SEMILLA = ['Inoculada', 'Curada', 'Inoculada - Curada', 'Sin tratamiento']
 const TIPOS_SEMILLA_TARIFARIO = ['Soja 1', 'Soja 2', 'Maíz Temprano', 'Maíz Tardío', 'Maíz 2', 'Girasol', 'Trigo', 'Centeno', 'Avena', 'Vicia', 'Vicia + Avena', 'Alfalfa', 'Pastura']
 
@@ -262,6 +262,7 @@ export default function NuevaSiembraPage() {
     if (!fecha || !ciclo) return null
     const sistemaMap: Record<string, string[]> = {
       'SD': ['SD'],
+      'SD c/FS': ['SD'],
       'SD c/DF': ['SD c/DF'],
       'SC': ['Siembra'],
       'SC c/DF': ['Siembra'],
