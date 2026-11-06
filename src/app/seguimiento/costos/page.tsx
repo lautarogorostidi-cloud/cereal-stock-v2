@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { elegirCampaniaActual } from '@/lib/campania'
+import { fetchAllRows } from '@/lib/supabase/fetchAll'
 
 
 type Costo = {
@@ -28,6 +29,20 @@ type Vencimiento = {
 }
 
 type Campana = { id: number; nombre: string }
+
+// Seguros e indemnizaciones cargados por lote/ciclo (tabla sa_costos_fijos), no por campo
+type SeguroLote = {
+  id: number
+  ciclo_id: number
+  tipo: string
+  costo_usd_ha: number | null
+  costo_total_usd: number
+  observaciones: string | null
+  campana: string
+  campo: string
+  lote: string
+  cultivo: string
+}
 
 type Distribucion = {
   costo_id: number
@@ -91,6 +106,7 @@ export default function CostosPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [distribucion, setDistribucion] = useState<Distribucion[]>([])
   const [mostrarDistribucion, setMostrarDistribucion] = useState(false)
+  const [segurosLote, setSegurosLote] = useState<SeguroLote[]>([])
 
   useEffect(() => { cargar() }, [])
 
@@ -133,6 +149,29 @@ export default function CostosPage() {
       .select('*')
     setDistribucion(distData ?? [])
 
+    // Seguros / indemnizaciones por lote: se cargan por ciclo (sa_costos_fijos) y no tienen campo ni vencimientos propios,
+    // por eso no estaban en costos_fijos_campo y no aparecían en esta lista.
+    const [{ data: segData }, { data: cicData }] = await Promise.all([
+      fetchAllRows<any>(() => supabase.from('sa_costos_fijos')
+        .select('id, ciclo_id, tipo, costo_usd_ha, costo_total_usd, observaciones')
+        .in('tipo', ['seguro', 'indemnizacion_seguro']).order('id')),
+      fetchAllRows<any>(() => supabase.from('vw_sa_resumen_ciclo')
+        .select('ciclo_id, campana, campo, lote, cultivo').order('ciclo_id')),
+    ])
+    const cicMap: Record<number, any> = {}
+    ;(cicData ?? []).forEach((c: any) => { cicMap[c.ciclo_id] = c })
+    setSegurosLote((segData ?? []).flatMap((f: any) => {
+      const c = cicMap[f.ciclo_id]
+      if (!c) return []
+      return [{
+        id: f.id, ciclo_id: f.ciclo_id, tipo: f.tipo,
+        costo_usd_ha: f.costo_usd_ha == null ? null : Number(f.costo_usd_ha),
+        costo_total_usd: Number(f.costo_total_usd ?? 0),
+        observaciones: f.observaciones,
+        campana: c.campana, campo: c.campo, lote: c.lote, cultivo: c.cultivo,
+      } as SeguroLote]
+    }))
+
     setLoading(false)
   }
 
@@ -160,8 +199,20 @@ export default function CostosPage() {
 
   const campanaActual = campanas.find(c => c.id === campanaSeleccionada)
 
+  const segurosFiltrados = useMemo(() => {
+    return segurosLote
+      .filter(sg => {
+        if (campanaActual && sg.campana !== campanaActual.nombre) return false
+        if (filtroEstablecimiento && sg.campo !== filtroEstablecimiento) return false
+        if (filtroTipo && sg.tipo !== filtroTipo) return false
+        return true
+      })
+      .sort((a, b) => a.campo.localeCompare(b.campo) || a.lote.localeCompare(b.lote) || a.tipo.localeCompare(b.tipo))
+  }, [segurosLote, campanaActual, filtroEstablecimiento, filtroTipo])
+  const totalSeguros = segurosFiltrados.reduce((acc, sg) => acc + sg.costo_total_usd, 0)
+
   // KPIs
-  const totalCostos = costosFiltrados.reduce((acc, c) => acc + Number(c.monto_total), 0)
+  const totalCostos = costosFiltrados.reduce((acc, c) => acc + Number(c.monto_total), 0) + totalSeguros
   const hoy = new Date().toISOString().split('T')[0]
   const proximos30 = costosFiltrados.flatMap(c => c.vencimientos).filter(v => !v.pagado && v.fecha_vencimiento >= hoy && v.fecha_vencimiento <= new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0])
   const vencidosSinPagar = costosFiltrados.flatMap(c => c.vencimientos).filter(v => !v.pagado && v.fecha_vencimiento < hoy)
@@ -228,7 +279,7 @@ export default function CostosPage() {
         </div>
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Registros</div>
-          <div className="text-2xl font-bold text-campo-900">{costosFiltrados.length}</div>
+          <div className="text-2xl font-bold text-campo-900">{costosFiltrados.length + segurosFiltrados.length}</div>
           <div className="text-xs text-campo-400 mt-0.5">costos cargados</div>
         </div>
         <div className={`card p-5 ${totalProximos > 0 ? 'border-amber-200 bg-amber-50' : ''}`}>
@@ -372,13 +423,62 @@ export default function CostosPage() {
         </div>
       )}
 
+      {/* Seguros e indemnizaciones por lote */}
+      {segurosFiltrados.length > 0 && (
+        <div className="card overflow-hidden p-0">
+          <div className="px-5 py-3 border-b border-campo-100 bg-campo-50 flex items-center justify-between">
+            <h2 className="font-semibold text-campo-700 text-sm">Seguros e indemnizaciones por lote</h2>
+            <span className="text-xs text-campo-500">Total: <strong className={totalSeguros < 0 ? 'text-emerald-700' : 'text-campo-900'}>{fmtUsd(totalSeguros)}</strong></span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-campo-100">
+                  <th className="text-left px-5 py-3 font-semibold text-campo-700">Campo</th>
+                  <th className="text-left px-5 py-3 font-semibold text-campo-700">Lote</th>
+                  <th className="text-left px-5 py-3 font-semibold text-campo-700">Cultivo</th>
+                  <th className="text-left px-5 py-3 font-semibold text-campo-700">Tipo</th>
+                  <th className="text-right px-5 py-3 font-semibold text-campo-700">USD/ha</th>
+                  <th className="text-right px-5 py-3 font-semibold text-campo-700">Monto total</th>
+                  <th className="text-left px-5 py-3 font-semibold text-campo-700">Observaciones</th>
+                  <th className="text-center px-5 py-3 font-semibold text-campo-700">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {segurosFiltrados.map(sg => (
+                  <tr key={sg.id} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
+                    <td className="px-5 py-2 font-medium text-campo-900">{sg.campo}</td>
+                    <td className="px-5 py-2 text-campo-900">{sg.lote}</td>
+                    <td className="px-5 py-2 text-campo-600">{sg.cultivo}</td>
+                    <td className="px-5 py-2">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TIPO_COLORS[sg.tipo] ?? 'bg-campo-100 text-campo-700'}`}>
+                        {TIPO_LABELS[sg.tipo] ?? sg.tipo}
+                      </span>
+                    </td>
+                    <td className="px-5 py-2 text-right text-campo-600">{sg.costo_usd_ha == null ? '—' : fmtUsd(sg.costo_usd_ha)}</td>
+                    <td className={`px-5 py-2 text-right font-medium ${sg.costo_total_usd < 0 ? 'text-emerald-700' : 'text-campo-900'}`}>{fmtUsd(sg.costo_total_usd)}</td>
+                    <td className="px-5 py-2 text-campo-500 text-xs">{sg.observaciones ?? '—'}</td>
+                    <td className="px-5 py-2 text-center">
+                      <Link href={`/seguimiento/lotes/${sg.ciclo_id}/costos-fijos`}
+                        className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                        Editar
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Tabla detalle */}
       <div className="card overflow-hidden p-0">
         <div className="px-5 py-3 border-b border-campo-100 bg-campo-50">
           <h2 className="font-semibold text-campo-700 text-sm">Detalle de costos</h2>
         </div>
         {costosFiltrados.length === 0 ? (
-          <div className="px-5 py-10 text-center text-campo-400">No hay costos registrados para esta campaña</div>
+          <div className="px-5 py-10 text-center text-campo-400">{segurosFiltrados.length > 0 ? 'No hay costos por campo (arrendamiento, asesoramiento, etc.) para esta campaña' : 'No hay costos registrados para esta campaña'}</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
