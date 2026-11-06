@@ -102,6 +102,7 @@ export default function CostosPage() {
   const [establecimientos, setEstablecimientos] = useState<string[]>([])
   const [filtroEstablecimiento, setFiltroEstablecimiento] = useState('')
   const [filtroTipo, setFiltroTipo] = useState('')
+  const [filtroCultivo, setFiltroCultivo] = useState('')
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [distribucion, setDistribucion] = useState<Distribucion[]>([])
@@ -199,16 +200,25 @@ export default function CostosPage() {
 
   const campanaActual = campanas.find(c => c.id === campanaSeleccionada)
 
+  // Cultivos disponibles para filtrar los seguros (solo los de la campaña seleccionada)
+  const cultivosSeguros = useMemo(() => {
+    return Array.from(new Set(
+      segurosLote.filter(sg => !campanaActual || sg.campana === campanaActual.nombre).map(sg => sg.cultivo)
+    )).sort()
+  }, [segurosLote, campanaActual])
+  const cultivoAplicado = cultivosSeguros.includes(filtroCultivo) ? filtroCultivo : ''
+
   const segurosFiltrados = useMemo(() => {
     return segurosLote
       .filter(sg => {
         if (campanaActual && sg.campana !== campanaActual.nombre) return false
         if (filtroEstablecimiento && sg.campo !== filtroEstablecimiento) return false
         if (filtroTipo && sg.tipo !== filtroTipo) return false
+        if (cultivoAplicado && sg.cultivo !== cultivoAplicado) return false
         return true
       })
       .sort((a, b) => a.campo.localeCompare(b.campo) || a.lote.localeCompare(b.lote) || a.tipo.localeCompare(b.tipo))
-  }, [segurosLote, campanaActual, filtroEstablecimiento, filtroTipo])
+  }, [segurosLote, campanaActual, filtroEstablecimiento, filtroTipo, cultivoAplicado])
   const totalSeguros = segurosFiltrados.reduce((acc, sg) => acc + sg.costo_total_usd, 0)
 
   // KPIs
@@ -262,8 +272,16 @@ export default function CostosPage() {
             {Object.entries(TIPO_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </div>
-        {(filtroEstablecimiento || filtroTipo) && (
-          <button onClick={() => { setFiltroEstablecimiento(''); setFiltroTipo('') }}
+        <div>
+          <label className="text-xs font-medium text-campo-600 mr-2">Cultivo <span className="text-campo-400 font-normal">(solo seguros)</span></label>
+          <select value={cultivoAplicado} onChange={e => setFiltroCultivo(e.target.value)}
+            className="rounded-lg border border-campo-200 px-3 py-1.5 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-lime-400">
+            <option value="">Todos</option>
+            {cultivosSeguros.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        {(filtroEstablecimiento || filtroTipo || cultivoAplicado) && (
+          <button onClick={() => { setFiltroEstablecimiento(''); setFiltroTipo(''); setFiltroCultivo('') }}
             className="text-xs text-campo-500 hover:text-campo-800 font-medium underline underline-offset-2">
             Limpiar filtros
           </button>
