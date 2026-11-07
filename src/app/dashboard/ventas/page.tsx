@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import VentasClient from './VentasClient'
 import { obtenerMapaCultivoComercial } from '@/lib/cultivoComercial'
+import { fetchAllRows } from '@/lib/supabase/fetchAll'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -9,12 +10,13 @@ export default async function VentasPage() {
   const supabase = createClient()
 
   const [{ data: movimientos }, { data: contratos }, mapaCultivo] = await Promise.all([
-    supabase
-      .from('movimientos_cereal')
-      .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id, precio_unitario, precio_plus, comision_corredor, bonificacion_calidad), cartas_porte(ctg, bonificacion_calidad, tarifa_flete)`)
-      .in('tipo', ['entrega', 'compra'])
-      .order('fecha', { ascending: false })
-      .limit(200),
+    fetchAllRows(() =>
+      supabase
+        .from('movimientos_cereal')
+        .select(`*, campanias(nombre), cultivos(nombre), lotes(nombre, establecimiento), contratos(numero, cliente_id, precio_unitario, precio_plus, comision_corredor, bonificacion_calidad), cartas_porte(ctg, bonificacion_calidad, tarifa_flete)`)
+        .order('fecha', { ascending: false })
+        .order('id', { ascending: false })
+    ),
     supabase
       .from('contratos')
       .select('id, numero, cultivo_id, clientes(razon_social)')
@@ -61,6 +63,7 @@ export default async function VentasPage() {
       carta_porte_id: e.carta_porte_id,
       cultivo: mapaCultivo.get(e.cultivo_id) ?? (e.cultivos as any)?.nombre ?? null,
       campania: (e.campanias as any)?.nombre ?? null,
+      lote: (e.lotes as any)?.nombre ? `${(e.lotes as any).nombre}${(e.lotes as any).establecimiento ? ' — ' + (e.lotes as any).establecimiento : ''}` : null,
       toneladas: e.toneladas,
       descripcion_movimiento: e.descripcion_movimiento,
       observaciones: e.observaciones,
@@ -81,8 +84,8 @@ export default async function VentasPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-campo-900">Ventas</h1>
-          <p className="text-campo-500 text-sm mt-0.5">Ventas (entregas) y compras</p>
+          <h1 className="text-2xl font-bold text-campo-900">Movimientos</h1>
+          <p className="text-campo-500 text-sm mt-0.5">Ventas, compras, ajustes y otros movimientos de cereal</p>
         </div>
         <a href="/dashboard/ventas/nuevo" className="btn-primary">+ Nuevo movimiento</a>
       </div>

@@ -3,10 +3,58 @@
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+const TIPOS_VENTA_COMPRA = ['entrega', 'compra']
+const TIPOS_OTROS = ['otro_ingreso', 'otro_egreso', 'recepcion_cliente', 'consumo_hacienda', 'merma']
+const TIPOS_EGRESO = ['entrega', 'otro_egreso', 'consumo_hacienda', 'merma']
+
+const ETIQUETA_TIPO: Record<string, string> = {
+  entrega: 'Venta',
+  compra: 'Compra',
+  cosecha: 'Cosecha',
+  ajuste: 'Ajuste',
+  otro_ingreso: 'Otro ingreso',
+  otro_egreso: 'Otro egreso',
+  recepcion_cliente: 'Recepción de cliente',
+  consumo_hacienda: 'Consumo hacienda',
+  merma: 'Merma',
+}
+
+const VISTAS = [
+  { id: 'ventas', label: 'Ventas y compras' },
+  { id: 'ajustes', label: 'Ajustes' },
+  { id: 'otros', label: 'Otros movimientos' },
+  { id: 'cosecha', label: 'Cosecha' },
+  { id: 'todos', label: 'Todos' },
+] as const
+type VistaId = typeof VISTAS[number]['id']
+
+function perteneceAVista(tipo: string, vista: VistaId) {
+  if (vista === 'todos') return true
+  if (vista === 'ventas') return TIPOS_VENTA_COMPRA.includes(tipo)
+  if (vista === 'ajustes') return tipo === 'ajuste'
+  if (vista === 'cosecha') return tipo === 'cosecha'
+  return TIPOS_OTROS.includes(tipo)
+}
+
+// Toneladas con signo: + suma stock, − resta stock (los ajustes ya vienen con signo)
+function toneladasConSigno(e: any) {
+  const tn = Number(e.toneladas ?? 0)
+  return TIPOS_EGRESO.includes(e.tipo) ? -Math.abs(tn) : tn
+}
+
+function claseTipo(tipo: string) {
+  if (tipo === 'compra') return 'bg-blue-100 text-blue-700'
+  if (tipo === 'ajuste') return 'bg-amber-100 text-amber-700'
+  if (TIPOS_EGRESO.includes(tipo) && tipo !== 'entrega') return 'bg-red-100 text-red-700'
+  if (tipo === 'entrega') return 'bg-campo-100 text-campo-700'
+  return 'bg-emerald-100 text-emerald-700'
+}
+
 export default function VentasClient({ ventas: ventasIniciales, contratos }: { ventas: any[], contratos: any[] }) {
   const supabase = createClient()
   const [ventas, setVentas] = useState(ventasIniciales)
   const [busqueda, setBusqueda] = useState('')
+  const [vista, setVista] = useState<VistaId>('ventas')
   const [editando, setEditando] = useState<any | null>(null)
   const [bonifInput, setBonifInput] = useState('')
   const [vinculando, setVinculando] = useState<any | null>(null)
@@ -16,7 +64,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
   const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
 
-  const filtradas = useMemo(() => {
+  const buscadas = useMemo(() => {
     if (!busqueda.trim()) return ventas
     const q = busqueda.toLowerCase()
     return ventas.filter(e =>
@@ -25,11 +73,17 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
       e.cultivo?.toLowerCase().includes(q) ||
       e.campania?.toLowerCase().includes(q) ||
       e.cliente?.toLowerCase().includes(q) ||
+      e.lote?.toLowerCase().includes(q) ||
+      (ETIQUETA_TIPO[e.tipo] ?? e.tipo)?.toLowerCase().includes(q) ||
       String(e.contrato ?? '').toLowerCase().includes(q) ||
       e.descripcion_movimiento?.toLowerCase().includes(q) ||
       e.observaciones?.toLowerCase().includes(q)
     )
   }, [ventas, busqueda])
+
+  const filtradas = useMemo(() => buscadas.filter(e => perteneceAVista(e.tipo, vista)), [buscadas, vista])
+  const conteos = useMemo(() => Object.fromEntries(VISTAS.map(v => [v.id, buscadas.filter(e => perteneceAVista(e.tipo, v.id)).length])) as Record<VistaId, number>, [buscadas])
+  const variacionNeta = filtradas.reduce((s, e) => s + toneladasConSigno(e), 0)
 
   const ventasFiltradas = filtradas.filter(e => e.tipo !== 'compra')
   const comprasFiltradas = filtradas.filter(e => e.tipo === 'compra')
@@ -106,7 +160,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
 
   async function eliminarMovimiento(e: any) {
     const etiqueta = e.ctg ? `CTG ${e.ctg}` : `${e.cultivo ?? 'movimiento'} — ${fmt(Number(e.toneladas ?? 0))} tn`
-    let mensaje = `¿Eliminar este ${e.tipo === 'compra' ? 'movimiento de compra' : 'movimiento de venta'} (${etiqueta})? Esta acción no se puede deshacer.`
+    let mensaje = `¿Eliminar este movimiento (${ETIQUETA_TIPO[e.tipo] ?? e.tipo} — ${etiqueta})? Esta acción no se puede deshacer.`
     if (e.carta_porte_id) {
       mensaje += '\n\nOjo: este movimiento se generó automáticamente desde una Carta de Porte. Si esa carta se vuelve a guardar, puede volver a crearse.'
     }
@@ -164,6 +218,17 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
           />
           {errorEliminar && <p className="text-red-500 text-sm">❌ {errorEliminar}</p>}
         </div>
+
+        <div className="flex flex-wrap gap-2">
+          {VISTAS.map(v => (
+            <button key={v.id} type="button" onClick={() => setVista(v.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${vista === v.id ? 'bg-campo-600 text-white border-campo-600' : 'bg-white text-campo-700 border-campo-200 hover:bg-campo-50'}`}>
+              {v.label} <span className={`ml-1 text-xs ${vista === v.id ? 'text-white/80' : 'text-campo-400'}`}>({conteos[v.id]})</span>
+            </button>
+          ))}
+        </div>
+
+        {vista === 'ventas' ? (
 
         <div className="card overflow-hidden p-0">
           <div className="overflow-x-auto">
@@ -254,6 +319,73 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
             </table>
           </div>
         </div>
+        ) : (
+        <div className="card overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-campo-100 bg-campo-50">
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Tipo</th>
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
+                  <th className="text-right px-4 py-3 font-semibold text-campo-700">Toneladas</th>
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Lote</th>
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Cliente</th>
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Comentario</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtradas.map(e => {
+                  const tn = toneladasConSigno(e)
+                  const comentario = [e.descripcion_movimiento, e.observaciones].filter(Boolean).join(' — ')
+                  return (
+                    <tr key={e.id} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${claseTipo(e.tipo)}`}>
+                          {ETIQUETA_TIPO[e.tipo] ?? e.tipo}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-campo-600">{e.fecha ? new Date(e.fecha).toLocaleDateString('es-AR') : '—'}</td>
+                      <td className="px-4 py-3 font-medium text-campo-900">{e.cultivo ?? '—'}</td>
+                      <td className="px-4 py-3 text-campo-600">{e.campania ?? '—'}</td>
+                      <td className={`px-4 py-3 text-right font-medium ${tn < 0 ? 'text-red-600' : 'text-campo-800'}`}>
+                        {tn > 0 ? '+' : ''}{fmt(tn)}
+                      </td>
+                      <td className="px-4 py-3 text-campo-600">{e.lote ?? '—'}</td>
+                      <td className="px-4 py-3 text-campo-700">{e.cliente ?? '—'}</td>
+                      <td className="px-4 py-3 text-campo-700 max-w-md">{comentario || '—'}</td>
+                      <td className="px-4 py-3">
+                        {e.tipo !== 'cosecha' && (
+                          <button onClick={() => eliminarMovimiento(e)} disabled={eliminandoId === e.id}
+                            className="text-xs text-red-500 hover:text-red-700 underline disabled:opacity-50">
+                            {eliminandoId === e.id ? 'borrando...' : 'eliminar'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {filtradas.length === 0 && (
+                  <tr><td colSpan={9} className="px-4 py-10 text-center text-campo-400">Sin movimientos registrados</td></tr>
+                )}
+              </tbody>
+              {filtradas.length > 0 && (
+                <tfoot>
+                  <tr className="border-t-2 border-campo-200 bg-campo-50">
+                    <td colSpan={4} className="px-4 py-3 font-bold text-campo-800 text-sm">Variación neta de stock</td>
+                    <td className={`px-4 py-3 text-right font-bold ${variacionNeta < 0 ? 'text-red-600' : 'text-campo-800'}`}>
+                      {variacionNeta > 0 ? '+' : ''}{fmt(variacionNeta)}
+                    </td>
+                    <td colSpan={4} />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+        )}
       </div>
 
       {/* Modal bonificación */}

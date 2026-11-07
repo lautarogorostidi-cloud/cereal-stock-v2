@@ -10,7 +10,7 @@ const nav = [
   { href: '/dashboard',              label: 'Dashboard',       icon: '📊' },
   { href: '/dashboard/stock',        label: 'Stock',           icon: '🌾' },
   { href: '/dashboard/contratos',    label: 'Contratos',       icon: '📋' },
-  { href: '/dashboard/ventas',       label: 'Ventas',          icon: '💰' },
+  { href: '/dashboard/ventas',       label: 'Movimientos',     icon: '🔄' },
   { href: '/dashboard/entregas',     label: 'Entregas',        icon: '🚛' },
   { href: '/dashboard/cartas-porte', label: 'Cartas de Porte', icon: '📄' },
   { href: '/dashboard/reportes',     label: 'Reportes',        icon: '📈' },
