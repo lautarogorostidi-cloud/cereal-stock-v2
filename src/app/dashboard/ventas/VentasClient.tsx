@@ -56,6 +56,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
   const [ventas, setVentas] = useState(ventasIniciales)
   const [busqueda, setBusqueda] = useState('')
   const [vista, setVista] = useState<VistaId>('ventas')
+  const [campaniasSel, setCampaniasSel] = useState<string[]>([]) // vacío = todas
   const [editando, setEditando] = useState<any | null>(null)
   const [bonifInput, setBonifInput] = useState('')
   const [vinculando, setVinculando] = useState<any | null>(null)
@@ -65,10 +66,24 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
   const [errorEliminar, setErrorEliminar] = useState<string | null>(null)
 
+  const campaniasDisponibles = useMemo(
+    () => Array.from(new Set(ventas.map(e => e.campania).filter(Boolean) as string[])).sort().reverse(),
+    [ventas]
+  )
+
+  function toggleCampania(c: string) {
+    setCampaniasSel(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
+  }
+
+  const porCampania = useMemo(
+    () => campaniasSel.length === 0 ? ventas : ventas.filter(e => campaniasSel.includes(e.campania)),
+    [ventas, campaniasSel]
+  )
+
   const buscadas = useMemo(() => {
-    if (!busqueda.trim()) return ventas
+    if (!busqueda.trim()) return porCampania
     const q = busqueda.toLowerCase()
-    return ventas.filter(e =>
+    return porCampania.filter(e =>
       e.fecha?.includes(q) ||
       e.ctg?.toLowerCase().includes(q) ||
       e.cultivo?.toLowerCase().includes(q) ||
@@ -80,7 +95,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
       e.descripcion_movimiento?.toLowerCase().includes(q) ||
       e.observaciones?.toLowerCase().includes(q)
     )
-  }, [ventas, busqueda])
+  }, [porCampania, busqueda])
 
   const filtradas = useMemo(() => buscadas.filter(e => perteneceAVista(e.tipo, vista)), [buscadas, vista])
   const conteos = useMemo(() => Object.fromEntries(VISTAS.map(v => [v.id, buscadas.filter(e => perteneceAVista(e.tipo, v.id)).length])) as Record<VistaId, number>, [buscadas])
@@ -217,6 +232,21 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
             placeholder="Buscar por fecha, CTG, cultivo, campaña, cliente, contrato..."
             className="input-field"
           />
+          <div>
+            <label className="block text-xs font-medium text-campo-600 mb-1">Campañas</label>
+            <div className="flex flex-wrap gap-1.5">
+              <button type="button" onClick={() => setCampaniasSel([])}
+                className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${campaniasSel.length === 0 ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-campo-200 text-campo-700 hover:bg-campo-50'}`}>
+                Todas
+              </button>
+              {campaniasDisponibles.map(c => (
+                <button key={c} type="button" onClick={() => toggleCampania(c)}
+                  className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${campaniasSel.includes(c) ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-campo-200 text-campo-700 hover:bg-campo-50'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
           {errorEliminar && <p className="text-red-500 text-sm">❌ {errorEliminar}</p>}
         </div>
 
