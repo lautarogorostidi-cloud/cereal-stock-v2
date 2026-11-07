@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-const TIPOS_VENTA_COMPRA = ['entrega', 'compra']
 const TIPOS_OTROS = ['otro_ingreso', 'otro_egreso', 'recepcion_cliente', 'consumo_hacienda', 'merma']
 const TIPOS_EGRESO = ['entrega', 'otro_egreso', 'consumo_hacienda', 'merma']
 
@@ -20,7 +19,8 @@ const ETIQUETA_TIPO: Record<string, string> = {
 }
 
 const VISTAS = [
-  { id: 'ventas', label: 'Ventas y compras' },
+  { id: 'ventas', label: 'Ventas' },
+  { id: 'compras', label: 'Compras' },
   { id: 'ajustes', label: 'Ajustes' },
   { id: 'otros', label: 'Otros movimientos' },
   { id: 'cosecha', label: 'Cosecha' },
@@ -30,7 +30,8 @@ type VistaId = typeof VISTAS[number]['id']
 
 function perteneceAVista(tipo: string, vista: VistaId) {
   if (vista === 'todos') return true
-  if (vista === 'ventas') return TIPOS_VENTA_COMPRA.includes(tipo)
+  if (vista === 'ventas') return tipo === 'entrega'
+  if (vista === 'compras') return tipo === 'compra'
   if (vista === 'ajustes') return tipo === 'ajuste'
   if (vista === 'cosecha') return tipo === 'cosecha'
   return TIPOS_OTROS.includes(tipo)
@@ -228,7 +229,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
           ))}
         </div>
 
-        {vista === 'ventas' ? (
+        {vista === 'ventas' || vista === 'compras' ? (
 
         <div className="card overflow-hidden p-0">
           <div className="overflow-x-auto">
