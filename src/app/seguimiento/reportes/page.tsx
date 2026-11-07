@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 type ResumenCiclo = {
@@ -89,6 +89,7 @@ export default function ReportesSeguimientoPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [cultivos, setCultivos] = useState<Cultivo[]>([])
+  const [campaniasSel, setCampaniasSel] = useState<string[]>([]) // vacío = todas
 
   useEffect(() => {
     async function cargar() {
@@ -133,7 +134,28 @@ export default function ReportesSeguimientoPage() {
   const fmtEntero = (n: number) => Number(n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
   const fmtUsd = (n: number) => `USD ${Number(n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 
-  const datosCSV = cultivos.flatMap(c =>
+  const campaniasDisponibles = useMemo(
+    () => Array.from(new Set(cultivos.flatMap(c => c.porCampana.map(f => f.campana)))).sort().reverse(),
+    [cultivos]
+  )
+
+  function toggleCampania(c: string) {
+    setCampaniasSel(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
+  }
+
+  // Cultivos con solo las campañas elegidas (vacío = todas). Se recalcula el total de ha para el orden.
+  const cultivosVista = useMemo(() => {
+    if (campaniasSel.length === 0) return cultivos
+    return cultivos
+      .map(c => {
+        const porCampana = c.porCampana.filter(f => campaniasSel.includes(f.campana))
+        return { ...c, porCampana, haSembradaTotal: porCampana.reduce((a, f) => a + f.haSembrada, 0) }
+      })
+      .filter(c => c.porCampana.length > 0)
+      .sort((a, b) => b.haSembradaTotal - a.haSembradaTotal)
+  }, [cultivos, campaniasSel])
+
+  const datosCSV = cultivosVista.flatMap(c =>
     c.porCampana.map(f => ({
       Cultivo: c.cultivo,
       Campaña: f.campana,
@@ -164,11 +186,27 @@ export default function ReportesSeguimientoPage() {
         </button>
       </div>
 
-      {cultivos.length === 0 ? (
-        <div className="card p-12 text-center text-campo-400">Todavía no hay ciclos cargados para armar la evolución.</div>
+      <div className="card p-4">
+        <label className="block text-xs font-medium text-campo-600 mb-1">Campañas {campaniasSel.length === 0 && <span className="text-campo-400 font-normal">(todas)</span>}</label>
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => setCampaniasSel([])}
+            className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${campaniasSel.length === 0 ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-campo-200 text-campo-700 hover:bg-campo-50'}`}>
+            Todas
+          </button>
+          {campaniasDisponibles.map(c => (
+            <button key={c} type="button" onClick={() => toggleCampania(c)}
+              className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${campaniasSel.includes(c) ? 'bg-emerald-700 border-emerald-700 text-white' : 'bg-white border-campo-200 text-campo-700 hover:bg-campo-50'}`}>
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {cultivosVista.length === 0 ? (
+        <div className="card p-12 text-center text-campo-400">{cultivos.length === 0 ? 'Todavía no hay ciclos cargados para armar la evolución.' : 'No hay ciclos en las campañas seleccionadas.'}</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {cultivos.map(c => {
+          {cultivosVista.map(c => {
             const evolucionCostoHa = c.porCampana.map(f => ({ campana: f.campana, valor: f.haSembrada > 0 ? f.costoTotal / f.haSembrada : 0, haSembrada: f.haSembrada }))
             const evolucionRinde = c.porCampana.map(f => ({ campana: f.campana, valor: f.haCosechada > 0 ? f.kg / f.haCosechada : 0, haSembrada: f.haSembrada }))
             const evolucionPrecioIndif = c.porCampana.map(f => ({ campana: f.campana, valor: f.kg > 0 ? f.costoTotal / (f.kg / 1000) : 0, haSembrada: f.haSembrada }))
