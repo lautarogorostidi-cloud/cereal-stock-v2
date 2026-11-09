@@ -20,12 +20,14 @@ type StockItem = {
 
 type CompraMov = { campania: string | null; cantidad: number; precio_unitario: number | null; fertilizantes_productos: { nombre: string } | null }
 type Campana = { id: number; nombre: string }
+type DescuentoDesparejo = { siembra_id: number; ciclo_id: number; campo: string; lote: string; producto: string; descontado: number; esperado: number; diferencia: number }
 
 export default function StockFertilizantesPage() {
   const supabase = createClient()
   const [stock, setStock] = useState<StockItem[]>([])
   const [compras, setCompras] = useState<CompraMov[]>([])
   const [campanas, setCampanas] = useState<Campana[]>([])
+  const [desparejos, setDesparejos] = useState<DescuentoDesparejo[]>([])
   const [campaniaKpi, setCampaniaKpi] = useState(campaniaActual())
   const [busqueda, setBusqueda] = useState('')
   const [soloAlertas, setSoloAlertas] = useState(false)
@@ -35,11 +37,13 @@ export default function StockFertilizantesPage() {
 
   async function cargar() {
     setLoading(true)
-    const [{ data }, { data: comprasData }, { data: caps }] = await Promise.all([
+    const [{ data }, { data: comprasData }, { data: caps }, { data: desp }] = await Promise.all([
       supabase.from('vw_stock_fertilizantes').select('*').order('producto'),
       supabase.from('fertilizantes_movimientos').select('campania, cantidad, precio_unitario, fertilizantes_productos(nombre)').eq('tipo', 'compra'),
       supabase.from('campanas').select('id, nombre').order('nombre', { ascending: false }),
+      supabase.from('vw_control_descuento_fertilizantes').select('*').order('siembra_id'),
     ])
+    setDesparejos((desp ?? []) as DescuentoDesparejo[])
     setStock(((data ?? []) as StockItem[]).filter(r => r.activo))
     setCompras((comprasData ?? []) as any)
     setCampanas(caps ?? [])
@@ -79,6 +83,21 @@ export default function StockFertilizantesPage() {
         </div>
         <a href="/fertilizantes/movimientos" className="btn-primary">+ Nuevo movimiento</a>
       </div>
+
+      {/* Control: siembras cuyo descuento de stock no coincide con kg/ha × superficie */}
+      {desparejos.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="font-semibold mb-1">⚠ {desparejos.length} descuento{desparejos.length > 1 ? 's' : ''} de siembra no coincide{desparejos.length > 1 ? 'n' : ''} con lo que debería (kg/ha × superficie). El stock puede estar mal.</div>
+          <ul className="space-y-0.5">
+            {desparejos.map(d => (
+              <li key={`${d.siembra_id}-${d.producto}`}>
+                {d.campo} — {d.lote} · {d.producto}: descontado {fmt(Number(d.descontado))} kg, debería ser {fmt(Number(d.esperado))} kg.{' '}
+                <a href={`/seguimiento/lotes/${d.ciclo_id}/siembra`} target="_blank" className="underline font-medium">Abrir siembra y guardarla para recalcular</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Selector de campaña */}
       <div className="flex items-center gap-3">
