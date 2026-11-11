@@ -29,7 +29,7 @@ export default async function ReportesPage() {
   }
   const resultados = (resultadosBase ?? []).map((r: any) => ({
     ...r,
-    variedad: textoPorCtg.get(String(r.ctg ?? '')) ?? (String(r.cultivo ?? '').startsWith('Soja') ? 'Soja común' : null),
+    variedad: textoPorCtg.get(String(r.ctg ?? '')) ?? (String(r.cultivo ?? '').startsWith('Soja') ? 'Soja' : null),
   }))
 
   return (

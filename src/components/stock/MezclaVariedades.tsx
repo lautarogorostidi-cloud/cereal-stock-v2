@@ -48,7 +48,7 @@ export default function MezclaVariedades({ variedades, value, onChange, esperado
         <p className="text-sm font-semibold text-campo-800">{titulo}</p>
         {hayEsperado && (
           <button type="button" onClick={completarConComun} className="text-xs text-campo-600 hover:text-campo-800 underline">
-            Completar el resto con soja común
+            Completar el resto con Soja
           </button>
         )}
       </div>
@@ -72,7 +72,7 @@ export default function MezclaVariedades({ variedades, value, onChange, esperado
 
       <div className="text-xs">
         {sinCargar ? (
-          <span className="text-campo-500">Si no cargás nada, se toma toda la carga como soja común.</span>
+          <span className="text-campo-500">Si no cargás nada, se toma toda la carga como Soja (sin tecnología).</span>
         ) : ok ? (
           <span className="text-campo-600">
             Total: <b>{fmt(total)} tn</b>{hayEsperado ? ' — coincide con la carga' : ''}

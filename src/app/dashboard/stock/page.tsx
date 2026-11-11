@@ -7,7 +7,7 @@ export const revalidate = 0
 export default async function StockPage() {
   const supabase = createClient()
 
-  const [{ data: stock }, { data: comprometido }, { data: silos }, { data: campanias }, { data: stockVar }, { data: compVar }, { data: destVar }, { data: variedadesCat }] = await Promise.all([
+  const [{ data: stock, error: errStock }, { data: comprometido }, { data: silos }, { data: campanias }, { data: stockVar, error: errStockVar }, { data: compVar, error: errCompVar }, { data: destVar, error: errDestVar }, { data: variedadesCat, error: errCat }] = await Promise.all([
     supabase.from('vw_stock_actual').select('*'),
     supabase.from('vw_comprometido').select('*'),
     supabase.from('vw_stock_silos').select('*'),
@@ -17,6 +17,9 @@ export default async function StockPage() {
     supabase.from('vw_stock_por_destino_variedad').select('*'),
     supabase.from('variedades_cultivo').select('*').eq('activo', true).order('orden'),
   ])
+
+  // Si falla alguna lectura (ej. permisos de la base) se avisa en pantalla, en vez de mostrar datos vacíos como si fueran reales
+  const errorLectura = errStock?.message ?? errStockVar?.message ?? errCompVar?.message ?? errDestVar?.message ?? errCat?.message ?? null
 
   const stockConComprometido = (stock ?? []).map(r => {
     const comp = (comprometido ?? []).find(
@@ -92,6 +95,7 @@ export default async function StockPage() {
       campanias={nombresCampanias}
       campaniasIds={campaniasIds}
       variedadesCat={variedadesCat ?? []}
+      errorLectura={errorLectura}
     />
   )
 }

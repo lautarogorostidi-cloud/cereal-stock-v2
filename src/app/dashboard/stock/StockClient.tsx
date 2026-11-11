@@ -57,7 +57,9 @@ export default function StockClient({
   campanias,
   campaniasIds,
   variedadesCat,
+  errorLectura,
 }: {
+  errorLectura?: string | null
   rows: StockRow[]
   campanias: string[]
   campaniasIds: Record<string, string>
@@ -106,6 +108,12 @@ export default function StockClient({
           </select>
         </div>
       </div>
+
+      {errorLectura && (
+        <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <b>No se pudo leer parte del stock.</b> Los números pueden estar incompletos (por ejemplo, sin el desglose por variedad). Detalle: {errorLectura}
+        </div>
+      )}
 
       {/* Resumen de ubicación */}
       {(totalCampo > 0 || totalAcopio > 0) && (

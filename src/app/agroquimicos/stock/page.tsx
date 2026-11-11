@@ -23,6 +23,7 @@ export default function StockAgroquimicosPage() {
   const [busqueda, setBusqueda] = useState('')
   const [desparejos, setDesparejos] = useState<DescuentoDesparejo[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   useEffect(() => { cargar() }, [])
 
@@ -30,9 +31,9 @@ export default function StockAgroquimicosPage() {
     setLoading(true)
 
     const [
-      { data: stockData },
-      { data: comprasData },
-      { data: desp },
+      { data: stockData, error: errStock },
+      { data: comprasData, error: errCompras },
+      { data: desp, error: errDesp },
     ] = await Promise.all([
       supabase.from('vw_stock_agroquimicos').select('*').order('tipo').order('producto'),
       supabase.from('agroquimicos_movimientos')
@@ -42,6 +43,11 @@ export default function StockAgroquimicosPage() {
       supabase.from('vw_control_descuento_agroquimicos').select('*').order('fecha', { ascending: false }),
     ])
     setDesparejos((desp ?? []) as DescuentoDesparejo[])
+
+    // Si alguna lectura falla (por ejemplo por permisos de la base) no se muestra
+    // un stock vacío como si fuera real: se avisa con un cartel rojo.
+    const fallo = errStock ?? errCompras ?? errDesp
+    setErrorCarga(fallo ? fallo.message : null)
 
     // Costo promedio ponderado de compra por producto (USD/unidad)
     const acumPorProducto: Record<number, { totalUsd: number; totalCantidad: number }> = {}
@@ -103,6 +109,12 @@ export default function StockAgroquimicosPage() {
       </div>
 
       {/* Control: aplicaciones cuyo descuento de stock no coincide con dosis/ha × superficie */}
+      {errorCarga && (
+        <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <b>No se pudo leer el stock completo.</b> Los números de abajo pueden estar incompletos. Detalle: {errorCarga}
+        </div>
+      )}
+
       {desparejos.length > 0 && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <div className="font-semibold mb-1">
