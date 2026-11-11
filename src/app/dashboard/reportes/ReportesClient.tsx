@@ -37,6 +37,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
     return base.filter(r =>
       r.campania?.toLowerCase().includes(q) ||
       r.cultivo?.toLowerCase().includes(q) ||
+      r.variedad?.toLowerCase().includes(q) ||
       r.cliente?.toLowerCase().includes(q) ||
       r.ctg?.toLowerCase().includes(q) ||
       String(r.contrato ?? '').toLowerCase().includes(q) ||
@@ -57,7 +58,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
 
   function descargarCSV() {
     const headers = [
-      'Fecha', 'CTG', 'N° Turno', 'Campaña Cereal', 'Año Fiscal', 'Cultivo', 'Cliente', 'Contrato',
+      'Fecha', 'CTG', 'N° Turno', 'Campaña Cereal', 'Año Fiscal', 'Cultivo', 'Variedad', 'Cliente', 'Contrato',
       'Patente Camión', 'Patente Acoplado', 'Chofer',
       'Destino Localidad', 'Destino Provincia',
       'Toneladas', 'Precio Base', 'Plus', 'Bonif %', 'Bonif USD',
@@ -72,6 +73,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
       r.campania ?? '',
       calcularAnioFiscal(r.fecha) ?? '',
       r.cultivo ?? '',
+      r.variedad ?? '',
       r.cliente ?? '',
       r.contrato ?? '',
       r.patente_camion ?? '',
@@ -166,6 +168,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña Cereal</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Año Fiscal</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Variedad</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cliente</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Contrato</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Destino</th>
@@ -189,6 +192,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                   <td className="px-4 py-3 text-campo-600">{r.campania}</td>
                   <td className="px-4 py-3 text-campo-600">{calcularAnioFiscal(r.fecha) ?? '—'}</td>
                   <td className="px-4 py-3 font-medium text-campo-900">{r.cultivo}</td>
+                  <td className="px-4 py-3 text-xs text-emerald-700">{r.variedad ?? <span className="text-campo-300">—</span>}</td>
                   <td className="px-4 py-3 text-campo-700">{r.cliente}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{r.contrato}</td>
                   <td className="px-4 py-3 text-xs text-campo-600">{r.destino_localidad ?? '—'}</td>
@@ -218,13 +222,13 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                 </tr>
               ))}
               {filtrados.length === 0 && (
-                <tr><td colSpan={18} className="px-4 py-10 text-center text-campo-400">Sin datos</td></tr>
+                <tr><td colSpan={19} className="px-4 py-10 text-center text-campo-400">Sin datos</td></tr>
               )}
             </tbody>
             {filtrados.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-campo-200 bg-campo-50">
-                  <td colSpan={9} className="px-4 py-3 font-bold text-campo-800">Total</td>
+                  <td colSpan={10} className="px-4 py-3 font-bold text-campo-800">Total</td>
                   <td className="px-4 py-3 text-right font-bold text-campo-800">{fmt3(totalTon)}</td>
                   <td colSpan={3} />
                   <td className="px-4 py-3 text-right font-bold text-green-600">USD {fmt2(totalBonif)}</td>

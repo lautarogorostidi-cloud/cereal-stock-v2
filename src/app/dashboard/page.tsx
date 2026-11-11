@@ -8,11 +8,12 @@ export const revalidate = 0
 export default async function DashboardPage() {
   const supabase = createClient()
 
-  const [{ data: stock }, { data: comprometido }, { data: campanias }, { data: cultivos }] = await Promise.all([
+  const [{ data: stock }, { data: comprometido }, { data: campanias }, { data: cultivos }, { data: variedadStock }] = await Promise.all([
     supabase.from('vw_stock_actual').select('*'),
     supabase.from('vw_comprometido').select('*'),
     supabase.from('campanias').select('*').order('nombre', { ascending: false }),
     supabase.from('cultivos').select('*').eq('activo', true).order('nombre'),
+    supabase.from('vw_stock_actual_variedad').select('*'),
   ])
 
   // "Sin Siembra" y "Vicia + Avena" son conceptos de Seguimiento Agronómico (lotes en
@@ -25,6 +26,7 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       stockData={stock ?? []}
+      variedadData={variedadStock ?? []}
       comprometidoData={comprometido ?? []}
       campanias={campanias ?? []}
       cultivos={cultivosComerciales}

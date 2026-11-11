@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import MezclaVariedades, { mezclaValida } from '@/components/stock/MezclaVariedades'
+import { cargarVariedades, guardarMezclaMovimientos, type Variedad, type MezclaVariedades as Mezcla } from '@/lib/variedades'
 import { cargarSilosDisponibles, crearMovimientosConOrigen, etiquetaSilo, origenesValidos, totalOrigenes, type OrigenSeleccionado, type SiloDisponible } from '@/lib/stockOrigenes'
 
 const ENTRADAS = [
@@ -36,6 +38,8 @@ export default function NuevoMovimientoPage() {
   const [silosCampo, setSilosCampo] = useState<SiloDisponible[]>([])
   const [acopiosCosecha, setAcopiosCosecha] = useState<SiloDisponible[]>([])
   const [origenSilos, setOrigenSilos] = useState<OrigenSeleccionado[]>([])
+  const [variedades, setVariedades] = useState<Variedad[]>([])
+  const [mezcla, setMezcla] = useState<Mezcla>({})
 
   const [form, setForm] = useState({
     tipo: 'cosecha',
@@ -93,6 +97,15 @@ export default function NuevoMovimientoPage() {
     cargarSilos()
   }, [modo, form.campania_id, form.cultivo_id, campanias, cultivos])
 
+  // Variedades de soja (común / con tecnología) del cultivo elegido
+  useEffect(() => {
+    let vigente = true
+    setMezcla({})
+    if (!form.cultivo_id) { setVariedades([]); return }
+    cargarVariedades(supabase, form.cultivo_id).then(v => { if (vigente) setVariedades(v) })
+    return () => { vigente = false }
+  }, [form.cultivo_id])
+
   function set(key: string, value: string) { setForm(f => ({ ...f, [key]: value })) }
 
   function handleModo(m: 'entrada' | 'salida') {
@@ -130,15 +143,34 @@ export default function NuevoMovimientoPage() {
     if (form.observaciones) payload.observaciones = form.observaciones
 
     const toneladasTotales = parseFloat(form.toneladas)
+    const origenesUsados = modo === 'salida' ? origenesValidos(origenSilos) : []
+    const toneladasOperacion = origenesUsados.length > 0 ? totalOrigenes(origenesUsados) : toneladasTotales
+    if (variedades.length > 0 && !mezclaValida(mezcla, toneladasOperacion)) {
+      setError('Las toneladas por tipo de soja no suman las toneladas del movimiento. Revisá la sección "Tipo de soja".')
+      setLoading(false)
+      return
+    }
     // En salidas con origen indicado, se crea un movimiento por cada silo/acopio
     // (vinculado en movimiento_cereal_origenes) para descontar el stock puntual.
     // flete/secado/otros_gastos son montos totales de la operación: si se reparte
     // entre varios orígenes, cada movimiento se queda con su parte proporcional
     // (precio_unitario no se prorratea porque es una tarifa por tonelada).
     const origenesASalida = modo === 'salida' ? origenSilos : []
-    const { error } = await crearMovimientosConOrigen(supabase, origenesASalida, payload, toneladasTotales, ['flete', 'secado', 'otros_gastos'])
-    if (error) { setError(error); setLoading(false) }
-    else { setSuccess(true); setTimeout(() => router.push('/dashboard/ventas'), 1500) }
+    const { error, movimientoIds } = await crearMovimientosConOrigen(supabase, origenesASalida, payload, toneladasTotales, ['flete', 'secado', 'otros_gastos'])
+    if (error) { setError(error); setLoading(false); return }
+
+    // Tipo de soja: cada movimiento creado (uno por silo de origen) se queda con la misma proporción de la mezcla.
+    if (variedades.length > 0 && Object.values(mezcla).some(v => Number(v) > 0)) {
+      const tnPorMov = origenesUsados.length > 0 ? origenesUsados.map(o => Number(o.toneladas)) : [toneladasTotales]
+      const { error: errMezcla } = await guardarMezclaMovimientos(
+        supabase,
+        movimientoIds.map((id, i) => ({ id, toneladas: tnPorMov[i] ?? 0 })),
+        mezcla
+      )
+      if (errMezcla) { setError(`Movimiento guardado, pero no se pudo guardar el tipo de soja: ${errMezcla}`); setLoading(false); return }
+    }
+
+    setSuccess(true); setTimeout(() => router.push('/dashboard/ventas'), 1500)
   }
 
   const tiposActuales = modo === 'entrada' ? ENTRADAS : SALIDAS
@@ -218,6 +250,17 @@ export default function NuevoMovimientoPage() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Proteína (%)</label><input type="number" step="0.01" value={form.proteina} onChange={e => set('proteina', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Peso Hectolítrico</label><input type="number" step="0.01" value={form.peso_hectolitrico} onChange={e => set('peso_hectolitrico', e.target.value)} className="input-field" /></div>
           </div>
+
+          {variedades.length > 0 && (
+            <div className="mt-4">
+              <MezclaVariedades
+                variedades={variedades}
+                value={mezcla}
+                onChange={setMezcla}
+                esperado={origenesValidos(origenSilos).length > 0 && modo === 'salida' ? totalOrigenes(origenSilos) : (parseFloat(form.toneladas) || 0)}
+              />
+            </div>
+          )}
 
           {/* Origen del cereal — solo en salidas, cuando hay silos/acopios cargados para este cultivo/campaña */}
           {modo === 'salida' && (silosCampo.length > 0 || acopiosCosecha.length > 0) && (

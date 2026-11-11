@@ -22,7 +22,19 @@ interface ComprRow {
   ton_comprometidas: number
 }
 
+interface VariedadStockRow {
+  campania: string
+  cultivo: string
+  variedad: string
+  es_comun: boolean
+  variedad_orden: number
+  ton_ingresadas: number
+  ton_entregadas: number
+  stock_fisico: number
+}
+
 interface Props {
+  variedadData?: VariedadStockRow[]
   stockData: StockRow[]
   comprometidoData: ComprRow[]
   campanias: any[]
@@ -36,7 +48,7 @@ const COLORS = {
   margen: '#16a34a',
 }
 
-export default function DashboardClient({ stockData, comprometidoData, campanias, cultivos }: Props) {
+export default function DashboardClient({ stockData, comprometidoData, campanias, cultivos, variedadData = [] }: Props) {
   const campaniaActiva = campanias.find(c => c.activa)?.nombre ?? campanias[0]?.nombre ?? ''
 
   const [campaniasSel, setCampaniasSel] = useState<string[]>([campaniaActiva])
@@ -70,6 +82,25 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
       return matchC && matchCu
     })
   }, [stockData, campaniasSel, cultivosSel])
+
+  // Stock y entregas por variedad (soja común / con tecnología) para las campañas y cultivos elegidos
+  const variedadesResumen = useMemo(() => {
+    const filtradas = variedadData.filter(r =>
+      campaniasSel.includes(r.campania) && (cultivosSel.includes('todos') || cultivosSel.includes(r.cultivo))
+    )
+    const porClave = new Map<string, { cultivo: string; variedad: string; es_comun: boolean; orden: number; stock: number; entregado: number }>()
+    for (const r of filtradas) {
+      const k = `${r.cultivo}|${r.variedad}`
+      const prev = porClave.get(k) ?? { cultivo: r.cultivo, variedad: r.variedad, es_comun: !!r.es_comun, orden: Number(r.variedad_orden ?? 0), stock: 0, entregado: 0 }
+      prev.stock += Number(r.stock_fisico ?? 0)
+      prev.entregado += Number(r.ton_entregadas ?? 0)
+      porClave.set(k, prev)
+    }
+    return Array.from(porClave.values())
+      .filter(v => Math.abs(v.stock) > 0.0001 || v.entregado > 0.0001)
+      .sort((a, b) => a.cultivo.localeCompare(b.cultivo) || a.orden - b.orden)
+  }, [variedadData, campaniasSel, cultivosSel])
+  const hayVariedadEspecial = variedadesResumen.some(v => !v.es_comun)
 
   const comprometidoFiltrado = useMemo(() => {
     return comprometidoData.filter(r => {
@@ -205,6 +236,21 @@ export default function DashboardClient({ stockData, comprometidoData, campanias
           </div>
         ))}
       </div>
+
+      {hayVariedadEspecial && (
+        <div className="card">
+          <h2 className="font-semibold text-campo-800 mb-4 text-base">Soja por variedad</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {variedadesResumen.map(v => (
+              <div key={`${v.cultivo}|${v.variedad}`} className={`rounded-xl border p-4 ${v.es_comun ? 'border-campo-200 bg-campo-50' : 'border-emerald-200 bg-emerald-50'}`}>
+                <div className={`text-xs font-semibold uppercase tracking-wider ${v.es_comun ? 'text-campo-600' : 'text-emerald-700'}`}>{v.variedad}</div>
+                <div className="text-2xl font-bold text-campo-900 mt-1">{fmt(v.stock)} <span className="text-sm font-medium">tn en stock</span></div>
+                <div className="text-xs text-campo-500 mt-0.5">Entregado: {fmt(v.entregado)} tn</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         <div className="card lg:col-span-3">

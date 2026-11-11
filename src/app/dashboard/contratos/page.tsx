@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { mapaTextoVariedad } from '@/lib/variedades'
 
 const estadoColor: Record<string, string> = {
   borrador: 'badge-gris',
@@ -21,6 +22,9 @@ export default function ContratosPage() {
   const [cerrando, setCerrando] = useState<string | null>(null)
   const [filtro, setFiltro] = useState<'activos' | 'cumplidos' | 'todos'>('activos')
   const [busqueda, setBusqueda] = useState('')
+  // Variedad pactada y entregada por contrato (soja común / DM 40E25 / DM 47E23)
+  const [variedadPactada, setVariedadPactada] = useState<Record<string, string>>({})
+  const [variedadEntregada, setVariedadEntregada] = useState<Record<string, string>>({})
 
   async function load() {
     const { data } = await supabase
@@ -28,6 +32,24 @@ export default function ContratosPage() {
       .select('*')
       .order('fecha_contrato', { ascending: false })
     setContratos(data ?? [])
+
+    const [{ data: cts }, { data: vcs }] = await Promise.all([
+      supabase.from('contratos').select('numero, variedad_id, variedades_cultivo(nombre)').not('variedad_id', 'is', null),
+      supabase.from('vw_contrato_variedades').select('contrato_id, variedad, es_comun, ton_entregadas'),
+    ])
+    setVariedadPactada(Object.fromEntries((cts ?? []).map((c: any) => [String(c.numero), c.variedades_cultivo?.nombre ?? ''])))
+    // Sólo se muestra el desglose entregado si en el contrato hay algo que no sea soja común
+    const { data: idsPorNumero } = await supabase.from('contratos').select('id, numero')
+    const numeroPorId = new Map((idsPorNumero ?? []).map((c: any) => [c.id, String(c.numero)]))
+    const conEspecial = new Set((vcs ?? []).filter((v: any) => !v.es_comun && Number(v.ton_entregadas) > 0).map((v: any) => v.contrato_id))
+    const textos = mapaTextoVariedad(
+      (vcs ?? [])
+        .filter((v: any) => conEspecial.has(v.contrato_id))
+        .map((v: any) => ({ clave: v.contrato_id, variedad: v.variedad, toneladas: v.ton_entregadas, orden: v.es_comun ? 0 : 1 }))
+    )
+    const porNumero: Record<string, string> = {}
+    for (const [id, texto] of textos) { const n = numeroPorId.get(id); if (n) porNumero[n] = texto }
+    setVariedadEntregada(porNumero)
     setLoading(false)
   }
 
@@ -88,6 +110,8 @@ export default function ContratosPage() {
       String(c.numero ?? '').toLowerCase().includes(q) ||
       c.cultivo?.toLowerCase().includes(q) ||
       c.cliente?.toLowerCase().includes(q) ||
+      (variedadPactada[String(c.numero)] ?? '').toLowerCase().includes(q) ||
+      (variedadEntregada[String(c.numero)] ?? '').toLowerCase().includes(q) ||
       c.corredor?.toLowerCase().includes(q) ||
       c.estado?.toLowerCase().includes(q) ||
       c.moneda?.toLowerCase().includes(q)
@@ -142,6 +166,7 @@ export default function ContratosPage() {
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Nº</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Variedad</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Comprador</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Corredor</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Pactado</th>
@@ -156,13 +181,25 @@ export default function ContratosPage() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={13} className="px-4 py-8 text-center text-campo-400">Cargando...</td></tr>
+                <tr><td colSpan={14} className="px-4 py-8 text-center text-campo-400">Cargando...</td></tr>
               )}
               {!loading && contratosFiltrados.map((c, i) => (
                 <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-campo-600">{c.numero}</td>
                   <td className="px-4 py-3 text-campo-600">{new Date(c.fecha_contrato).toLocaleDateString('es-AR')}</td>
                   <td className="px-4 py-3 font-medium text-campo-900">{c.cultivo}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {String(c.cultivo ?? '').startsWith('Soja') ? (
+                      <>
+                        {variedadPactada[String(c.numero)]
+                          ? <span className="font-medium text-emerald-700">{variedadPactada[String(c.numero)]}</span>
+                          : <span className="text-campo-400">Cualquiera</span>}
+                        {variedadEntregada[String(c.numero)] && (
+                          <div className="text-campo-500 mt-0.5">Entregado: {variedadEntregada[String(c.numero)]}</div>
+                        )}
+                      </>
+                    ) : <span className="text-campo-300">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-campo-700">{c.cliente}</td>
                   <td className="px-4 py-3 text-campo-500 text-xs">{c.corredor ?? '—'}</td>
                   <td className="px-4 py-3 text-right">{Number(c.toneladas_pactadas).toLocaleString('es-AR', { minimumFractionDigits: 1 })}</td>
@@ -218,7 +255,7 @@ export default function ContratosPage() {
                 </tr>
               ))}
               {!loading && contratosFiltrados.length === 0 && (
-                <tr><td colSpan={13} className="px-4 py-10 text-center text-campo-400">
+                <tr><td colSpan={14} className="px-4 py-10 text-center text-campo-400">
                   {contratos.length === 0
                     ? 'No hay contratos registrados'
                     : busqueda.trim()

@@ -12,6 +12,7 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
       e.fecha?.includes(q) ||
       e.ctg?.toLowerCase().includes(q) ||
       e.cultivo?.toLowerCase().includes(q) ||
+      e.variedad?.toLowerCase().includes(q) ||
       e.campania?.toLowerCase().includes(q) ||
       e.cliente?.toLowerCase().includes(q) ||
       e.contrato?.toLowerCase().includes(q) ||
@@ -42,6 +43,7 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">CTG</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Variedad</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Toneladas</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cliente</th>
@@ -62,6 +64,7 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
                     ) : '—'}
                   </td>
                   <td className="px-4 py-3 font-medium text-campo-900">{e.cultivo ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs text-emerald-700">{e.variedad ?? <span className="text-campo-300">—</span>}</td>
                   <td className="px-4 py-3 text-campo-600">{e.campania ?? '—'}</td>
                   <td className="px-4 py-3 text-right font-medium text-campo-800">{Number(e.toneladas).toLocaleString('es-AR', { minimumFractionDigits: 3 })}</td>
                   <td className="px-4 py-3 text-campo-700">{e.cliente ?? '—'}</td>
@@ -76,13 +79,13 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
                 </tr>
               ))}
               {filtradas.length === 0 && (
-                <tr><td colSpan={9} className="px-4 py-10 text-center text-campo-400">Sin entregas registradas</td></tr>
+                <tr><td colSpan={10} className="px-4 py-10 text-center text-campo-400">Sin entregas registradas</td></tr>
               )}
             </tbody>
             {filtradas.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-campo-200 bg-campo-50">
-                  <td colSpan={4} className="px-4 py-3 font-bold text-campo-800 text-sm">Total</td>
+                  <td colSpan={5} className="px-4 py-3 font-bold text-campo-800 text-sm">Total</td>
                   <td className="px-4 py-3 text-right font-bold text-campo-800">{totalTon.toLocaleString('es-AR', { minimumFractionDigits: 3 })}</td>
                   <td colSpan={4} />
                 </tr>

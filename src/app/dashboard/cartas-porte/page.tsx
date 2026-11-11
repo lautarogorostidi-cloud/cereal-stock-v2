@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import CartasPorteClient from './CartasPorteClient'
 import { obtenerMapaCultivoComercial } from '@/lib/cultivoComercial'
+import { mapaTextoVariedad } from '@/lib/variedades'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function CartasPortePage() {
   const supabase = createClient()
-  const [{ data: cartas }, { data: contratos }, mapaCultivo] = await Promise.all([
+  const [{ data: cartas }, { data: contratos }, mapaCultivo, { data: variedadesCpe }] = await Promise.all([
     supabase
       .from('cartas_porte')
       .select(`*, campanias(nombre), cultivos(nombre), contratos(numero)`)
@@ -19,11 +20,24 @@ export default async function CartasPortePage() {
       .in('estado', ['activo', 'parcial'])
       .order('numero', { ascending: false }),
     obtenerMapaCultivoComercial(supabase),
+    supabase
+      .from('cartas_porte_variedades')
+      .select('carta_porte_id, toneladas_origen, variedades_cultivo(nombre, orden)'),
   ])
+
+  const textoVariedad = mapaTextoVariedad(
+    (variedadesCpe ?? []).map((v: any) => ({
+      clave: v.carta_porte_id,
+      variedad: v.variedades_cultivo?.nombre ?? '',
+      toneladas: v.toneladas_origen,
+      orden: v.variedades_cultivo?.orden,
+    }))
+  )
 
   const cartasResueltas = (cartas ?? []).map(c => ({
     ...c,
     cultivos: { nombre: mapaCultivo.get((c as any).cultivo_id) ?? (c.cultivos as any)?.nombre ?? null },
+    variedad: textoVariedad.get((c as any).id) ?? null,
   }))
 
   return (

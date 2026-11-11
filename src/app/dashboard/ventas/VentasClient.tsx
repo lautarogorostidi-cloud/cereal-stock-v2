@@ -270,6 +270,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">CTG</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Variedad</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Toneladas</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Cliente</th>
@@ -296,6 +297,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                     <td className="px-4 py-3 text-campo-600">{e.fecha ? new Date(e.fecha).toLocaleDateString('es-AR') : '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs text-campo-500">{e.ctg ?? '—'}</td>
                     <td className="px-4 py-3 font-medium text-campo-900">{e.cultivo ?? '—'}</td>
+                    <td className="px-4 py-3 text-xs text-emerald-700">{e.variedad ?? <span className="text-campo-300">—</span>}</td>
                     <td className="px-4 py-3 text-campo-600">{e.campania ?? '—'}</td>
                     <td className="px-4 py-3 text-right font-medium text-campo-800">{fmt(Number(e.toneladas ?? 0))}</td>
                     <td className="px-4 py-3 text-campo-700">{e.cliente ?? '—'}</td>
@@ -329,13 +331,13 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                   </tr>
                 ))}
                 {filtradas.length === 0 && (
-                  <tr><td colSpan={17} className="px-4 py-10 text-center text-campo-400">Sin movimientos registrados</td></tr>
+                  <tr><td colSpan={18} className="px-4 py-10 text-center text-campo-400">Sin movimientos registrados</td></tr>
                 )}
               </tbody>
               {filtradas.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-campo-200 bg-campo-50">
-                    <td colSpan={5} className="px-4 py-3 font-bold text-campo-800 text-sm">Total</td>
+                    <td colSpan={6} className="px-4 py-3 font-bold text-campo-800 text-sm">Total</td>
                     <td className="px-4 py-3 text-right font-bold text-campo-800">{fmt(totalTon)}</td>
                     <td colSpan={8} />
                     <td className="px-4 py-3 text-right font-bold text-campo-900">
@@ -359,6 +361,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Tipo</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
+                  <th className="text-left px-4 py-3 font-semibold text-campo-700">Variedad</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
                   <th className="text-right px-4 py-3 font-semibold text-campo-700">Toneladas</th>
                   <th className="text-left px-4 py-3 font-semibold text-campo-700">Lote</th>
@@ -380,6 +383,7 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                       </td>
                       <td className="px-4 py-3 text-campo-600">{e.fecha ? new Date(e.fecha).toLocaleDateString('es-AR') : '—'}</td>
                       <td className="px-4 py-3 font-medium text-campo-900">{e.cultivo ?? '—'}</td>
+                      <td className="px-4 py-3 text-xs text-emerald-700">{e.variedad ?? <span className="text-campo-300">—</span>}</td>
                       <td className="px-4 py-3 text-campo-600">{e.campania ?? '—'}</td>
                       <td className={`px-4 py-3 text-right font-medium ${tn < 0 ? 'text-red-600' : 'text-campo-800'}`}>
                         {tn > 0 ? '+' : ''}{fmt(tn)}
@@ -399,13 +403,13 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                   )
                 })}
                 {filtradas.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-10 text-center text-campo-400">Sin movimientos registrados</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-10 text-center text-campo-400">Sin movimientos registrados</td></tr>
                 )}
               </tbody>
               {filtradas.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-campo-200 bg-campo-50">
-                    <td colSpan={4} className="px-4 py-3 font-bold text-campo-800 text-sm">Variación neta de stock</td>
+                    <td colSpan={5} className="px-4 py-3 font-bold text-campo-800 text-sm">Variación neta de stock</td>
                     <td className={`px-4 py-3 text-right font-bold ${variacionNeta < 0 ? 'text-red-600' : 'text-campo-800'}`}>
                       {variacionNeta > 0 ? '+' : ''}{fmt(variacionNeta)}
                     </td>

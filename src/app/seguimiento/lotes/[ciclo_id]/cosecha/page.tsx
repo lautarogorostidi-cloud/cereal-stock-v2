@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useParams } from 'next/navigation'
+import { cargarVariedades, type Variedad } from '@/lib/variedades'
 
 type CicloInfo = {
   lote: string
@@ -40,6 +41,12 @@ export default function NuevaCosechaPage() {
   const [nuevoAcopioCuit, setNuevoAcopioCuit] = useState('')
   const [guardandoAcopio, setGuardandoAcopio] = useState(false)
   const [tarifarioServicios, setTarifarioServicios] = useState<any[]>([])
+  // Variedad cosechada (soja común / con tecnología): se calcula sola desde la siembra y se puede corregir a mano
+  const [variedadesCosecha, setVariedadesCosecha] = useState<Variedad[]>([])
+  const [pctVar, setPctVar] = useState<Record<string, string>>({})
+  const [pctVarInicial, setPctVarInicial] = useState<Record<string, string>>({})
+  const [origenVar, setOrigenVar] = useState<'siembra' | 'manual'>('siembra')
+  const [restablecerVar, setRestablecerVar] = useState(false)
 
   const [form, setForm] = useState({
     fecha: '',
@@ -81,6 +88,20 @@ export default function NuevaCosechaPage() {
     })
 
     const supDefault = cicloData?.sup_sembrada ?? cicloData?.hectareas ?? 0
+
+    // Variedades del cultivo y reparto actual (automático por siembra o manual)
+    if (cicloRaw?.cultivo_id) {
+      const vars = await cargarVariedades(supabase, cicloRaw.cultivo_id)
+      setVariedadesCosecha(vars)
+      if (vars.length > 0) {
+        const { data: reparto } = await supabase.from('vw_ciclo_variedades').select('variedad_id, porcentaje, origen').eq('ciclo_id', id)
+        const pct: Record<string, string> = {}
+        for (const r of reparto ?? []) pct[r.variedad_id] = String(Math.round(Number(r.porcentaje) * 10000) / 100)
+        setPctVar(pct)
+        setPctVarInicial(pct)
+        setOrigenVar((reparto ?? []).some((r: any) => r.origen === 'manual') ? 'manual' : 'siembra')
+      }
+    }
 
     setClientes(clientesData ?? [])
 
@@ -294,6 +315,11 @@ export default function NuevaCosechaPage() {
     if (!form.superficie_ha) { setError('La superficie es obligatoria.'); return }
     const destinoSinAcopio = destinos.find(d => Number(d.toneladas) > 0 && d.ubicacion === 'acopio' && !d.acopio_cliente_id)
     if (destinoSinAcopio) { setError('Elegí un acopio para cada destino con toneladas cargadas.'); return }
+    const varEditada = variedadesCosecha.length > 1 && JSON.stringify(pctVar) !== JSON.stringify(pctVarInicial)
+    if (varEditada && !restablecerVar) {
+      const sumaPct = Object.values(pctVar).reduce((a, v) => a + (Number(v) || 0), 0)
+      if (Math.abs(sumaPct - 100) > 0.1) { setError(`Los porcentajes de variedad suman ${sumaPct.toLocaleString('es-AR')}% y tienen que sumar 100%.`); return }
+    }
     setSaving(true)
 
     const payload: any = {
@@ -324,6 +350,23 @@ export default function NuevaCosechaPage() {
       await sincronizarStockCereal()
     } catch (e) {
       console.error('Error al sincronizar stock de cereal:', e)
+    }
+
+    // Variedad cosechada: restablecer al cálculo automático o guardar la corrección manual
+    try {
+      if (variedadesCosecha.length > 1) {
+        if (restablecerVar) {
+          await supabase.from('ciclo_variedades').delete().eq('ciclo_id', Number(ciclo_id))
+        } else if (varEditada) {
+          await supabase.from('ciclo_variedades').delete().eq('ciclo_id', Number(ciclo_id))
+          const filas = Object.entries(pctVar)
+            .filter(([, v]) => Number(v) > 0)
+            .map(([variedad_id, v]) => ({ ciclo_id: Number(ciclo_id), variedad_id, porcentaje: Number(v) / 100 }))
+          if (filas.length > 0) await supabase.from('ciclo_variedades').insert(filas)
+        }
+      }
+    } catch (e) {
+      console.error('Error al guardar la variedad cosechada:', e)
     }
 
     setSaving(false)
@@ -540,6 +583,39 @@ export default function NuevaCosechaPage() {
               className="w-full rounded-lg border border-dashed border-campo-300 py-2 text-xs text-campo-500 hover:bg-campo-100 transition">
               + Agregar otro destino
             </button>
+          </div>
+        )}
+
+        {variedadesCosecha.length > 1 && (
+          <div className="rounded-lg border border-campo-200 bg-campo-50 p-4 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="text-sm font-medium text-campo-700">Variedad cosechada</div>
+              <div className="text-xs text-campo-500">
+                {restablecerVar
+                  ? 'Se va a recalcular desde la siembra al guardar'
+                  : origenVar === 'manual' ? 'Cargada a mano' : 'Calculada desde las hectáreas de cada híbrido de la siembra'}
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {variedadesCosecha.map(v => (
+                <div key={v.id}>
+                  <label className="block text-xs text-campo-600 mb-1">{v.nombre} (%)</label>
+                  <input
+                    type="number" step="0.01" min="0" max="100"
+                    value={pctVar[v.id] ?? ''}
+                    disabled={restablecerVar}
+                    onChange={e => setPctVar(prev => ({ ...prev, [v.id]: e.target.value }))}
+                    className="w-full rounded-lg border border-campo-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 disabled:bg-gray-100"
+                    placeholder="0"
+                  />
+                </div>
+              ))}
+            </div>
+            {origenVar === 'manual' && !restablecerVar && (
+              <button type="button" onClick={() => setRestablecerVar(true)} className="text-xs text-campo-600 underline">
+                Volver al cálculo automático desde la siembra
+              </button>
+            )}
           </div>
         )}
 

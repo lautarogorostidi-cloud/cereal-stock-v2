@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import EntregasClient from './EntregasClient'
 import { obtenerMapaCultivoComercial } from '@/lib/cultivoComercial'
+import { fetchAllRows } from '@/lib/supabase/fetchAll'
+import { mapaTextoVariedad } from '@/lib/variedades'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -8,7 +10,7 @@ export const revalidate = 0
 export default async function EntregasPage() {
   const supabase = createClient()
 
-  const [{ data: movimientos }, mapaCultivo] = await Promise.all([
+  const [{ data: movimientos }, mapaCultivo, { data: variedadesMov }] = await Promise.all([
     supabase
       .from('movimientos_cereal')
       .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id), cartas_porte(ctg)`)
@@ -16,7 +18,19 @@ export default async function EntregasPage() {
       .order('fecha', { ascending: false })
       .limit(200),
     obtenerMapaCultivoComercial(supabase),
+    fetchAllRows(() =>
+      supabase
+        .from('vw_movimientos_variedad')
+        .select('movimiento_id, variedad_id, variedad, variedad_orden, toneladas')
+        .eq('tipo', 'entrega')
+        .order('movimiento_id')
+        .order('variedad_id')
+    ),
   ])
+
+  const textoVariedad = mapaTextoVariedad(
+    (variedadesMov ?? []).map((v: any) => ({ clave: v.movimiento_id, variedad: v.variedad, toneladas: v.toneladas, orden: v.variedad_orden }))
+  )
 
   // Obtener clientes por separado
   const clienteIds = Array.from(new Set((movimientos ?? []).map(e => (e.contratos as any)?.cliente_id).filter(Boolean)))
@@ -34,6 +48,7 @@ export default async function EntregasPage() {
     cultivo: mapaCultivo.get(e.cultivo_id) ?? (e.cultivos as any)?.nombre ?? null,
     campania: (e.campanias as any)?.nombre ?? null,
     toneladas: e.toneladas,
+    variedad: textoVariedad.get(e.id) ?? null,
     cliente: clienteMap[(e.contratos as any)?.cliente_id] ?? null,
     contrato: (e.contratos as any)?.numero ?? null,
     descripcion_movimiento: e.descripcion_movimiento,

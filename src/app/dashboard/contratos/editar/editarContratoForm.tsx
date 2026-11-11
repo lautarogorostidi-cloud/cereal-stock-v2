@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { cargarVariedades, type Variedad } from '@/lib/variedades'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function EditarContratoForm() {
@@ -16,6 +17,7 @@ export default function EditarContratoForm() {
   const [puertos, setPuertos] = useState<any[]>([])
   const [acopios, setAcopios] = useState<any[]>([])
   const [monedas, setMonedas] = useState<any[]>([])
+  const [variedadesContrato, setVariedadesContrato] = useState<Variedad[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,7 +26,7 @@ export default function EditarContratoForm() {
 
   const [form, setForm] = useState({
     numero: '', nro_operacion_corredor: '',
-    fecha_contrato: '', campania_id: '', campania_grano_id: '', cultivo_id: '', cliente_id: '',
+    fecha_contrato: '', campania_id: '', campania_grano_id: '', cultivo_id: '', variedad_id: '', cliente_id: '',
     cuit_comprador: '', corredor: '', cuit_corredor: '', sucursal: '',
     calidad_producto: '', condicion_entrega: '', pct_condicion: '',
     tipo_precio: 'disponible', precio_unitario: '', precio_plus: '',
@@ -68,6 +70,7 @@ export default function EditarContratoForm() {
             fecha_contrato: contrato.fecha_contrato ?? '',
             campania_id: contrato.campania_id ?? '',
             cultivo_id: contrato.cultivo_id ?? '',
+            variedad_id: contrato.variedad_id ?? '',
             campania_grano_id: contrato.campania_grano_id ?? '',
             cliente_id: contrato.cliente_id ?? '',
             cuit_comprador: contrato.cuit_comprador ?? '',
@@ -111,6 +114,19 @@ export default function EditarContratoForm() {
 
   function set(key: string, value: string) { setForm(f => ({ ...f, [key]: value })) }
 
+  // Variedades del cultivo elegido (soja: común / con tecnología)
+  useEffect(() => {
+    let vigente = true
+    if (!form.cultivo_id) { setVariedadesContrato([]); return }
+    cargarVariedades(supabase, form.cultivo_id).then(v => {
+      if (!vigente) return
+      setVariedadesContrato(v)
+      // si cambió a un cultivo sin esa variedad, se limpia
+      setForm(f => (f.variedad_id && !v.some(x => x.id === f.variedad_id)) ? { ...f, variedad_id: '' } : f)
+    })
+    return () => { vigente = false }
+  }, [form.cultivo_id])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
@@ -126,6 +142,7 @@ export default function EditarContratoForm() {
       moneda_id: form.moneda_id,
       toneladas_pactadas: parseFloat(form.toneladas_pactadas),
       estado: form.estado,
+      variedad_id: form.variedad_id || null,
       corredor_nombre: form.corredor ? form.corredor : null,
       campania_grano_id: form.campania_grano_id || null,
       corredor_cuit: form.cuit_corredor ? form.cuit_corredor : null,
@@ -199,6 +216,15 @@ export default function EditarContratoForm() {
               </select>
             </div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Campaña del grano</label><select value={form.campania_grano_id} onChange={e => set('campania_grano_id', e.target.value)} className="input-field"><option value="">Misma que el contrato</option>{campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}{c.activa ? ' ✓' : ''}</option>)}</select><p className="text-xs text-campo-400 mt-1">Si el grano es de una cosecha anterior</p></div>
+            {variedadesContrato.length > 0 && (
+              <div><label className="block text-sm font-medium text-campo-700 mb-1">Variedad pactada</label>
+                <select value={form.variedad_id} onChange={e => set('variedad_id', e.target.value)} className="input-field">
+                  <option value="">Cualquiera (sin variedad definida)</option>
+                  {variedadesContrato.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                </select>
+                <p className="text-xs text-campo-400 mt-1">Si el comprador pide una soja en particular (ej. con tecnología)</p>
+              </div>
+            )}
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Estado</label>
               <select value={form.estado} onChange={e => set('estado', e.target.value)} className="input-field">
                 <option value="borrador">Borrador</option>

@@ -9,7 +9,7 @@ export const revalidate = 0
 export default async function VentasPage() {
   const supabase = createClient()
 
-  const [{ data: movimientos }, { data: contratos }, mapaCultivo] = await Promise.all([
+  const [{ data: movimientos }, { data: contratos }, mapaCultivo, { data: variedadesMov }] = await Promise.all([
     fetchAllRows(() =>
       supabase
         .from('movimientos_cereal')
@@ -22,7 +22,30 @@ export default async function VentasPage() {
       .select('id, numero, cultivo_id, clientes(razon_social)')
       .order('numero', { ascending: false }),
     obtenerMapaCultivoComercial(supabase),
+    // Tipo de soja de cada movimiento (común / DM 40E25 / DM 47E23, o mezcla)
+    fetchAllRows(() =>
+      supabase
+        .from('vw_movimientos_variedad')
+        .select('movimiento_id, variedad_id, variedad, es_comun, variedad_orden, toneladas')
+        .order('movimiento_id')
+        .order('variedad_id')
+    ),
   ])
+
+  const variedadPorMov = new Map<string, { variedad: string; es_comun: boolean; orden: number; toneladas: number }[]>()
+  for (const v of variedadesMov ?? []) {
+    const arr = variedadPorMov.get(v.movimiento_id) ?? []
+    arr.push({ variedad: v.variedad, es_comun: !!v.es_comun, orden: Number(v.variedad_orden ?? 0), toneladas: Math.abs(Number(v.toneladas ?? 0)) })
+    variedadPorMov.set(v.movimiento_id, arr)
+  }
+  const textoVariedad = (movId: string): string | null => {
+    const partes = (variedadPorMov.get(movId) ?? []).slice().sort((a, b) => a.orden - b.orden)
+    if (partes.length === 0) return null
+    if (partes.length === 1) return partes[0].variedad
+    return partes
+      .map(p => `${p.variedad} ${p.toneladas.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`)
+      .join(' + ')
+  }
 
   const clienteIds = Array.from(new Set((movimientos ?? []).flatMap(e => [(e.contratos as any)?.cliente_id, e.cliente_id]).filter(Boolean)))
   const { data: clientes } = clienteIds.length > 0
@@ -65,6 +88,7 @@ export default async function VentasPage() {
       campania: (e.campanias as any)?.nombre ?? null,
       lote: (e.lotes as any)?.nombre ? `${(e.lotes as any).nombre}${(e.lotes as any).establecimiento ? ' — ' + (e.lotes as any).establecimiento : ''}` : null,
       toneladas: e.toneladas,
+      variedad: textoVariedad(e.id),
       descripcion_movimiento: e.descripcion_movimiento,
       observaciones: e.observaciones,
       cliente: clienteMap[(e.contratos as any)?.cliente_id] ?? clienteMap[e.cliente_id] ?? null,

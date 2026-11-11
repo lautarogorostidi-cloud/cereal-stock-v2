@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { cargarVariedades, type Variedad } from '@/lib/variedades'
 import { useRouter } from 'next/navigation'
 
 export default function NuevoContratoPage() {
@@ -14,6 +15,7 @@ export default function NuevoContratoPage() {
   const [puertos, setPuertos] = useState<any[]>([])
   const [acopios, setAcopios] = useState<any[]>([])
   const [monedas, setMonedas] = useState<any[]>([])
+  const [variedadesContrato, setVariedadesContrato] = useState<Variedad[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -24,7 +26,7 @@ export default function NuevoContratoPage() {
     fecha_contrato: new Date().toISOString().split('T')[0],
     campania_id: '',
     campania_grano_id: '',
-    cultivo_id: '',
+    cultivo_id: '', variedad_id: '',
     cliente_id: '',
     cuit_comprador: '',
     corredor: '',
@@ -94,6 +96,19 @@ export default function NuevoContratoPage() {
 
   function set(key: string, value: string) { setForm(f => ({ ...f, [key]: value })) }
 
+  // Variedades del cultivo elegido (soja: común / con tecnología)
+  useEffect(() => {
+    let vigente = true
+    if (!form.cultivo_id) { setVariedadesContrato([]); return }
+    cargarVariedades(supabase, form.cultivo_id).then(v => {
+      if (!vigente) return
+      setVariedadesContrato(v)
+      // si cambió a un cultivo sin esa variedad, se limpia
+      setForm(f => (f.variedad_id && !v.some(x => x.id === f.variedad_id)) ? { ...f, variedad_id: '' } : f)
+    })
+    return () => { vigente = false }
+  }, [form.cultivo_id])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -127,6 +142,7 @@ export default function NuevoContratoPage() {
       moneda_id: form.moneda_id,
       toneladas_pactadas: parseFloat(form.toneladas_pactadas),
       estado: 'activo',
+      variedad_id: form.variedad_id || null,
       usuario_id: session.user.id,
       observaciones: [form.observaciones, ...extras].filter(Boolean).join(' | '),
     }
@@ -179,6 +195,15 @@ export default function NuevoContratoPage() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Campaña *</label><select value={form.campania_id} onChange={e => set('campania_id', e.target.value)} required className="input-field"><option value="">Seleccioná</option>{campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Cultivo *</label><select value={form.cultivo_id} onChange={e => set('cultivo_id', e.target.value)} required className="input-field"><option value="">Seleccioná</option>{cultivos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Campaña del grano</label><select value={form.campania_grano_id} onChange={e => set('campania_grano_id', e.target.value)} className="input-field"><option value="">Misma que el contrato</option>{campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}{c.activa ? ' ✓' : ''}</option>)}</select><p className="text-xs text-campo-400 mt-1">Si el grano es de una cosecha anterior</p></div>
+            {variedadesContrato.length > 0 && (
+              <div><label className="block text-sm font-medium text-campo-700 mb-1">Variedad pactada</label>
+                <select value={form.variedad_id} onChange={e => set('variedad_id', e.target.value)} className="input-field">
+                  <option value="">Cualquiera (sin variedad definida)</option>
+                  {variedadesContrato.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                </select>
+                <p className="text-xs text-campo-400 mt-1">Si el comprador pide una soja en particular (ej. con tecnología)</p>
+              </div>
+            )}
           </div>
         </div>
 

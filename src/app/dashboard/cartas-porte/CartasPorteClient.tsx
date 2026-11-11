@@ -221,6 +221,7 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">CTG</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Fecha</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Variedad</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Tn Netas</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Destinatario</th>
@@ -236,6 +237,9 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{c.ctg ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-600">{new Date(c.fecha_emision).toLocaleDateString('es-AR')}</td>
                   <td className="px-4 py-3 font-medium text-campo-900">{c.cultivos?.nombre}</td>
+                  <td className="px-4 py-3 text-xs text-emerald-700">
+                    {c.variedad ?? (c.cultivos?.nombre === 'Soja' ? <span className="text-campo-400">Soja común</span> : <span className="text-campo-300">—</span>)}
+                  </td>
                   <td className="px-4 py-3 text-campo-600">{c.campanias?.nombre}</td>
                   <td className="px-4 py-3 text-right font-medium text-campo-800">
                     {c.toneladas_netas ? Number(c.toneladas_netas).toLocaleString('es-AR', { minimumFractionDigits: 3 }) : '—'}
@@ -267,7 +271,7 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
               ))}
               {listaFiltrada.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center text-campo-400">
+                  <td colSpan={11} className="px-4 py-10 text-center text-campo-400">
                     {lista.length === 0 ? 'No hay cartas de porte registradas' : 'Sin resultados para la búsqueda'}
                   </td>
                 </tr>
