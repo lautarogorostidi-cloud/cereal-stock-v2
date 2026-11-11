@@ -129,7 +129,7 @@ export function mapaTextoVariedad(
     porClave.set(f.clave, arr)
   }
   const out = new Map<string, string>()
-  for (const [clave, partes] of porClave) {
+  Array.from(porClave.entries()).forEach(([clave, partes]) => {
     const ordenadas = partes.slice().sort((a, b) => a.orden - b.orden)
     out.set(
       clave,
@@ -137,6 +137,6 @@ export function mapaTextoVariedad(
         ? ordenadas[0].variedad
         : ordenadas.map(p => `${p.variedad} ${p.toneladas.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`).join(' + ')
     )
-  }
+  })
   return out
 }

@@ -40,7 +40,7 @@ export default function ContratosPage() {
     setVariedadPactada(Object.fromEntries((cts ?? []).map((c: any) => [String(c.numero), c.variedades_cultivo?.nombre ?? ''])))
     // Sólo se muestra el desglose entregado si en el contrato hay algo que no sea soja común
     const { data: idsPorNumero } = await supabase.from('contratos').select('id, numero')
-    const numeroPorId = new Map((idsPorNumero ?? []).map((c: any) => [c.id, String(c.numero)]))
+    const numeroPorId = new Map<string, string>((idsPorNumero ?? []).map((c: any) => [String(c.id), String(c.numero)] as [string, string]))
     const conEspecial = new Set((vcs ?? []).filter((v: any) => !v.es_comun && Number(v.ton_entregadas) > 0).map((v: any) => v.contrato_id))
     const textos = mapaTextoVariedad(
       (vcs ?? [])
@@ -48,7 +48,7 @@ export default function ContratosPage() {
         .map((v: any) => ({ clave: v.contrato_id, variedad: v.variedad, toneladas: v.ton_entregadas, orden: v.es_comun ? 0 : 1 }))
     )
     const porNumero: Record<string, string> = {}
-    for (const [id, texto] of textos) { const n = numeroPorId.get(id); if (n) porNumero[n] = texto }
+    textos.forEach((texto, id) => { const n = numeroPorId.get(id); if (n) porNumero[n] = texto })
     setVariedadEntregada(porNumero)
     setLoading(false)
   }
