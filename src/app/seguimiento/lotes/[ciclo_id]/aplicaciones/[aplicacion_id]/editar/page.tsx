@@ -356,67 +356,10 @@ export default function EditarAplicacionPage() {
       return
     }
 
-    // ── RECALCULAR STOCK: borrar movimientos viejos de esta aplicación
-    // e insertar los nuevos con las cantidades actualizadas ───────────
-    // Si es una aplicación "legacy" (nunca tuvo movimiento propio), no
-    // tocamos agroquímicos en absoluto: ese consumo ya ocurrió en la
-    // realidad y no hay que descontarlo recién ahora.
-    if (esAplicacionLegacy) {
-      setSaving(false)
-      router.push(`/seguimiento/lotes/${ciclo_id}`)
-      return
-    }
-
-    const { error: delMovErr } = await supabase
-      .from('agroquimicos_movimientos')
-      .delete()
-      .eq('aplicacion_id', Number(aplicacion_id))
-      .eq('tipo', 'aplicacion')
-
-    if (delMovErr) {
-      setSaving(false)
-      setError(`La aplicación se actualizó, pero no se pudo recalcular el stock: ${delMovErr.message}`)
-      return
-    }
-
-    function normalizarCultivo(c: string | null | undefined): string {
-      const n = (c ?? '').trim().toLowerCase()
-      if (n.startsWith('maiz') || n.startsWith('maíz')) return 'maiz'
-      if (n.startsWith('soja')) return 'soja'
-      if (n.startsWith('trigo')) return 'trigo'
-      if (n.startsWith('girasol')) return 'girasol'
-      if (n.startsWith('centeno')) return 'centeno'
-      if (n.startsWith('cebada')) return 'cebada'
-      if (n.startsWith('sorgo')) return 'sorgo'
-      return 'otro'
-    }
-
-    const movimientosNuevos = productosValidos.map(p => {
-      const prodCatalogo = catalogoPorProducto[p.producto]
-      return {
-        producto_id: prodCatalogo.id,
-        tipo: 'aplicacion',
-        fecha: form.fecha || new Date().toISOString().split('T')[0],
-        cantidad: Number(p.dosis_ha) * Number(form.superficie_ha),
-        lote: cicloInfo?.lote ?? null,
-        cultivo: normalizarCultivo(cicloInfo?.cultivo),
-        campaña: cicloInfo?.campana ?? null,
-        ciclo_id: Number(ciclo_id),
-        aplicacion_id: Number(aplicacion_id),
-        precio_unitario: Number(p.costo_unitario),
-        observaciones: `Aplicación ${TIPOS_APLICACION.find(t => t.value === form.tipo)?.label ?? form.tipo} (editada) — ${cicloInfo?.lote} ${cicloInfo?.campana}`,
-      }
-    })
-
-    const { error: movErr } = await supabase.from('agroquimicos_movimientos').insert(movimientosNuevos)
-
+    // El stock de Agroquímicos se recalcula solo en la base de datos (triggers sobre
+    // sa_aplicacion_productos y sa_aplicaciones). Las aplicaciones "legacy" (anteriores
+    // al descuento automático y sin movimientos) no se tocan.
     setSaving(false)
-
-    if (movErr) {
-      setError(`La aplicación se actualizó, pero el stock NO se recalculó: ${movErr.message}. Revisá Agroquímicos → Movimientos.`)
-      return
-    }
-
     router.push(`/seguimiento/lotes/${ciclo_id}`)
   }
 

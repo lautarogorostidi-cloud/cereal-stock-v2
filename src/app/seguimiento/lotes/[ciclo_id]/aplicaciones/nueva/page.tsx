@@ -316,49 +316,8 @@ export default function NuevaAplicacionPage() {
       return
     }
 
-    // ── REGISTRAR EGRESOS EN AGROQUÍMICOS (descuenta el stock) ───────
-    // La tabla agroquimicos_movimientos solo acepta cultivos "simples"
-    // (maiz, soja, trigo, girasol, centeno, cebada, sorgo, otro) por un
-    // check constraint. El ciclo agronómico guarda variantes descriptivas
-    // (ej. "Maíz Temprano", "Maíz Tardío"), así que hay que normalizar
-    // antes de insertar o el guardado del egreso falla en silencio.
-    function normalizarCultivo(c: string | null | undefined): string {
-      const n = (c ?? '').trim().toLowerCase()
-      if (n.startsWith('maiz') || n.startsWith('maíz')) return 'maiz'
-      if (n.startsWith('soja')) return 'soja'
-      if (n.startsWith('trigo')) return 'trigo'
-      if (n.startsWith('girasol')) return 'girasol'
-      if (n.startsWith('centeno')) return 'centeno'
-      if (n.startsWith('cebada')) return 'cebada'
-      if (n.startsWith('sorgo')) return 'sorgo'
-      return 'otro'
-    }
-
-    const movimientos = productosValidos.map(p => {
-      const prodCatalogo = catalogoPorProducto[p.producto]
-      return {
-        producto_id: prodCatalogo.id,
-        tipo: 'aplicacion',
-        fecha: form.fecha || new Date().toISOString().split('T')[0],
-        cantidad: Number(p.dosis_ha) * Number(form.superficie_ha),
-        lote: ciclo?.lote ?? null,
-        cultivo: normalizarCultivo(ciclo?.cultivo),
-        campaña: ciclo?.campana ?? null,
-        aplicacion_id: aplData.id,
-        ciclo_id: Number(ciclo_id),
-        precio_unitario: Number(p.costo_unitario),
-        observaciones: `Aplicación ${TIPOS_APLICACION.find(t => t.value === form.tipo)?.label ?? form.tipo} — ${ciclo?.lote} ${ciclo?.campana}`,
-      }
-    })
-
-    const { error: movErr } = await supabase.from('agroquimicos_movimientos').insert(movimientos)
-    if (movErr) {
-      setSaving(false)
-      // No revertimos la aplicación ya guardada: avisamos claro para que se
-      // cargue el egreso de stock a mano desde Agroquímicos → Movimientos.
-      setError(`La aplicación se guardó, pero el stock NO se descontó: ${movErr.message}. Cargá el egreso manualmente en Agroquímicos → Movimientos.`)
-      return
-    }
+    // El descuento de stock en Agroquímicos lo genera la base de datos sola
+    // (triggers sobre sa_aplicacion_productos): no hace falta insertar nada acá.
 
     setSaving(false)
     router.push(`/seguimiento/lotes/${ciclo_id}`)

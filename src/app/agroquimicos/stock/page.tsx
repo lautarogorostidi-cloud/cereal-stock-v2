@@ -15,10 +15,13 @@ type StockItem = {
   valor_stock: number      // stock_actual * costo_promedio
 }
 
+type DescuentoDesparejo = { aplicacion_id: number; ciclo_id: number; fecha: string; producto: string; esperado: number; descontado: number; diferencia: number }
+
 export default function StockAgroquimicosPage() {
   const supabase = createClient()
   const [stock, setStock] = useState<StockItem[]>([])
   const [busqueda, setBusqueda] = useState('')
+  const [desparejos, setDesparejos] = useState<DescuentoDesparejo[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { cargar() }, [])
@@ -29,13 +32,16 @@ export default function StockAgroquimicosPage() {
     const [
       { data: stockData },
       { data: comprasData },
+      { data: desp },
     ] = await Promise.all([
       supabase.from('vw_stock_agroquimicos').select('*').order('tipo').order('producto'),
       supabase.from('agroquimicos_movimientos')
         .select('producto_id, cantidad, precio_unitario')
         .eq('tipo', 'compra')
         .not('precio_unitario', 'is', null),
+      supabase.from('vw_control_descuento_agroquimicos').select('*').order('fecha', { ascending: false }),
     ])
+    setDesparejos((desp ?? []) as DescuentoDesparejo[])
 
     // Costo promedio ponderado de compra por producto (USD/unidad)
     const acumPorProducto: Record<number, { totalUsd: number; totalCantidad: number }> = {}
@@ -95,6 +101,24 @@ export default function StockAgroquimicosPage() {
           <p className="text-campo-500 text-sm mt-0.5">Stock actual y valor de inventario por producto</p>
         </div>
       </div>
+
+      {/* Control: aplicaciones cuyo descuento de stock no coincide con dosis/ha × superficie */}
+      {desparejos.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="font-semibold mb-1">
+            ⚠ {desparejos.length} descuento{desparejos.length > 1 ? 's' : ''} de aplicación no coincide{desparejos.length > 1 ? 'n' : ''} con lo aplicado (dosis/ha × superficie). El stock puede estar mal.
+          </div>
+          <ul className="space-y-0.5">
+            {desparejos.slice(0, 15).map(d => (
+              <li key={`${d.aplicacion_id}-${d.producto}`}>
+                {d.fecha.split('-').reverse().join('/')} · {d.producto}: descontado {fmt(Number(d.descontado))}, debería ser {fmt(Number(d.esperado))}.{' '}
+                <a href={`/seguimiento/lotes/${d.ciclo_id}/aplicaciones/${d.aplicacion_id}/editar`} target="_blank" className="underline font-medium">Abrir aplicación y guardarla para recalcular</a>
+              </li>
+            ))}
+            {desparejos.length > 15 && <li>…y {desparejos.length - 15} más.</li>}
+          </ul>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
