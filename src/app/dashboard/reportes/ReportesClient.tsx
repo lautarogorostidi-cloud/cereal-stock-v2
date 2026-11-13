@@ -17,6 +17,7 @@ function calcularAnioFiscal(fecha: string | null | undefined): string | null {
 export default function ReportesClient({ resultados }: { resultados: any[] }) {
   const [busqueda, setBusqueda] = useState('')
   const [anioFiscalSel, setAnioFiscalSel] = useState('')
+  const [patenteSel, setPatenteSel] = useState('')
 
   const aniosFiscales = useMemo(() => {
     const set = new Set<string>()
@@ -27,8 +28,17 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
     return Array.from(set).sort().reverse()
   }, [resultados])
 
+  const patentes = useMemo(() => {
+    const set = new Set<string>()
+    resultados.forEach(r => { if (r.patente_camion) set.add(r.patente_camion) })
+    return Array.from(set).sort()
+  }, [resultados])
+  const haySinPatente = useMemo(() => resultados.some(r => !r.patente_camion), [resultados])
+
   const filtrados = useMemo(() => {
     let base = resultados
+    if (patenteSel === '__sin__') base = base.filter(r => !r.patente_camion)
+    else if (patenteSel) base = base.filter(r => r.patente_camion === patenteSel)
     if (anioFiscalSel) {
       base = base.filter(r => calcularAnioFiscal(r.fecha) === anioFiscalSel)
     }
@@ -42,9 +52,10 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
       r.ctg?.toLowerCase().includes(q) ||
       String(r.contrato ?? '').toLowerCase().includes(q) ||
       r.destino_localidad?.toLowerCase().includes(q) ||
-      r.chofer_nombre?.toLowerCase().includes(q)
+      r.chofer_nombre?.toLowerCase().includes(q) ||
+      r.patente_camion?.toLowerCase().includes(q)
     )
-  }, [resultados, busqueda, anioFiscalSel])
+  }, [resultados, busqueda, anioFiscalSel, patenteSel])
 
   const totalTon = filtrados.reduce((s, r) => s + Number(r.ton_totales ?? 0), 0)
   const totalBonif = filtrados.reduce((s, r) => s + Number(r.bonificacion_usd_total ?? 0), 0)
@@ -144,13 +155,23 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
           {aniosFiscales.map(af => <option key={af} value={af}>{af}</option>)}
         </select>
         <span className="text-xs text-campo-400">Septiembre a agosto</span>
+        <label className="text-sm font-semibold text-campo-700">Patente</label>
+        <select
+          value={patenteSel}
+          onChange={e => setPatenteSel(e.target.value)}
+          className="rounded-lg border border-campo-300 bg-white px-4 py-2.5 text-base font-medium text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[160px]"
+        >
+          <option value="">Todas</option>
+          {patentes.map(p => <option key={p} value={p}>{p}</option>)}
+          {haySinPatente && <option value="__sin__">Sin patente</option>}
+        </select>
       </div>
 
       <div className="card p-4 flex gap-3 items-center">
         <input
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar por fecha, CTG, campaña, cultivo, cliente, contrato, chofer, destino..."
+          placeholder="Buscar por fecha, CTG, campaña, cultivo, cliente, contrato, chofer, patente, destino..."
           className="input-field flex-1"
         />
         <button onClick={descargarCSV} className="btn-secondary whitespace-nowrap">
@@ -173,6 +194,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Contrato</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Destino</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Chofer</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Patente</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Toneladas</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Precio Base</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Plus</th>
@@ -197,6 +219,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{r.contrato}</td>
                   <td className="px-4 py-3 text-xs text-campo-600">{r.destino_localidad ?? '—'}</td>
                   <td className="px-4 py-3 text-xs text-campo-600">{r.chofer_nombre ?? '—'}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-campo-600">{r.patente_camion ?? <span className="text-campo-300">—</span>}</td>
                   <td className="px-4 py-3 text-right font-medium">{fmt3(Number(r.ton_totales ?? 0))}</td>
                   <td className="px-4 py-3 text-right text-campo-700">
                     {r.precio_base == null ? (
@@ -222,13 +245,13 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                 </tr>
               ))}
               {filtrados.length === 0 && (
-                <tr><td colSpan={19} className="px-4 py-10 text-center text-campo-400">Sin datos</td></tr>
+                <tr><td colSpan={20} className="px-4 py-10 text-center text-campo-400">Sin datos</td></tr>
               )}
             </tbody>
             {filtrados.length > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-campo-200 bg-campo-50">
-                  <td colSpan={10} className="px-4 py-3 font-bold text-campo-800">Total</td>
+                  <td colSpan={11} className="px-4 py-3 font-bold text-campo-800">Total</td>
                   <td className="px-4 py-3 text-right font-bold text-campo-800">{fmt3(totalTon)}</td>
                   <td colSpan={3} />
                   <td className="px-4 py-3 text-right font-bold text-green-600">USD {fmt2(totalBonif)}</td>

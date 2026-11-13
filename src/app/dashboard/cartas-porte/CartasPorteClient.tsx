@@ -9,15 +9,26 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
   const router = useRouter()
   const [lista, setLista] = useState(cartas)
   const [busqueda, setBusqueda] = useState('')
+  const [patenteSel, setPatenteSel] = useState('')
   const [vinculando, setVinculando] = useState<any | null>(null)
   const [contratoSel, setContratoSel] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const patentes = useMemo(() => {
+    const set = new Set<string>()
+    lista.forEach(c => { if (c.patente_camion) set.add(c.patente_camion) })
+    return Array.from(set).sort()
+  }, [lista])
+  const haySinPatente = useMemo(() => lista.some(c => !c.patente_camion), [lista])
+
   const listaFiltrada = useMemo(() => {
-    if (!busqueda.trim()) return lista
+    let base = lista
+    if (patenteSel === '__sin__') base = base.filter(c => !c.patente_camion)
+    else if (patenteSel) base = base.filter(c => c.patente_camion === patenteSel)
+    if (!busqueda.trim()) return base
     const q = busqueda.toLowerCase()
-    return lista.filter(c =>
+    return base.filter(c =>
       c.numero_cpe?.toLowerCase().includes(q) ||
       c.ctg?.toLowerCase().includes(q) ||
       c.cultivos?.nombre?.toLowerCase().includes(q) ||
@@ -31,7 +42,7 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
       c.empresa_transportista?.toLowerCase().includes(q) ||
       String(c.contratos?.numero ?? '').toLowerCase().includes(q)
     )
-  }, [lista, busqueda])
+  }, [lista, busqueda, patenteSel])
 
   function abrirModal(carta: any) {
     setVinculando(carta)
@@ -203,12 +214,24 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
         <button onClick={descargarExcel} className="btn-secondary">⬇ Descargar Excel</button>
       </div>
 
-      <div className="card p-4 mb-4">
+      <div className="card p-4 mb-4 flex gap-3 items-center flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-semibold text-campo-700">Patente</label>
+          <select
+            value={patenteSel}
+            onChange={e => setPatenteSel(e.target.value)}
+            className="rounded-lg border border-campo-300 bg-white px-4 py-2.5 text-base font-medium text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[160px]"
+          >
+            <option value="">Todas</option>
+            {patentes.map(p => <option key={p} value={p}>{p}</option>)}
+            {haySinPatente && <option value="__sin__">Sin patente</option>}
+          </select>
+        </div>
         <input
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
           placeholder="Buscar por CPE, CTG, cultivo, campaña, destinatario, destino, patente, chofer, contrato..."
-          className="input-field"
+          className="input-field flex-1 min-w-[240px]"
         />
       </div>
 
@@ -226,6 +249,8 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Tn Netas</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Destinatario</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Destino</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Chofer</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Patente</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Contrato</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -246,6 +271,8 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
                   </td>
                   <td className="px-4 py-3 text-campo-700 text-xs">{c.destinatario ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-600 text-xs">{c.destino_localidad ?? '—'}</td>
+                  <td className="px-4 py-3 text-campo-600 text-xs">{c.chofer_nombre ?? '—'}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-campo-600">{c.patente_camion ?? <span className="text-campo-300">—</span>}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">
                     <button onClick={() => abrirModal(c)} className="hover:text-campo-700">
                       {c.contratos?.numero ?? '—'}
@@ -271,7 +298,7 @@ export default function CartasPorteClient({ cartas, contratos }: { cartas: any[]
               ))}
               {listaFiltrada.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-10 text-center text-campo-400">
+                  <td colSpan={13} className="px-4 py-10 text-center text-campo-400">
                     {lista.length === 0 ? 'No hay cartas de porte registradas' : 'Sin resultados para la búsqueda'}
                   </td>
                 </tr>

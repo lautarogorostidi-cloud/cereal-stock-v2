@@ -4,11 +4,24 @@ import { useState, useMemo } from 'react'
 
 export default function EntregasClient({ entregas }: { entregas: any[] }) {
   const [busqueda, setBusqueda] = useState('')
+  const [patenteSel, setPatenteSel] = useState('')
+
+  const patentes = useMemo(() => {
+    const set = new Set<string>()
+    entregas.forEach(e => { if (e.patente) set.add(e.patente) })
+    return Array.from(set).sort()
+  }, [entregas])
+  const haySinPatente = useMemo(() => entregas.some(e => !e.patente), [entregas])
 
   const filtradas = useMemo(() => {
-    if (!busqueda.trim()) return entregas
+    let base = entregas
+    if (patenteSel === '__sin__') base = base.filter(e => !e.patente)
+    else if (patenteSel) base = base.filter(e => e.patente === patenteSel)
+    if (!busqueda.trim()) return base
     const q = busqueda.toLowerCase()
-    return entregas.filter(e =>
+    return base.filter(e =>
+      e.patente?.toLowerCase().includes(q) ||
+      e.chofer?.toLowerCase().includes(q) ||
       e.fecha?.includes(q) ||
       e.ctg?.toLowerCase().includes(q) ||
       e.cultivo?.toLowerCase().includes(q) ||
@@ -19,19 +32,31 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
       e.descripcion_movimiento?.toLowerCase().includes(q) ||
       e.observaciones?.toLowerCase().includes(q)
     )
-  }, [entregas, busqueda])
+  }, [entregas, busqueda, patenteSel])
 
   const totalTon = filtradas.reduce((s, e) => s + Number(e.toneladas ?? 0), 0)
 
   return (
     <div className="space-y-4">
       {/* Buscador */}
-      <div className="card p-4">
+      <div className="card p-4 flex gap-3 items-center flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-semibold text-campo-700">Patente</label>
+          <select
+            value={patenteSel}
+            onChange={e => setPatenteSel(e.target.value)}
+            className="rounded-lg border border-campo-300 bg-white px-4 py-2.5 text-base font-medium text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400 min-w-[160px]"
+          >
+            <option value="">Todas</option>
+            {patentes.map(p => <option key={p} value={p}>{p}</option>)}
+            {haySinPatente && <option value="__sin__">Sin patente</option>}
+          </select>
+        </div>
         <input
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar por fecha, CTG, cultivo, campaña, cliente, contrato..."
-          className="input-field"
+          placeholder="Buscar por fecha, CTG, patente, chofer, cultivo, campaña, cliente, contrato..."
+          className="input-field flex-1 min-w-[240px]"
         />
       </div>
 
@@ -48,6 +73,8 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Toneladas</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cliente</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Contrato</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Chofer</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Patente</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Origen</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Descripción</th>
               </tr>
@@ -69,6 +96,8 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
                   <td className="px-4 py-3 text-right font-medium text-campo-800">{Number(e.toneladas).toLocaleString('es-AR', { minimumFractionDigits: 3 })}</td>
                   <td className="px-4 py-3 text-campo-700">{e.cliente ?? '—'}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{e.contrato ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs text-campo-600">{e.chofer ?? '—'}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-campo-600">{e.patente ?? <span className="text-campo-300">—</span>}</td>
                   <td className="px-4 py-3">
                     {e.carta_porte_id
                       ? <span className="text-xs bg-campo-100 text-campo-700 px-2 py-0.5 rounded-full font-medium">CPE</span>
@@ -79,7 +108,7 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
                 </tr>
               ))}
               {filtradas.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-campo-400">Sin entregas registradas</td></tr>
+                <tr><td colSpan={12} className="px-4 py-10 text-center text-campo-400">Sin entregas registradas</td></tr>
               )}
             </tbody>
             {filtradas.length > 0 && (
@@ -87,7 +116,7 @@ export default function EntregasClient({ entregas }: { entregas: any[] }) {
                 <tr className="border-t-2 border-campo-200 bg-campo-50">
                   <td colSpan={5} className="px-4 py-3 font-bold text-campo-800 text-sm">Total</td>
                   <td className="px-4 py-3 text-right font-bold text-campo-800">{totalTon.toLocaleString('es-AR', { minimumFractionDigits: 3 })}</td>
-                  <td colSpan={4} />
+                  <td colSpan={6} />
                 </tr>
               </tfoot>
             )}

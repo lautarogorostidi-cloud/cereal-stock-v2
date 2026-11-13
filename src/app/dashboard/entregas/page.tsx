@@ -13,7 +13,7 @@ export default async function EntregasPage() {
   const [{ data: movimientos }, mapaCultivo, { data: variedadesMov }] = await Promise.all([
     supabase
       .from('movimientos_cereal')
-      .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id), cartas_porte(ctg)`)
+      .select(`*, campanias(nombre), cultivos(nombre), contratos(numero, cliente_id), cartas_porte(ctg, patente_camion, chofer_nombre)`)
       .eq('tipo', 'entrega')
       .order('fecha', { ascending: false })
       .limit(200),
@@ -44,6 +44,8 @@ export default async function EntregasPage() {
     id: e.id,
     fecha: e.fecha,
     ctg: (e.cartas_porte as any)?.ctg ?? null,
+    patente: (e.cartas_porte as any)?.patente_camion ?? null,
+    chofer: (e.cartas_porte as any)?.chofer_nombre ?? null,
     carta_porte_id: e.carta_porte_id,
     cultivo: mapaCultivo.get(e.cultivo_id) ?? (e.cultivos as any)?.nombre ?? null,
     campania: (e.campanias as any)?.nombre ?? null,
