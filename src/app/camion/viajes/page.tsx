@@ -41,6 +41,8 @@ export default function ViajesCamionPage() {
   const [error, setError] = useState<string | null>(null)
   const [nuevoCliMode, setNuevoCliMode] = useState(false)
   const [nuevoCli, setNuevoCli] = useState({ nombre: '', cuit: '', telefono: '' })
+  const [editTarifa, setEditTarifa] = useState<{ key: string; valor: string } | null>(null)
+  const [errorTarifa, setErrorTarifa] = useState<string | null>(null)
 
   async function cargar() {
     setLoading(true)
@@ -158,10 +160,32 @@ export default function ViajesCamionPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  async function guardarTarifaChofer(v: ViajeCamion) {
+    if (!editTarifa) return
+    setErrorTarifa(null)
+    const txt = editTarifa.valor.trim()
+    if (txt === '') {
+      // vacío = vuelve a la tarifa por defecto (vigencia)
+      const { error } = await supabase.from('camion_tarifa_chofer_viaje').delete().eq('origen_viaje', v.origen_viaje).eq('viaje_id', v.viaje_id)
+      if (error) { setErrorTarifa(error.message); return }
+    } else {
+      const valor = Number(txt.replace(',', '.'))
+      if (!isFinite(valor) || valor < 0) { setErrorTarifa('La tarifa del chofer tiene que ser un número mayor o igual a 0.'); return }
+      const { error } = await supabase.from('camion_tarifa_chofer_viaje').upsert(
+        { origen_viaje: v.origen_viaje, viaje_id: v.viaje_id, usd_por_tn: valor, updated_at: new Date().toISOString() },
+        { onConflict: 'origen_viaje,viaje_id' }
+      )
+      if (error) { setErrorTarifa(error.message); return }
+    }
+    setEditTarifa(null)
+    cargar()
+  }
+
   async function borrar(v: ViajeCamion) {
     if (!confirm('¿Borrar este viaje de tercero?')) return
     const { error } = await supabase.from('camion_viajes_terceros').delete().eq('id', Number(v.viaje_id))
     if (error) alert(error.message)
+    else await supabase.from('camion_tarifa_chofer_viaje').delete().eq('origen_viaje', 'tercero').eq('viaje_id', v.viaje_id)
     cargar()
   }
 
@@ -187,8 +211,7 @@ export default function ViajesCamionPage() {
           {sinTarifaFlete > 0 && <div>⚠️ {sinTarifaFlete} viaje(s) sin tarifa de flete: figuran con ingreso USD 0. Cargala en la carta de porte.</div>}
           {sinTarifaChofer > 0 && (
             <div>
-              ⚠️ {sinTarifaChofer} viaje(s) sin tarifa de chofer vigente a su fecha: el costo del chofer figura en 0.{' '}
-              <Link href="/camion/tarifa-chofer" className="underline font-medium">Cargar tarifa del chofer</Link>
+              ⚠️ {sinTarifaChofer} viaje(s) sin tarifa de chofer: el costo figura en 0. Cargala en la columna “Chofer USD/tn” de cada viaje.
             </div>
           )}
         </div>
@@ -285,6 +308,8 @@ export default function ViajesCamionPage() {
         </div>
       )}
 
+      {errorTarifa && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{errorTarifa}</div>}
+
       {/* Tabs + filtros */}
       <div className="flex flex-wrap items-center gap-2">
         {([
@@ -341,16 +366,17 @@ export default function ViajesCamionPage() {
                 <th className="px-3 py-2 text-right">Tn netas</th>
                 <th className="px-3 py-2 text-right">Dif.</th>
                 <th className="px-3 py-2 text-left">CPE / CTG</th>
-                <th className="px-3 py-2 text-right">Tarifa</th>
+                <th className="px-3 py-2 text-right">Flete USD/tn</th>
                 <th className="px-3 py-2 text-right">Ingreso</th>
-                <th className="px-3 py-2 text-right">Chofer</th>
+                <th className="px-3 py-2 text-right">Chofer USD/tn</th>
+                <th className="px-3 py-2 text-right">Costo chofer</th>
                 <th className="px-3 py-2 text-right">Resultado</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-campo-50">
-              {loading && <tr><td colSpan={18} className="px-3 py-10 text-center text-campo-400">Cargando…</td></tr>}
-              {!loading && filtrados.length === 0 && <tr><td colSpan={18} className="px-3 py-10 text-center text-campo-400">No hay viajes con esos filtros</td></tr>}
+              {loading && <tr><td colSpan={19} className="px-3 py-10 text-center text-campo-400">Cargando…</td></tr>}
+              {!loading && filtrados.length === 0 && <tr><td colSpan={19} className="px-3 py-10 text-center text-campo-400">No hay viajes con esos filtros</td></tr>}
               {filtrados.map(v => (
                 <tr key={v.origen_viaje + v.viaje_id} className="hover:bg-campo-50/60">
                   <td className="px-3 py-2">{fmtFecha(v.fecha)}</td>
@@ -377,6 +403,31 @@ export default function ViajesCamionPage() {
                   </td>
                   <td className={`px-3 py-2 text-right ${n(v.tarifa_usd_tn) === 0 ? 'text-red-600 font-medium' : ''}`}>{fmtNum(v.tarifa_usd_tn, 2)}</td>
                   <td className="px-3 py-2 text-right">{fmtUsd(v.ingreso_usd)}</td>
+                  <td className="px-3 py-2 text-right">
+                    {editTarifa?.key === v.origen_viaje + v.viaje_id ? (
+                      <div className="flex items-center gap-1 justify-end">
+                        <input
+                          autoFocus
+                          type="number" step="0.01" min="0"
+                          value={editTarifa.valor}
+                          onChange={e => setEditTarifa({ key: editTarifa.key, valor: e.target.value })}
+                          onKeyDown={e => { if (e.key === 'Enter') guardarTarifaChofer(v); if (e.key === 'Escape') { setEditTarifa(null); setErrorTarifa(null) } }}
+                          className="w-20 rounded border border-campo-300 px-2 py-1 text-sm text-right"
+                          placeholder="defecto"
+                        />
+                        <button onClick={() => guardarTarifaChofer(v)} className="text-xs text-white bg-amber-700 hover:bg-amber-600 rounded px-2 py-1">OK</button>
+                        <button onClick={() => { setEditTarifa(null); setErrorTarifa(null) }} className="text-xs text-campo-500 px-1">✕</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setErrorTarifa(null); setEditTarifa({ key: v.origen_viaje + v.viaje_id, valor: v.tarifa_chofer_propia && v.tarifa_chofer_usd_tn != null ? String(v.tarifa_chofer_usd_tn) : '' }) }}
+                        title={v.tarifa_chofer_propia ? 'Tarifa propia de este viaje. Click para cambiarla (vacío = volver a la tarifa por defecto)' : v.tarifa_chofer_usd_tn != null ? 'Tarifa por defecto (vigencia). Click para fijar la de este viaje' : 'Sin tarifa. Click para cargarla'}
+                        className={`hover:underline ${v.tarifa_chofer_usd_tn == null ? 'text-red-600 font-medium' : v.tarifa_chofer_propia ? 'text-campo-900 font-medium' : 'text-campo-400 italic'}`}
+                      >
+                        {v.tarifa_chofer_usd_tn != null ? fmtNum(v.tarifa_chofer_usd_tn, 2) : '+ cargar'}
+                      </button>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right text-campo-600">{fmtUsd(v.costo_chofer_usd)}</td>
                   <td className="px-3 py-2 text-right font-semibold text-campo-900">{fmtUsd(v.resultado_usd)}</td>
                   <td className="px-3 py-2 text-right">
@@ -396,7 +447,7 @@ export default function ViajesCamionPage() {
         </div>
       </div>
       <p className="text-xs text-campo-400">
-        Tn netas = toneladas descargadas (propios: de la carta de porte). Ingreso = tn netas × tarifa. Chofer = tn netas × tarifa vigente del chofer a la fecha del viaje.
+        Tn netas = toneladas descargadas (propios: de la carta de porte). Ingreso = tn netas × tarifa. Costo chofer = tn netas × tarifa del chofer de ese viaje (en gris cursiva: la tarifa por defecto de “Tarifa del chofer”, porque todavía no le fijaste una propia).
         El combustible y demás costos no se asignan por viaje: se ven en Rentabilidad por período.
       </p>
     </div>

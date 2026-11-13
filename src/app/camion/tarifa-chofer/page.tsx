@@ -62,7 +62,7 @@ export default function TarifaChoferPage() {
       <div>
         <h1 className="text-2xl font-bold text-campo-900">Tarifa del chofer</h1>
         <p className="text-campo-500 text-sm mt-0.5">
-          Lo que cobra el chofer por tonelada transportada (USD/tn). Es un costo del negocio, aparte de la tarifa de flete que cobrás vos.
+          Tarifa por defecto del chofer (USD/tn). Se aplica a los viajes que no tienen una tarifa propia; la tarifa de cada viaje se carga en Viajes, columna “Chofer USD/tn”, y tiene prioridad sobre ésta.
         </p>
       </div>
 
@@ -92,7 +92,7 @@ export default function TarifaChoferPage() {
           )}
         </div>
         <p className="text-xs text-campo-400">
-          Cada viaje usa la tarifa vigente a su fecha (la más reciente con “vigente desde” igual o anterior). Para que aplique a viajes ya hechos, cargá una vigencia con una fecha anterior al primer viaje (ej. 01/01/2026).
+          Los viajes sin tarifa propia usan la vigente a su fecha (la más reciente con “vigente desde” igual o anterior). Es opcional: podés dejarla vacía y cargar la tarifa viaje por viaje.
         </p>
       </div>
 

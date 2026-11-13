@@ -405,6 +405,11 @@ export default function EditarCartaPorteForm() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Campaña *</label><select value={form.campania_id} onChange={e => set('campania_id', e.target.value)} required className="input-field"><option value="">Seleccioná</option>{campanias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Cultivo *</label><select value={form.cultivo_id} onChange={e => set('cultivo_id', e.target.value)} required className="input-field"><option value="">Seleccioná</option>{cultivos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></div>
             <div className="col-span-2"><label className="block text-sm font-medium text-campo-700 mb-1">Contrato vinculado</label><select value={form.contrato_id} onChange={e => set('contrato_id', e.target.value)} className="input-field"><option value="">Sin contrato</option>{contratos.map(c => <option key={c.id} value={c.id}>{c.numero} — {(c.cultivos as any)?.nombre} — {(c.clientes as any)?.razon_social}</option>)}</select></div>
+            {variedades.length > 0 && (
+              <div className="col-span-2">
+                <MezclaVariedades variedades={variedades} value={mezcla} onChange={setMezcla} esperado={toneladas_carga} />
+              </div>
+            )}
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Estado</label><select value={form.estado} onChange={e => set('estado', e.target.value)} className="input-field"><option value="emitida">Emitida</option><option value="en_transito">En tránsito</option><option value="descargada">Descargada</option><option value="anulada">Anulada</option></select></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Bonificación calidad (%)</label><input type="number" step="0.01" value={form.bonificacion_calidad} onChange={e => set('bonificacion_calidad', e.target.value)} placeholder="2.00" className="input-field" /></div>
           {/* Origen del cereal — aparece cuando hay silos o acopios cargados para este cultivo/campaña */}
@@ -527,11 +532,6 @@ export default function EditarCartaPorteForm() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Peso Tara (kg)</label><input type="number" value={form.peso_tara_kg} onChange={e => set('peso_tara_kg', e.target.value)} className="input-field" /></div>
             {pesoNeto !== null && <div className="col-span-2"><div className="rounded-lg bg-campo-50 border border-campo-200 px-4 py-2 text-sm"><span className="text-campo-500">Peso Neto calculado: </span><span className="font-bold text-campo-800">{pesoNeto.toFixed(3)} tn</span></div></div>}
             {!pesoNeto && <div><label className="block text-sm font-medium text-campo-700 mb-1">Toneladas (manual)</label><input type="number" step="0.001" value={form.toneladas_origen} onChange={e => set('toneladas_origen', e.target.value)} className="input-field" /></div>}
-            {variedades.length > 0 && (
-              <div className="col-span-2">
-                <MezclaVariedades variedades={variedades} value={mezcla} onChange={setMezcla} esperado={toneladas_carga} />
-              </div>
-            )}
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Humedad origen (%)</label><input type="number" step="0.01" value={form.humedad_origen} onChange={e => set('humedad_origen', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Proteína (%)</label><input type="number" step="0.01" value={form.proteina} onChange={e => set('proteina', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Gluten (%)</label><input type="number" step="0.01" value={form.gluten} onChange={e => set('gluten', e.target.value)} className="input-field" /></div>

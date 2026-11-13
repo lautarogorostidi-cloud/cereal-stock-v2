@@ -23,6 +23,7 @@ export type ViajeCamion = {
   diferencia_tn: number
   ingreso_usd: number
   tarifa_chofer_usd_tn: number | null
+  tarifa_chofer_propia: boolean
   costo_chofer_usd: number
   resultado_usd: number
 }
