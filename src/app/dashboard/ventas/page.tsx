@@ -91,6 +91,13 @@ export default async function VentasPage() {
       variedad: textoVariedad(e.id),
       descripcion_movimiento: e.descripcion_movimiento,
       observaciones: e.observaciones,
+      // valores crudos del movimiento (para editarlos)
+      humedad: e.humedad,
+      precio_mov: e.precio_unitario,
+      flete_total: e.flete,
+      secado: e.secado,
+      paritaria: e.paritaria,
+      otros_gastos: e.otros_gastos,
       cliente: clienteMap[(e.contratos as any)?.cliente_id] ?? clienteMap[e.cliente_id] ?? null,
       contrato: (e.contratos as any)?.numero ?? null,
       precio_base: precio_base || null,

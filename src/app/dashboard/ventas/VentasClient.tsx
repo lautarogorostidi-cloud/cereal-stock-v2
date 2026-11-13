@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const TIPOS_OTROS = ['otro_ingreso', 'otro_egreso', 'recepcion_cliente', 'consumo_hacienda', 'merma']
@@ -53,7 +54,12 @@ function claseTipo(tipo: string) {
 
 export default function VentasClient({ ventas: ventasIniciales, contratos }: { ventas: any[], contratos: any[] }) {
   const supabase = createClient()
+  const router = useRouter()
   const [ventas, setVentas] = useState(ventasIniciales)
+  useEffect(() => { setVentas(ventasIniciales) }, [ventasIniciales])
+  const [editMov, setEditMov] = useState<any | null>(null)
+  const [formMov, setFormMov] = useState({ fecha: '', toneladas: '', humedad: '', precio_unitario: '', flete: '', secado: '', paritaria: '', otros_gastos: '', descripcion_movimiento: '', observaciones: '' })
+  const [bloqueoTn, setBloqueoTn] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [vista, setVista] = useState<VistaId>('ventas')
   const [campaniasSel, setCampaniasSel] = useState<string[]>([]) // vacío = todas
@@ -195,6 +201,83 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
     setVentas(prev => prev.filter(v => v.id !== e.id))
   }
 
+  async function abrirEditarMov(e: any) {
+    setError(null)
+    setEditMov(e)
+    const s = (v: any) => (v === null || v === undefined ? '' : String(v))
+    setFormMov({
+      fecha: e.fecha ?? '',
+      toneladas: s(e.toneladas),
+      humedad: s(e.humedad),
+      precio_unitario: s(e.precio_mov),
+      flete: s(e.flete_total),
+      secado: s(e.secado),
+      paritaria: s(e.paritaria),
+      otros_gastos: s(e.otros_gastos),
+      descripcion_movimiento: e.descripcion_movimiento ?? '',
+      observaciones: e.observaciones ?? '',
+    })
+    if (e.carta_porte_id) {
+      setBloqueoTn('Las toneladas vienen de la carta de porte: para cambiarlas editá la carta de porte.')
+    } else if (e.tipo === 'cosecha') {
+      setBloqueoTn('Las toneladas de cosecha se cargan desde Seguimiento → lote → cosecha.')
+    } else {
+      setBloqueoTn(null)
+      const { count, error: errOr } = await supabase
+        .from('movimiento_cereal_origenes')
+        .select('movimiento_id', { count: 'exact', head: true })
+        .eq('movimiento_id', e.id)
+      if (errOr) setBloqueoTn('No pude verificar si el movimiento descuenta de silos; por seguridad las toneladas no se pueden editar acá.')
+      else if ((count ?? 0) > 0) setBloqueoTn('Este movimiento descuenta de silos: para cambiar las toneladas eliminalo y cargalo de nuevo, o hacé un ajuste de stock.')
+    }
+  }
+
+  function cerrarEditarMov() {
+    setEditMov(null)
+    setBloqueoTn(null)
+    setError(null)
+  }
+
+  async function guardarEdicionMov() {
+    if (!editMov) return
+    setError(null)
+    const num = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')))
+    const campos = ['toneladas', 'humedad', 'precio_unitario', 'flete', 'secado', 'paritaria', 'otros_gastos'] as const
+    for (const c of campos) {
+      const n = num((formMov as any)[c])
+      if (n !== null && !isFinite(n)) { setError(`El valor de "${c.replace('_', ' ')}" no es un número válido.`); return }
+    }
+    if (!formMov.fecha) { setError('La fecha es obligatoria.'); return }
+    const tn = num(formMov.toneladas)
+    if (!bloqueoTn && (tn === null || tn === 0)) { setError('Las toneladas no pueden estar vacías ni ser 0.'); return }
+    for (const c of ['flete', 'secado', 'paritaria', 'otros_gastos'] as const) {
+      const n = num(formMov[c]); if (n !== null && n < 0) { setError('Los gastos no pueden ser negativos.'); return }
+    }
+
+    const payload: Record<string, any> = {
+      fecha: formMov.fecha,
+      humedad: num(formMov.humedad),
+      precio_unitario: num(formMov.precio_unitario),
+      flete: num(formMov.flete) ?? 0,
+      secado: num(formMov.secado) ?? 0,
+      paritaria: num(formMov.paritaria) ?? 0,
+      otros_gastos: num(formMov.otros_gastos) ?? 0,
+      descripcion_movimiento: formMov.descripcion_movimiento.trim() || null,
+      observaciones: formMov.observaciones.trim() || null,
+    }
+    if (!bloqueoTn && tn !== null) {
+      payload.toneladas = editMov.tipo === 'ajuste' ? tn : Math.abs(tn)
+    }
+
+    setSaving(true)
+    const { data, error: errUpd } = await supabase.from('movimientos_cereal').update(payload).eq('id', editMov.id).select('id')
+    setSaving(false)
+    if (errUpd) { setError(errUpd.message); return }
+    if (!data || data.length === 0) { setError('No se pudo guardar: solo podés editar movimientos que cargaste vos (o ser administrador).'); return }
+    cerrarEditarMov()
+    router.refresh()
+  }
+
   async function guardarContrato() {
     if (!vinculando) return
     setSaving(true)
@@ -316,6 +399,9 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                     <td className="px-4 py-3 text-xs text-campo-400">{e.descripcion_movimiento || e.observaciones || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
+                        <button onClick={() => abrirEditarMov(e)} className="text-xs text-emerald-700 hover:text-emerald-900 underline">
+                          editar
+                        </button>
                         <button onClick={() => abrirModalContrato(e)} className="text-xs text-campo-500 hover:text-campo-700 underline">
                           contrato
                         </button>
@@ -392,12 +478,17 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
                       <td className="px-4 py-3 text-campo-700">{e.cliente ?? '—'}</td>
                       <td className="px-4 py-3 text-campo-700 max-w-md">{comentario || '—'}</td>
                       <td className="px-4 py-3">
-                        {e.tipo !== 'cosecha' && (
-                          <button onClick={() => eliminarMovimiento(e)} disabled={eliminandoId === e.id}
-                            className="text-xs text-red-500 hover:text-red-700 underline disabled:opacity-50">
-                            {eliminandoId === e.id ? 'borrando...' : 'eliminar'}
+                        <div className="flex gap-2">
+                          <button onClick={() => abrirEditarMov(e)} className="text-xs text-emerald-700 hover:text-emerald-900 underline">
+                            editar
                           </button>
-                        )}
+                          {e.tipo !== 'cosecha' && (
+                            <button onClick={() => eliminarMovimiento(e)} disabled={eliminandoId === e.id}
+                              className="text-xs text-red-500 hover:text-red-700 underline disabled:opacity-50">
+                              {eliminandoId === e.id ? 'borrando...' : 'eliminar'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -450,6 +541,72 @@ export default function VentasClient({ ventas: ventasIniciales, contratos }: { v
               <button onClick={cerrarModalBonif} className="btn-secondary">Cancelar</button>
               <button onClick={guardarBonificacion} disabled={saving} className="btn-primary">
                 {saving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal editar movimiento */}
+      {editMov && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 overflow-y-auto py-6">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl mx-4">
+            <h2 className="text-lg font-bold text-campo-900 mb-1">Editar movimiento</h2>
+            <p className="text-xs text-campo-400 mb-4">
+              {ETIQUETA_TIPO[editMov.tipo] ?? editMov.tipo} — {editMov.cultivo} — {editMov.campania}{editMov.ctg ? ` — CTG ${editMov.ctg}` : ''}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Fecha *</label>
+                <input type="date" value={formMov.fecha} onChange={e => setFormMov(f => ({ ...f, fecha: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Toneladas</label>
+                <input type="number" step="0.001" value={formMov.toneladas} disabled={!!bloqueoTn}
+                  onChange={e => setFormMov(f => ({ ...f, toneladas: e.target.value }))} className="input-field disabled:bg-campo-50 disabled:text-campo-400" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Humedad %</label>
+                <input type="number" step="0.01" value={formMov.humedad} onChange={e => setFormMov(f => ({ ...f, humedad: e.target.value }))} className="input-field" />
+              </div>
+              {bloqueoTn && <p className="sm:col-span-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{bloqueoTn}</p>}
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Precio del movimiento (USD/tn)</label>
+                <input type="number" step="0.01" value={formMov.precio_unitario} onChange={e => setFormMov(f => ({ ...f, precio_unitario: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Flete (USD total)</label>
+                <input type="number" step="0.01" min="0" value={formMov.flete} onChange={e => setFormMov(f => ({ ...f, flete: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Secado (USD total)</label>
+                <input type="number" step="0.01" min="0" value={formMov.secado} onChange={e => setFormMov(f => ({ ...f, secado: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Paritaria (USD total)</label>
+                <input type="number" step="0.01" min="0" value={formMov.paritaria} onChange={e => setFormMov(f => ({ ...f, paritaria: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-campo-600 mb-1">Otros gastos (USD total)</label>
+                <input type="number" step="0.01" min="0" value={formMov.otros_gastos} onChange={e => setFormMov(f => ({ ...f, otros_gastos: e.target.value }))} className="input-field" />
+              </div>
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-medium text-campo-600 mb-1">Descripción</label>
+                <input value={formMov.descripcion_movimiento} onChange={e => setFormMov(f => ({ ...f, descripcion_movimiento: e.target.value }))} className="input-field" />
+              </div>
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-medium text-campo-600 mb-1">Observaciones</label>
+                <input value={formMov.observaciones} onChange={e => setFormMov(f => ({ ...f, observaciones: e.target.value }))} className="input-field" />
+              </div>
+            </div>
+            <p className="text-xs text-campo-400 mt-3">
+              Los gastos son montos totales de la operación (no por tonelada). El resultado neto se recalcula solo: toneladas × precio − gastos.
+            </p>
+            {error && <p className="text-red-500 text-sm mt-3">❌ {error}</p>}
+            <div className="flex gap-3 justify-end mt-4">
+              <button onClick={cerrarEditarMov} className="btn-secondary">Cancelar</button>
+              <button onClick={guardarEdicionMov} disabled={saving} className="btn-primary">
+                {saving ? 'Guardando...' : 'Guardar cambios'}
               </button>
             </div>
           </div>
