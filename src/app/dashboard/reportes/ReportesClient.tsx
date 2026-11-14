@@ -53,6 +53,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
       String(r.contrato ?? '').toLowerCase().includes(q) ||
       r.destino_localidad?.toLowerCase().includes(q) ||
       r.chofer_nombre?.toLowerCase().includes(q) ||
+      r.observaciones?.toLowerCase().includes(q) ||
       r.patente_camion?.toLowerCase().includes(q)
     )
   }, [resultados, busqueda, anioFiscalSel, patenteSel])
@@ -89,7 +90,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
       r.contrato ?? '',
       r.patente_camion ?? '',
       r.patente_acoplado ?? '',
-      r.chofer_nombre ?? '',
+      r.chofer_nombre ?? r.observaciones ?? '',
       r.destino_localidad ?? '',
       r.destino_provincia ?? '',
       Number(r.ton_totales ?? 0).toFixed(3),
@@ -218,7 +219,7 @@ export default function ReportesClient({ resultados }: { resultados: any[] }) {
                   <td className="px-4 py-3 text-campo-700">{r.cliente}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-500">{r.contrato}</td>
                   <td className="px-4 py-3 text-xs text-campo-600">{r.destino_localidad ?? '—'}</td>
-                  <td className="px-4 py-3 text-xs text-campo-600">{r.chofer_nombre ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs text-campo-600">{r.chofer_nombre ?? (r.observaciones ? <span className="text-amber-700" title="Observación del movimiento (no tiene chofer)">{r.observaciones}</span> : '—')}</td>
                   <td className="px-4 py-3 font-mono text-xs text-campo-600">{r.patente_camion ?? <span className="text-campo-300">—</span>}</td>
                   <td className="px-4 py-3 text-right font-medium">{fmt3(Number(r.ton_totales ?? 0))}</td>
                   <td className="px-4 py-3 text-right text-campo-700">
