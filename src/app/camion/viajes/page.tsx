@@ -15,11 +15,13 @@ const vacio = {
   carga: '',
   origen: '',
   destino: '',
-  chofer: '',
+  chofer: 'SEQUEIRA CRISTIAN GABRIEL',
   patente: 'AF456OU',
+  patente_acoplado: 'AF456OT',
   toneladas: '',
   km: '',
   tarifa_usd_tn: '',
+  tarifa_chofer_usd_tn: '',
   numero_cpe: '',
   ctg: '',
   observaciones: '',
@@ -69,7 +71,7 @@ export default function ViajesCamionPage() {
       if (desde && v.fecha < desde) return false
       if (hasta && v.fecha > hasta) return false
       if (!q) return true
-      return [v.cliente, v.carga, v.origen, v.destino, v.chofer, v.patente, v.numero_cpe, v.ctg, v.contrato]
+      return [v.cliente, v.carga, v.origen, v.destino, v.chofer, v.patente, v.patente_acoplado, v.numero_cpe, v.ctg, v.contrato]
         .some(x => (x ?? '').toLowerCase().includes(q))
     })
   }, [viajes, vista, busqueda, desde, hasta])
@@ -111,7 +113,7 @@ export default function ViajesCamionPage() {
     setError(null)
     if (nuevoCliMode) { setError('Primero guardá o cancelá el alta del cliente.'); return }
     if (!form.fecha || !form.cliente_id || !form.toneladas || form.tarifa_usd_tn === '') {
-      setError('Completá fecha, cliente, toneladas y tarifa (USD/tn).'); return
+      setError('Completá fecha, cliente, toneladas y tarifa de flete (USD/tn).'); return
     }
     setSaving(true)
     const payload = {
@@ -122,6 +124,7 @@ export default function ViajesCamionPage() {
       destino: form.destino || null,
       chofer: form.chofer || null,
       patente: form.patente || null,
+      patente_acoplado: form.patente_acoplado || null,
       toneladas: Number(form.toneladas),
       km: form.km ? Number(form.km) : null,
       tarifa_usd_tn: Number(form.tarifa_usd_tn),
@@ -129,11 +132,31 @@ export default function ViajesCamionPage() {
       ctg: form.ctg || null,
       observaciones: form.observaciones || null,
     }
-    const { error } = editandoId
-      ? await supabase.from('camion_viajes_terceros').update(payload).eq('id', Number(editandoId))
-      : await supabase.from('camion_viajes_terceros').insert(payload)
+    if (form.tarifa_chofer_usd_tn !== '' && (!isFinite(Number(form.tarifa_chofer_usd_tn)) || Number(form.tarifa_chofer_usd_tn) < 0)) {
+      setSaving(false); setError('La tarifa del chofer tiene que ser un número mayor o igual a 0.'); return
+    }
+    let viajeId: string | null = editandoId ? String(editandoId) : null
+    let errGuardar: { message: string } | null = null
+    if (editandoId) {
+      const r = await supabase.from('camion_viajes_terceros').update(payload).eq('id', Number(editandoId))
+      errGuardar = r.error
+    } else {
+      const r = await supabase.from('camion_viajes_terceros').insert(payload).select('id').single()
+      errGuardar = r.error
+      if (r.data) viajeId = String(r.data.id)
+    }
+    if (errGuardar) { setSaving(false); setError(errGuardar.message); return }
+    if (viajeId) {
+      if (form.tarifa_chofer_usd_tn !== '') {
+        const r = await supabase.from('camion_tarifa_chofer_viaje').upsert(
+          { origen_viaje: 'tercero', viaje_id: viajeId, usd_por_tn: Number(form.tarifa_chofer_usd_tn), updated_at: new Date().toISOString() },
+          { onConflict: 'origen_viaje,viaje_id' })
+        if (r.error) { setSaving(false); setError('El viaje se guardó, pero no la tarifa del chofer: ' + r.error.message); cargar(); return }
+      } else if (editandoId) {
+        await supabase.from('camion_tarifa_chofer_viaje').delete().eq('origen_viaje', 'tercero').eq('viaje_id', viajeId)
+      }
+    }
     setSaving(false)
-    if (error) { setError(error.message); return }
     setShowForm(false); setEditandoId(null); setForm({ ...vacio, fecha: hoy() })
     cargar()
   }
@@ -148,9 +171,11 @@ export default function ViajesCamionPage() {
       destino: v.destino ?? '',
       chofer: v.chofer ?? '',
       patente: v.patente ?? '',
+      patente_acoplado: v.patente_acoplado ?? '',
       toneladas: String(v.tn ?? ''),
       km: v.km != null ? String(v.km) : '',
       tarifa_usd_tn: String(v.tarifa_usd_tn),
+      tarifa_chofer_usd_tn: v.tarifa_chofer_propia && v.tarifa_chofer_usd_tn != null ? String(v.tarifa_chofer_usd_tn) : '',
       numero_cpe: v.numero_cpe ?? '',
       ctg: v.ctg ?? '',
       observaciones: v.observaciones ?? '',
@@ -273,6 +298,10 @@ export default function ViajesCamionPage() {
               <input value={form.patente} onChange={e => setForm(f => ({ ...f, patente: e.target.value.toUpperCase() }))} className={inp} />
             </div>
             <div>
+              <label className={lbl}>Patente acoplado</label>
+              <input value={form.patente_acoplado} onChange={e => setForm(f => ({ ...f, patente_acoplado: e.target.value.toUpperCase() }))} className={inp} />
+            </div>
+            <div>
               <label className={lbl}>Toneladas *</label>
               <input type="number" step="0.001" min="0" value={form.toneladas} onChange={e => setForm(f => ({ ...f, toneladas: e.target.value }))} className={inp} />
             </div>
@@ -281,9 +310,14 @@ export default function ViajesCamionPage() {
               <input type="number" step="0.1" min="0" value={form.km} onChange={e => setForm(f => ({ ...f, km: e.target.value }))} className={inp} />
             </div>
             <div>
-              <label className={lbl}>Tarifa (USD/tn) *</label>
+              <label className={lbl}>Tarifa flete (USD/tn) *</label>
               <input type="number" step="0.01" min="0" value={form.tarifa_usd_tn} onChange={e => setForm(f => ({ ...f, tarifa_usd_tn: e.target.value }))} className={inp} />
-              {monto > 0 && <p className="text-xs text-campo-500 mt-1">Monto del viaje: <b>{fmtUsd(monto)}</b></p>}
+              {monto > 0 && <p className="text-xs text-campo-500 mt-1">Ingreso del viaje: <b>{fmtUsd(monto)}</b></p>}
+            </div>
+            <div>
+              <label className={lbl}>Tarifa chofer (USD/tn)</label>
+              <input type="number" step="0.01" min="0" value={form.tarifa_chofer_usd_tn} onChange={e => setForm(f => ({ ...f, tarifa_chofer_usd_tn: e.target.value }))} placeholder="Costo del chofer" className={inp} />
+              {n(form.toneladas) * n(form.tarifa_chofer_usd_tn) > 0 && <p className="text-xs text-campo-500 mt-1">Costo del chofer: <b>{fmtUsd(n(form.toneladas) * n(form.tarifa_chofer_usd_tn))}</b></p>}
             </div>
             <div>
               <label className={lbl}>Carta de porte (CPE)</label>
@@ -361,6 +395,7 @@ export default function ViajesCamionPage() {
                 <th className="px-3 py-2 text-left">Destino</th>
                 <th className="px-3 py-2 text-left">Chofer</th>
                 <th className="px-3 py-2 text-left">Patente</th>
+                <th className="px-3 py-2 text-left">Acoplado</th>
                 <th className="px-3 py-2 text-right">Km</th>
                 <th className="px-3 py-2 text-right">Tn origen</th>
                 <th className="px-3 py-2 text-right">Tn netas</th>
@@ -375,8 +410,8 @@ export default function ViajesCamionPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-campo-50">
-              {loading && <tr><td colSpan={19} className="px-3 py-10 text-center text-campo-400">Cargando…</td></tr>}
-              {!loading && filtrados.length === 0 && <tr><td colSpan={19} className="px-3 py-10 text-center text-campo-400">No hay viajes con esos filtros</td></tr>}
+              {loading && <tr><td colSpan={20} className="px-3 py-10 text-center text-campo-400">Cargando…</td></tr>}
+              {!loading && filtrados.length === 0 && <tr><td colSpan={20} className="px-3 py-10 text-center text-campo-400">No hay viajes con esos filtros</td></tr>}
               {filtrados.map(v => (
                 <tr key={v.origen_viaje + v.viaje_id} className="hover:bg-campo-50/60">
                   <td className="px-3 py-2">{fmtFecha(v.fecha)}</td>
@@ -391,6 +426,7 @@ export default function ViajesCamionPage() {
                   <td className="px-3 py-2 max-w-[220px] truncate" title={v.destino ?? ''}>{v.destino ?? '—'}</td>
                   <td className="px-3 py-2">{v.chofer ?? '—'}</td>
                   <td className="px-3 py-2">{v.patente ?? '—'}</td>
+                  <td className="px-3 py-2">{v.patente_acoplado ?? '—'}</td>
                   <td className="px-3 py-2 text-right">{v.km != null ? fmtNum(v.km, 0) : '—'}</td>
                   <td className="px-3 py-2 text-right">{v.tn_origen != null ? fmtNum(v.tn_origen, 2) : '—'}</td>
                   <td className="px-3 py-2 text-right font-medium">{fmtNum(v.tn, 2)}</td>

@@ -24,6 +24,7 @@ export type ViajeCamion = {
   ingreso_usd: number
   tarifa_chofer_usd_tn: number | null
   tarifa_chofer_propia: boolean
+  patente_acoplado: string | null
   costo_chofer_usd: number
   resultado_usd: number
 }
