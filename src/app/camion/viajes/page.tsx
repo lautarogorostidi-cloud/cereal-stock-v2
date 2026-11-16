@@ -21,7 +21,6 @@ const vacio = {
   toneladas: '',
   km: '',
   tarifa_usd_tn: '',
-  tarifa_chofer_usd_tn: '',
   numero_cpe: '',
   ctg: '',
   observaciones: '',
@@ -43,12 +42,6 @@ export default function ViajesCamionPage() {
   const [error, setError] = useState<string | null>(null)
   const [nuevoCliMode, setNuevoCliMode] = useState(false)
   const [nuevoCli, setNuevoCli] = useState({ nombre: '', cuit: '', telefono: '' })
-  const [editTarifa, setEditTarifa] = useState<{ key: string; valor: string } | null>(null)
-  const [errorTarifa, setErrorTarifa] = useState<string | null>(null)
-  const [sel, setSel] = useState<Record<string, boolean>>({})
-  const [tarifaMasiva, setTarifaMasiva] = useState('')
-  const [aplicando, setAplicando] = useState(false)
-  const [msgMasivo, setMsgMasivo] = useState<string | null>(null)
 
   async function cargar() {
     setLoading(true)
@@ -88,7 +81,6 @@ export default function ViajesCamionPage() {
     resultado: filtrados.reduce((a, v) => a + n(v.resultado_usd), 0),
   }), [filtrados])
 
-  const sinTarifaChofer = useMemo(() => viajes.filter(v => v.tarifa_chofer_usd_tn === null).length, [viajes])
   const sinTarifaFlete = useMemo(() => viajes.filter(v => n(v.tarifa_usd_tn) === 0).length, [viajes])
 
   const monto = n(form.toneladas) * n(form.tarifa_usd_tn)
@@ -136,31 +128,11 @@ export default function ViajesCamionPage() {
       ctg: form.ctg || null,
       observaciones: form.observaciones || null,
     }
-    if (form.tarifa_chofer_usd_tn !== '' && (!isFinite(Number(form.tarifa_chofer_usd_tn)) || Number(form.tarifa_chofer_usd_tn) < 0)) {
-      setSaving(false); setError('La tarifa del chofer tiene que ser un número mayor o igual a 0.'); return
-    }
-    let viajeId: string | null = editandoId ? String(editandoId) : null
-    let errGuardar: { message: string } | null = null
-    if (editandoId) {
-      const r = await supabase.from('camion_viajes_terceros').update(payload).eq('id', Number(editandoId))
-      errGuardar = r.error
-    } else {
-      const r = await supabase.from('camion_viajes_terceros').insert(payload).select('id').single()
-      errGuardar = r.error
-      if (r.data) viajeId = String(r.data.id)
-    }
-    if (errGuardar) { setSaving(false); setError(errGuardar.message); return }
-    if (viajeId) {
-      if (form.tarifa_chofer_usd_tn !== '') {
-        const r = await supabase.from('camion_tarifa_chofer_viaje').upsert(
-          { origen_viaje: 'tercero', viaje_id: viajeId, usd_por_tn: Number(form.tarifa_chofer_usd_tn), updated_at: new Date().toISOString() },
-          { onConflict: 'origen_viaje,viaje_id' })
-        if (r.error) { setSaving(false); setError('El viaje se guardó, pero no la tarifa del chofer: ' + r.error.message); cargar(); return }
-      } else if (editandoId) {
-        await supabase.from('camion_tarifa_chofer_viaje').delete().eq('origen_viaje', 'tercero').eq('viaje_id', viajeId)
-      }
-    }
+    const { error } = editandoId
+      ? await supabase.from('camion_viajes_terceros').update(payload).eq('id', Number(editandoId))
+      : await supabase.from('camion_viajes_terceros').insert(payload)
     setSaving(false)
+    if (error) { setError(error.message); return }
     setShowForm(false); setEditandoId(null); setForm({ ...vacio, fecha: hoy() })
     cargar()
   }
@@ -179,7 +151,6 @@ export default function ViajesCamionPage() {
       toneladas: String(v.tn ?? ''),
       km: v.km != null ? String(v.km) : '',
       tarifa_usd_tn: String(v.tarifa_usd_tn),
-      tarifa_chofer_usd_tn: v.tarifa_chofer_propia && v.tarifa_chofer_usd_tn != null ? String(v.tarifa_chofer_usd_tn) : '',
       numero_cpe: v.numero_cpe ?? '',
       ctg: v.ctg ?? '',
       observaciones: v.observaciones ?? '',
@@ -189,78 +160,10 @@ export default function ViajesCamionPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  async function guardarTarifaChofer(v: ViajeCamion) {
-    if (!editTarifa) return
-    setErrorTarifa(null)
-    const txt = editTarifa.valor.trim()
-    if (v.origen_viaje === 'propio') {
-      // viajes propios: la tarifa vive en la carta de porte (se carga también desde el formulario de la CPE)
-      const valor = txt === '' ? null : Number(txt.replace(',', '.'))
-      if (valor !== null && (!isFinite(valor) || valor < 0)) { setErrorTarifa('La tarifa del chofer tiene que ser un número mayor o igual a 0.'); return }
-      const { error } = await supabase.from('cartas_porte').update({ tarifa_chofer: valor }).eq('id', v.viaje_id)
-      if (error) { setErrorTarifa(error.message); return }
-    } else if (txt === '') {
-      // vacío = quitar la tarifa del viaje
-      const { error } = await supabase.from('camion_tarifa_chofer_viaje').delete().eq('origen_viaje', v.origen_viaje).eq('viaje_id', v.viaje_id)
-      if (error) { setErrorTarifa(error.message); return }
-    } else {
-      const valor = Number(txt.replace(',', '.'))
-      if (!isFinite(valor) || valor < 0) { setErrorTarifa('La tarifa del chofer tiene que ser un número mayor o igual a 0.'); return }
-      const { error } = await supabase.from('camion_tarifa_chofer_viaje').upsert(
-        { origen_viaje: v.origen_viaje, viaje_id: v.viaje_id, usd_por_tn: valor, updated_at: new Date().toISOString() },
-        { onConflict: 'origen_viaje,viaje_id' }
-      )
-      if (error) { setErrorTarifa(error.message); return }
-    }
-    setEditTarifa(null)
-    cargar()
-  }
-
   async function borrar(v: ViajeCamion) {
     if (!confirm('¿Borrar este viaje de tercero?')) return
     const { error } = await supabase.from('camion_viajes_terceros').delete().eq('id', Number(v.viaje_id))
     if (error) alert(error.message)
-    else await supabase.from('camion_tarifa_chofer_viaje').delete().eq('origen_viaje', 'tercero').eq('viaje_id', v.viaje_id)
-    cargar()
-  }
-
-  const kSel = (v: ViajeCamion) => v.origen_viaje + '|' + v.viaje_id
-  const seleccionados = filtrados.filter(v => sel[kSel(v)])
-  const todosSel = filtrados.length > 0 && seleccionados.length === filtrados.length
-  const sinTarifaVisibles = filtrados.filter(v => v.tarifa_chofer_usd_tn === null)
-
-  function toggleTodos() {
-    const next: Record<string, boolean> = {}
-    if (!todosSel) filtrados.forEach(v => { next[kSel(v)] = true })
-    setSel(next)
-  }
-  function seleccionarSinTarifa() {
-    const next: Record<string, boolean> = {}
-    sinTarifaVisibles.forEach(v => { next[kSel(v)] = true })
-    setSel(next)
-  }
-
-  async function aplicarTarifaMasiva() {
-    setMsgMasivo(null)
-    const valor = Number(tarifaMasiva)
-    if (tarifaMasiva === '' || !isFinite(valor) || valor < 0) { setMsgMasivo('Escribí una tarifa válida (USD/tn).'); return }
-    if (seleccionados.length === 0) return
-    if (!confirm(`¿Cargar tarifa de chofer USD ${valor.toFixed(2)}/tn a ${seleccionados.length} viaje(s)? Si alguno ya tenía tarifa, se reemplaza.`)) return
-    setAplicando(true)
-    const ahora = new Date().toISOString()
-    const idsPropios = seleccionados.filter(v => v.origen_viaje === 'propio').map(v => v.viaje_id)
-    const filas = seleccionados.filter(v => v.origen_viaje === 'tercero').map(v => ({ origen_viaje: v.origen_viaje, viaje_id: v.viaje_id, usd_por_tn: valor, updated_at: ahora }))
-    for (let i = 0; i < idsPropios.length; i += 100) {
-      const { error } = await supabase.from('cartas_porte').update({ tarifa_chofer: valor }).in('id', idsPropios.slice(i, i + 100))
-      if (error) { setAplicando(false); setMsgMasivo('No se pudo guardar: ' + error.message); return }
-    }
-    for (let i = 0; i < filas.length; i += 200) {
-      const { error } = await supabase.from('camion_tarifa_chofer_viaje').upsert(filas.slice(i, i + 200), { onConflict: 'origen_viaje,viaje_id' })
-      if (error) { setAplicando(false); setMsgMasivo('No se pudo guardar: ' + error.message); return }
-    }
-    setAplicando(false)
-    setMsgMasivo(`Listo: tarifa de USD ${valor.toFixed(2)}/tn cargada a ${idsPropios.length + filas.length} viaje(s).`)
-    setSel({}); setTarifaMasiva('')
     cargar()
   }
 
@@ -281,14 +184,9 @@ export default function ViajesCamionPage() {
         </button>
       </div>
 
-      {(sinTarifaChofer > 0 || sinTarifaFlete > 0) && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-1">
-          {sinTarifaFlete > 0 && <div>⚠️ {sinTarifaFlete} viaje(s) sin tarifa de flete: figuran con ingreso USD 0. Cargala en la carta de porte.</div>}
-          {sinTarifaChofer > 0 && (
-            <div>
-              ⚠️ {sinTarifaChofer} viaje(s) sin tarifa de chofer: el costo figura en 0. En los viajes propios se carga en la carta de porte (campo “Tarifa chofer”); también podés cargarla acá: click en “+ cargar” o tildá varios y cargales la misma tarifa de una vez.
-            </div>
-          )}
+      {sinTarifaFlete > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          ⚠️ {sinTarifaFlete} viaje(s) sin tarifa de flete: figuran con ingreso USD 0. Cargala en la carta de porte.
         </div>
       )}
 
@@ -365,11 +263,6 @@ export default function ViajesCamionPage() {
               {monto > 0 && <p className="text-xs text-campo-500 mt-1">Ingreso del viaje: <b>{fmtUsd(monto)}</b></p>}
             </div>
             <div>
-              <label className={lbl}>Tarifa chofer (USD/tn)</label>
-              <input type="number" step="0.01" min="0" value={form.tarifa_chofer_usd_tn} onChange={e => setForm(f => ({ ...f, tarifa_chofer_usd_tn: e.target.value }))} placeholder="Costo del chofer" className={inp} />
-              {n(form.toneladas) * n(form.tarifa_chofer_usd_tn) > 0 && <p className="text-xs text-campo-500 mt-1">Costo del chofer: <b>{fmtUsd(n(form.toneladas) * n(form.tarifa_chofer_usd_tn))}</b></p>}
-            </div>
-            <div>
               <label className={lbl}>Carta de porte (CPE)</label>
               <input value={form.numero_cpe} onChange={e => setForm(f => ({ ...f, numero_cpe: e.target.value }))} placeholder="Opcional" className={inp} />
             </div>
@@ -391,8 +284,6 @@ export default function ViajesCamionPage() {
           </div>
         </div>
       )}
-
-      {errorTarifa && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{errorTarifa}</div>}
 
       {/* Tabs + filtros */}
       <div className="flex flex-wrap items-center gap-2">
@@ -432,33 +323,11 @@ export default function ViajesCamionPage() {
         ))}
       </div>
 
-      <div className="card p-3 flex flex-wrap items-center gap-3 text-sm">
-        <span className="font-medium text-campo-800">Tarifa del chofer en lote:</span>
-        <button onClick={seleccionarSinTarifa} disabled={sinTarifaVisibles.length === 0}
-          className="px-3 py-1.5 rounded-lg border border-campo-200 bg-white text-campo-700 hover:bg-campo-50 disabled:opacity-40">
-          Seleccionar los {sinTarifaVisibles.length} sin tarifa
-        </button>
-        <span className="text-campo-500">{seleccionados.length} seleccionado(s)</span>
-        {seleccionados.length > 0 && (
-          <>
-            <input type="number" step="0.01" min="0" value={tarifaMasiva} onChange={e => setTarifaMasiva(e.target.value)} placeholder="USD/tn"
-              className="w-28 rounded-lg border border-campo-300 px-3 py-1.5 text-sm text-right" />
-            <button onClick={aplicarTarifaMasiva} disabled={aplicando}
-              className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-medium disabled:opacity-50">
-              {aplicando ? 'Guardando…' : `Cargar a ${seleccionados.length} viaje(s)`}
-            </button>
-            <button onClick={() => setSel({})} className="text-campo-500 hover:underline">Limpiar</button>
-          </>
-        )}
-        {msgMasivo && <span className={msgMasivo.startsWith('Listo') ? 'text-emerald-700' : 'text-red-600'}>{msgMasivo}</span>}
-      </div>
-
       <div className="card p-0 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">
             <thead className="bg-campo-50 text-campo-600 text-xs uppercase tracking-wider">
               <tr>
-                <th className="px-3 py-2"><input type="checkbox" checked={todosSel} onChange={toggleTodos} title="Seleccionar todos los viajes filtrados" /></th>
                 <th className="px-3 py-2 text-left">Fecha</th>
                 <th className="px-3 py-2 text-left">Tipo</th>
                 <th className="px-3 py-2 text-left">Cliente</th>
@@ -475,18 +344,16 @@ export default function ViajesCamionPage() {
                 <th className="px-3 py-2 text-left">CPE / CTG</th>
                 <th className="px-3 py-2 text-right">Flete USD/tn</th>
                 <th className="px-3 py-2 text-right">Ingreso</th>
-                <th className="px-3 py-2 text-right">Chofer USD/tn</th>
-                <th className="px-3 py-2 text-right">Costo chofer</th>
+                <th className="px-3 py-2 text-right" title="El chofer cobra el 15% del flete">Costo chofer (15%)</th>
                 <th className="px-3 py-2 text-right">Resultado</th>
                 <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-campo-50">
-              {loading && <tr><td colSpan={21} className="px-3 py-10 text-center text-campo-400">Cargando…</td></tr>}
-              {!loading && filtrados.length === 0 && <tr><td colSpan={21} className="px-3 py-10 text-center text-campo-400">No hay viajes con esos filtros</td></tr>}
+              {loading && <tr><td colSpan={19} className="px-3 py-10 text-center text-campo-400">Cargando…</td></tr>}
+              {!loading && filtrados.length === 0 && <tr><td colSpan={19} className="px-3 py-10 text-center text-campo-400">No hay viajes con esos filtros</td></tr>}
               {filtrados.map(v => (
-                <tr key={v.origen_viaje + v.viaje_id} className={`hover:bg-campo-50/60 ${sel[kSel(v)] ? 'bg-amber-50' : ''}`}>
-                  <td className="px-3 py-2"><input type="checkbox" checked={!!sel[kSel(v)]} onChange={() => setSel(s => ({ ...s, [kSel(v)]: !s[kSel(v)] }))} /></td>
+                <tr key={v.origen_viaje + v.viaje_id} className="hover:bg-campo-50/60">
                   <td className="px-3 py-2">{fmtFecha(v.fecha)}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${v.origen_viaje === 'propio' ? 'bg-campo-100 text-campo-700' : 'bg-amber-100 text-amber-800'}`}>
@@ -512,31 +379,6 @@ export default function ViajesCamionPage() {
                   </td>
                   <td className={`px-3 py-2 text-right ${n(v.tarifa_usd_tn) === 0 ? 'text-red-600 font-medium' : ''}`}>{fmtNum(v.tarifa_usd_tn, 2)}</td>
                   <td className="px-3 py-2 text-right">{fmtUsd(v.ingreso_usd)}</td>
-                  <td className="px-3 py-2 text-right">
-                    {editTarifa?.key === v.origen_viaje + v.viaje_id ? (
-                      <div className="flex items-center gap-1 justify-end">
-                        <input
-                          autoFocus
-                          type="number" step="0.01" min="0"
-                          value={editTarifa.valor}
-                          onChange={e => setEditTarifa({ key: editTarifa.key, valor: e.target.value })}
-                          onKeyDown={e => { if (e.key === 'Enter') guardarTarifaChofer(v); if (e.key === 'Escape') { setEditTarifa(null); setErrorTarifa(null) } }}
-                          className="w-20 rounded border border-campo-300 px-2 py-1 text-sm text-right"
-                          placeholder="USD/tn"
-                        />
-                        <button onClick={() => guardarTarifaChofer(v)} className="text-xs text-white bg-amber-700 hover:bg-amber-600 rounded px-2 py-1">OK</button>
-                        <button onClick={() => { setEditTarifa(null); setErrorTarifa(null) }} className="text-xs text-campo-500 px-1">✕</button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => { setErrorTarifa(null); setEditTarifa({ key: v.origen_viaje + v.viaje_id, valor: v.tarifa_chofer_propia && v.tarifa_chofer_usd_tn != null ? String(v.tarifa_chofer_usd_tn) : '' }) }}
-                        title={v.tarifa_chofer_propia ? 'Tarifa del chofer de este viaje. Click para cambiarla (vacío = quitarla)' : 'Sin tarifa. Click para cargarla'}
-                        className={`hover:underline ${v.tarifa_chofer_usd_tn == null ? 'text-red-600 font-medium' : v.tarifa_chofer_propia ? 'text-campo-900 font-medium' : 'text-campo-400 italic'}`}
-                      >
-                        {v.tarifa_chofer_usd_tn != null ? fmtNum(v.tarifa_chofer_usd_tn, 2) : '+ cargar'}
-                      </button>
-                    )}
-                  </td>
                   <td className="px-3 py-2 text-right text-campo-600">{fmtUsd(v.costo_chofer_usd)}</td>
                   <td className="px-3 py-2 text-right font-semibold text-campo-900">{fmtUsd(v.resultado_usd)}</td>
                   <td className="px-3 py-2 text-right">
@@ -556,7 +398,7 @@ export default function ViajesCamionPage() {
         </div>
       </div>
       <p className="text-xs text-campo-400">
-        Tn netas = toneladas descargadas (propios: de la carta de porte). Ingreso = tn netas × tarifa. Costo chofer = tn netas × tarifa del chofer de ese viaje (se carga viaje por viaje o a varios a la vez).
+        Tn netas = toneladas descargadas (propios: de la carta de porte). Ingreso = tn netas × tarifa. Costo chofer = 15% del ingreso del viaje (lo que cobra el chofer).
         El combustible y demás costos no se asignan por viaje: se ven en Rentabilidad por período.
       </p>
     </div>

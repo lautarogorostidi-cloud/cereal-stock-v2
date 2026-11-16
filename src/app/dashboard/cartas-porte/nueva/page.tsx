@@ -66,7 +66,7 @@ export default function NuevaCartaPortePage() {
     destino_localidad: '', destino_provincia: '',
     nro_planta: '', destino_direccion: '',
     patente_camion: '', patente_acoplado: '',
-    fecha_partida: '', hora_partida: '', km_recorrer: '', tarifa_flete: '', tarifa_chofer: '',
+    fecha_partida: '', hora_partida: '', km_recorrer: '', tarifa_flete: '',
     fecha_arribo: '', fecha_descarga: '', nro_turno: '',
     peso_bruto_destino: '', peso_tara_destino: '',
     humedad_destino: '', observaciones: '',
@@ -309,7 +309,6 @@ export default function NuevaCartaPortePage() {
     }
     if (form.destino_acopio_id) payload.destino_acopio_id = form.destino_acopio_id
     if (form.tarifa_flete) payload.tarifa_flete = parseFloat(form.tarifa_flete)
-    if (form.tarifa_chofer) payload.tarifa_chofer = parseFloat(form.tarifa_chofer)
     if (pesoNetoDestino !== null) payload.toneladas_netas = pesoNetoDestino
     if (form.peso_bruto_destino) payload.toneladas_destino = parseFloat(form.peso_bruto_destino) / 1000
 
@@ -624,7 +623,6 @@ export default function NuevaCartaPortePage() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Hora de partida</label><input type="time" value={form.hora_partida} onChange={e => set('hora_partida', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Km a recorrer</label><input type="number" value={form.km_recorrer} onChange={e => set('km_recorrer', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Tarifa flete (USD/tn)</label><input type="number" step="0.01" value={form.tarifa_flete} onChange={e => set('tarifa_flete', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Tarifa chofer (USD/tn)</label><input type="number" step="0.01" min="0" value={form.tarifa_chofer} onChange={e => set('tarifa_chofer', e.target.value)} placeholder="Costo del chofer" className="input-field" /><p className="text-xs text-campo-400 mt-1">Solo para el módulo Camión (costo del chofer por tonelada).</p></div>
           </div>
         </div>
 

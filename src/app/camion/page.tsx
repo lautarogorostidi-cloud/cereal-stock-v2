@@ -190,7 +190,7 @@ export default function RentabilidadCamionPage() {
               <tr><td className="px-5 py-2">Flete viajes propios (cartas de porte)</td><td className="px-5 py-2 text-right">{fmtUsd(r.ingProp)}</td></tr>
               <tr><td className="px-5 py-2">Flete viajes de terceros</td><td className="px-5 py-2 text-right">{fmtUsd(r.ingTerc)}</td></tr>
               <tr className="bg-campo-50 font-semibold"><td className="px-5 py-2">Ingresos</td><td className="px-5 py-2 text-right">{fmtUsd(r.ingresos)}</td></tr>
-              <tr><td className="px-5 py-2 text-campo-600">− Chofer (tn × tarifa)</td><td className="px-5 py-2 text-right text-campo-600">{fmtUsd(r.chofer)}</td></tr>
+              <tr><td className="px-5 py-2 text-campo-600">− Chofer (15% del flete)</td><td className="px-5 py-2 text-right text-campo-600">{fmtUsd(r.chofer)}</td></tr>
               <tr><td className="px-5 py-2 text-campo-600">− Combustible</td><td className="px-5 py-2 text-right text-campo-600">{fmtUsd(r.comb)}</td></tr>
               {CATEGORIAS_COSTO.filter(x => x.value !== 'combustible' && porCategoria[x.value]).map(x => (
                 <tr key={x.value}><td className="px-5 py-2 text-campo-600">− {x.label}</td><td className="px-5 py-2 text-right text-campo-600">{fmtUsd(porCategoria[x.value])}</td></tr>
