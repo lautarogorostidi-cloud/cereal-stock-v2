@@ -68,7 +68,7 @@ export default function EditarCartaPorteForm() {
     destino_localidad: '', destino_provincia: '',
     nro_planta: '', destino_direccion: '',
     patente_camion: '', patente_acoplado: '',
-    fecha_partida: '', hora_partida: '', km_recorrer: '', tarifa_flete: '',
+    fecha_partida: '', hora_partida: '', km_recorrer: '', tarifa_flete: '', tarifa_chofer: '',
     fecha_arribo: '', fecha_descarga: '', nro_turno: '',
     peso_bruto_destino: '', peso_tara_destino: '',
     humedad_destino: '', observaciones: '',
@@ -184,6 +184,7 @@ export default function EditarCartaPorteForm() {
             hora_partida: carta.hora_partida ?? '',
             km_recorrer: carta.km_recorrer ? String(carta.km_recorrer) : (obs.match(/Km: ([^\|]+)/)?.[1]?.trim() ?? ''),
             tarifa_flete: carta.tarifa_flete ? String(carta.tarifa_flete) : (obs.match(/Tarifa flete: ([^\|]+)/)?.[1]?.trim() ?? ''),
+            tarifa_chofer: carta.tarifa_chofer != null ? String(carta.tarifa_chofer) : '',
             fecha_arribo: carta.fecha_arribo ?? obs.match(/Arribo: ([^\|]+)/)?.[1]?.trim() ?? '',
             fecha_descarga: carta.fecha_descarga ?? obs.match(/Descarga: ([^\|]+)/)?.[1]?.trim() ?? '',
             nro_turno: carta.nro_turno ?? obs.match(/N° Turno: ([^\|]+)/)?.[1]?.trim() ?? '',
@@ -337,6 +338,8 @@ export default function EditarCartaPorteForm() {
     payload.patente_camion = form.patente_camion || null
     payload.patente_acoplado = form.patente_acoplado || null
     payload.km_recorrer = form.km_recorrer ? parseFloat(form.km_recorrer) : null
+    payload.tarifa_flete = form.tarifa_flete ? parseFloat(form.tarifa_flete) : null
+    payload.tarifa_chofer = form.tarifa_chofer ? parseFloat(form.tarifa_chofer) : null
     payload.fecha_arribo = form.fecha_arribo || null
     payload.fecha_descarga = form.fecha_descarga || null
     payload.nro_turno = form.nro_turno || null
@@ -572,7 +575,8 @@ export default function EditarCartaPorteForm() {
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Fecha de partida</label><input type="date" value={form.fecha_partida} onChange={e => set('fecha_partida', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Hora de partida</label><input type="time" value={form.hora_partida} onChange={e => set('hora_partida', e.target.value)} className="input-field" /></div>
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Km a recorrer</label><input type="number" value={form.km_recorrer} onChange={e => set('km_recorrer', e.target.value)} className="input-field" /></div>
-            <div><label className="block text-sm font-medium text-campo-700 mb-1">Tarifa flete ($/tn)</label><input type="number" step="0.01" value={form.tarifa_flete} onChange={e => set('tarifa_flete', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Tarifa flete (USD/tn)</label><input type="number" step="0.01" value={form.tarifa_flete} onChange={e => set('tarifa_flete', e.target.value)} className="input-field" /></div>
+            <div><label className="block text-sm font-medium text-campo-700 mb-1">Tarifa chofer (USD/tn)</label><input type="number" step="0.01" min="0" value={form.tarifa_chofer} onChange={e => set('tarifa_chofer', e.target.value)} placeholder="Costo del chofer" className="input-field" /><p className="text-xs text-campo-400 mt-1">Solo para el módulo Camión (costo del chofer por tonelada).</p></div>
           </div>
         </div>
 

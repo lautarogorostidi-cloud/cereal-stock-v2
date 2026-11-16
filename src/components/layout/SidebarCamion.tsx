@@ -11,7 +11,6 @@ const nav = [
   { href: '/camion/viajes',        label: 'Viajes',        icon: '🚛' },
   { href: '/camion/costos',        label: 'Costos',        icon: '🧾' },
   { href: '/camion/cobranzas',     label: 'Cobranzas',     icon: '💵' },
-  { href: '/camion/tarifa-chofer', label: 'Tarifa chofer', icon: '👷' },
 ]
 
 interface SidebarProps { perfil: Perfil | null }
