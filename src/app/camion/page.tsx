@@ -72,7 +72,12 @@ export default function RentabilidadCamionPage() {
     const ingresos = ingProp + ingTerc
     const resultado = ingresos - chofer - comb - otros
     const tn = sum(v, 'tn')
+    const km = sum(v, 'km')
+    const viajesConKm = v.filter(x => n(x.km) > 0).length
+    const nComb = c.filter(x => x.categoria === 'combustible').length
+    const nOtros = c.filter(x => x.categoria !== 'combustible').length
     return {
+      km, kmProp: sum(propios, 'km'), kmTerc: sum(terceros, 'km'), viajesConKm, nComb, nOtros,
       viajes: v.length, nProp: propios.length, nTerc: terceros.length, tn,
       ingProp, ingTerc, ingresos, chofer, comb, litros, otros, resultado,
       margen: ingresos > 0 ? (resultado / ingresos) * 100 : 0,
@@ -89,9 +94,9 @@ export default function RentabilidadCamionPage() {
 
   const serie = useMemo(() => {
     const clave = agrupar === 'mes' ? claveMes : claveTrimestre
-    const m = new Map<string, { viajes: number; tn: number; ing: number; chofer: number; comb: number; otros: number }>()
-    const get = (k: string) => { if (!m.has(k)) m.set(k, { viajes: 0, tn: 0, ing: 0, chofer: 0, comb: 0, otros: 0 }); return m.get(k)! }
-    v.forEach(x => { const o = get(clave(x.fecha)); o.viajes++; o.tn += n(x.tn); o.ing += n(x.ingreso_usd); o.chofer += n(x.costo_chofer_usd) })
+    const m = new Map<string, { viajes: number; km: number; tn: number; ing: number; chofer: number; comb: number; otros: number }>()
+    const get = (k: string) => { if (!m.has(k)) m.set(k, { viajes: 0, km: 0, tn: 0, ing: 0, chofer: 0, comb: 0, otros: 0 }); return m.get(k)! }
+    v.forEach(x => { const o = get(clave(x.fecha)); o.viajes++; o.km += n(x.km); o.tn += n(x.tn); o.ing += n(x.ingreso_usd); o.chofer += n(x.costo_chofer_usd) })
     c.forEach(x => { const o = get(clave(x.fecha)); if (x.categoria === 'combustible') o.comb += n(x.monto_usd); else o.otros += n(x.monto_usd) })
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([k, o]) => ({
       k, ...o, resultado: o.ing - o.chofer - o.comb - o.otros,
@@ -167,11 +172,13 @@ export default function RentabilidadCamionPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <Kpi label="Resultado" value={fmtUsd(r.resultado)} sub={`Margen ${fmtNum(r.margen, 1)}% · USD ${fmtNum(r.resPorTn, 2)}/tn`} tono={r.resultado < 0 ? 'mal' : r.ingresos > 0 ? 'ok' : undefined} />
         <Kpi label="Ingresos por flete" value={fmtUsd(r.ingresos)} sub={`Propios ${fmtUsd(r.ingProp)} · Terceros ${fmtUsd(r.ingTerc)}`} />
         <Kpi label="Viajes" value={String(r.viajes)} sub={`${r.nProp} propios · ${r.nTerc} terceros · ${fmtNum(r.tn, 1)} tn`} />
-        <Kpi label="Costos totales" value={fmtUsd(r.chofer + r.comb + r.otros)} sub={`Chofer ${fmtUsd(r.chofer)}`} />
+        <Kpi label="Combustible" value={fmtUsd(r.comb)} sub={r.nComb === 0 ? 'Sin cargas en el período' : `${fmtNum(r.litros, 0)} L${r.litros > 0 ? ` · USD ${(r.comb / r.litros).toFixed(3)}/L` : ''}`} />
+        <Kpi label="Gastos generales" value={fmtUsd(r.otros)} sub={r.nOtros === 0 ? 'Sin gastos cargados' : `${r.nOtros} ${r.nOtros === 1 ? 'gasto cargado' : 'gastos cargados'}`} />
+        <Kpi label="Kilómetros" value={`${fmtNum(r.km, 0)} km`} sub={r.km > 0 ? `${fmtNum(r.km / Math.max(1, r.viajesConKm), 0)} km por viaje · USD ${fmtNum(r.ingresos / r.km, 2)}/km` : 'Sin kilómetros en el período'} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -228,6 +235,7 @@ export default function RentabilidadCamionPage() {
               <tr>
                 <th className="px-4 py-2 text-left">Período</th>
                 <th className="px-4 py-2 text-right">Viajes</th>
+                <th className="px-4 py-2 text-right">Km</th>
                 <th className="px-4 py-2 text-right">Tn</th>
                 <th className="px-4 py-2 text-right">Ingresos</th>
                 <th className="px-4 py-2 text-right">Chofer</th>
@@ -239,11 +247,12 @@ export default function RentabilidadCamionPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-campo-50">
-              {serie.length === 0 && <tr><td colSpan={10} className="px-4 py-8 text-center text-campo-400">Sin movimientos en este período</td></tr>}
+              {serie.length === 0 && <tr><td colSpan={11} className="px-4 py-8 text-center text-campo-400">Sin movimientos en este período</td></tr>}
               {serie.map(s => (
                 <tr key={s.k}>
                   <td className="px-4 py-2 font-medium">{etiquetaClave(s.k)}</td>
                   <td className="px-4 py-2 text-right">{s.viajes}</td>
+                  <td className="px-4 py-2 text-right">{fmtNum(s.km, 0)}</td>
                   <td className="px-4 py-2 text-right">{fmtNum(s.tn, 1)}</td>
                   <td className="px-4 py-2 text-right">{fmtUsd(s.ing)}</td>
                   <td className="px-4 py-2 text-right text-campo-600">{fmtUsd(s.chofer)}</td>
