@@ -353,7 +353,7 @@ export default function ViajesCamionPage() {
               {loading && <tr><td colSpan={19} className="px-3 py-10 text-center text-campo-400">Cargando…</td></tr>}
               {!loading && filtrados.length === 0 && <tr><td colSpan={19} className="px-3 py-10 text-center text-campo-400">No hay viajes con esos filtros</td></tr>}
               {filtrados.map(v => (
-                <tr key={v.origen_viaje + v.viaje_id} className="hover:bg-campo-50/60">
+                <tr key={(v.manual ? 'm' : 'c') + v.viaje_id} className="hover:bg-campo-50/60">
                   <td className="px-3 py-2">{fmtFecha(v.fecha)}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${v.origen_viaje === 'propio' ? 'bg-campo-100 text-campo-700' : 'bg-amber-100 text-amber-800'}`}>
@@ -371,7 +371,7 @@ export default function ViajesCamionPage() {
                   <td className="px-3 py-2 text-right">{v.tn_origen != null ? fmtNum(v.tn_origen, 2) : '—'}</td>
                   <td className="px-3 py-2 text-right font-medium">{fmtNum(v.tn, 2)}</td>
                   <td className={`px-3 py-2 text-right ${n(v.diferencia_tn) < 0 ? 'text-red-600' : 'text-campo-500'}`}>
-                    {v.origen_viaje === 'propio' ? fmtNum(v.diferencia_tn, 2) : '—'}
+                    {!v.manual ? fmtNum(v.diferencia_tn, 2) : '—'}
                   </td>
                   <td className="px-3 py-2 text-xs">
                     <div>{v.numero_cpe ?? '—'}</div>
@@ -382,7 +382,7 @@ export default function ViajesCamionPage() {
                   <td className="px-3 py-2 text-right text-campo-600">{fmtUsd(v.costo_chofer_usd)}</td>
                   <td className="px-3 py-2 text-right font-semibold text-campo-900">{fmtUsd(v.resultado_usd)}</td>
                   <td className="px-3 py-2 text-right">
-                    {v.origen_viaje === 'tercero' ? (
+                    {v.manual ? (
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => editar(v)} className="text-xs text-amber-700 hover:underline">Editar</button>
                         <button onClick={() => borrar(v)} className="text-xs text-red-600 hover:underline">Borrar</button>

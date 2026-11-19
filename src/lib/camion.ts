@@ -25,6 +25,7 @@ export type ViajeCamion = {
   tarifa_chofer_usd_tn: number | null
   tarifa_chofer_propia: boolean
   patente_acoplado: string | null
+  manual: boolean // true = viaje cargado a mano en este módulo (se puede editar/borrar); false = sale de una carta de porte
   costo_chofer_usd: number
   resultado_usd: number
 }
