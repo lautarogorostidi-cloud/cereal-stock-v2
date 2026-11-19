@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { fetchAllRows } from '@/lib/supabase/fetchAll'
 import {
   ViajeCamion, CostoCamion, CATEGORIAS_COSTO, etiquetaCategoria,
-  fmtUsd, fmtNum, claveMes, claveTrimestre, etiquetaClave, MESES, n,
+  fmtUsd, fmtNum, claveMes, claveTrimestre, etiquetaClave, MESES, n, INICIO_REGISTRO,
 } from '@/lib/camion'
 
 type Periodo = 'mes' | 'trimestre' | 'anio' | 'todo' | 'custom'
@@ -46,7 +46,7 @@ export default function RentabilidadCamionPage() {
     return Array.from(s).sort((a, b) => b - a)
   }, [viajes, costos])
 
-  const [desde, hasta] = useMemo<[string, string]>(() => {
+  const [desdeBruto, hasta] = useMemo<[string, string]>(() => {
     if (periodo === 'mes') return [`${anio}-${pad(mes)}-01`, `${anio}-${pad(mes)}-${ultimoDia(anio, mes)}`]
     if (periodo === 'trimestre') {
       const m1 = (trim - 1) * 3 + 1, m3 = m1 + 2
@@ -56,6 +56,9 @@ export default function RentabilidadCamionPage() {
     if (periodo === 'custom') return [desdeC || '0000-01-01', hastaC || '9999-12-31']
     return ['0000-01-01', '9999-12-31']
   }, [periodo, anio, mes, trim, desdeC, hastaC])
+
+  // nada anterior al inicio del registro entra en los números
+  const desde = desdeBruto < INICIO_REGISTRO ? INICIO_REGISTRO : desdeBruto
 
   const v = useMemo(() => viajes.filter(x => x.fecha >= desde && x.fecha <= hasta), [viajes, desde, hasta])
   const c = useMemo(() => costos.filter(x => x.fecha >= desde && x.fecha <= hasta), [costos, desde, hasta])

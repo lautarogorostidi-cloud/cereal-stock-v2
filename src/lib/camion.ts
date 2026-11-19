@@ -68,6 +68,9 @@ export const fmtFecha = (f: string | null | undefined) => {
   return `${d}/${m}/${y}`
 }
 
+// Desde cuándo se registra el módulo Camión (primer mes con combustible cargado): lo anterior no cuenta.
+export const INICIO_REGISTRO = '2026-01-01'
+
 export const hoy = () => new Date().toISOString().split('T')[0]
 
 export const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
