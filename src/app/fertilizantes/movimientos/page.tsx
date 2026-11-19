@@ -19,6 +19,7 @@ type Movimiento = {
   numero_factura: string | null
   fertilizantes_productos: { nombre: string; unidad: string; marca: string | null } | null
   proveedores: { nombre: string } | null
+  sa_ciclos: { lotes: { nombre: string } | null } | null
 }
 
 type Producto = { id: number; nombre: string; unidad: string; marca: string | null; proveedor_id: number | null }
@@ -72,7 +73,7 @@ export default function MovimientosFertilizantesPage() {
     setLoading(true)
     const { data, error } = await supabase
       .from('fertilizantes_movimientos')
-      .select('*, fertilizantes_productos(nombre, unidad, marca), proveedores(nombre)')
+      .select('*, fertilizantes_productos(nombre, unidad, marca), proveedores(nombre), sa_ciclos(lotes(nombre))')
       .order('fecha', { ascending: false })
     if (error) console.error('Error cargando movimientos:', error)
     setMovimientos((data ?? []) as any)
@@ -241,6 +242,7 @@ export default function MovimientosFertilizantesPage() {
         m.fertilizantes_productos?.nombre?.toLowerCase().includes(q) ||
         m.tipo?.toLowerCase().includes(q) ||
         m.campania?.toLowerCase().includes(q) ||
+        m.sa_ciclos?.lotes?.nombre?.toLowerCase().includes(q) ||
         m.proveedores?.nombre?.toLowerCase().includes(q) ||
         m.numero_remito?.toLowerCase().includes(q) ||
         m.numero_factura?.toLowerCase().includes(q)
@@ -503,13 +505,14 @@ export default function MovimientosFertilizantesPage() {
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Precio/u</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Proveedor</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Campaña</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Lote</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Observaciones</th>
                 <th className="text-center px-4 py-3 font-semibold text-campo-700">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={9} className="px-5 py-10 text-center text-campo-400">Cargando...</td></tr>}
-              {!loading && movFiltrados.length === 0 && <tr><td colSpan={9} className="px-5 py-10 text-center text-campo-400">No hay movimientos registrados</td></tr>}
+              {loading && <tr><td colSpan={10} className="px-5 py-10 text-center text-campo-400">Cargando...</td></tr>}
+              {!loading && movFiltrados.length === 0 && <tr><td colSpan={10} className="px-5 py-10 text-center text-campo-400">No hay movimientos registrados</td></tr>}
               {movFiltrados.map((m, i) => (
                 <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-4 py-3 text-campo-600">{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
@@ -527,6 +530,7 @@ export default function MovimientosFertilizantesPage() {
                   </td>
                   <td className="px-4 py-3 text-campo-600">{m.proveedores?.nombre ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-600">{m.campania ?? '—'}</td>
+                  <td className="px-4 py-3 text-campo-600">{m.sa_ciclos?.lotes?.nombre ?? '—'}</td>
                   <td className="px-4 py-3 text-campo-500 text-xs">{m.observaciones ?? '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex gap-2 justify-center">
