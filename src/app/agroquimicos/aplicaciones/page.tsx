@@ -17,6 +17,7 @@ type Aplicacion = {
   superficie_ha: number
   campana: string
   lote: string
+  aplicador: string
   cultivo: string
   total_litros_kg: number
   costo_insumos_usd: number
@@ -44,6 +45,9 @@ export default function AplicacionesAgroquimicosPage() {
   const [campanas, setCampanas] = useState<Campana[]>([])
   const [campanaSeleccionada, setCampanaSeleccionada] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  const [aplicadorSel, setAplicadorSel] = useState('')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -75,6 +79,7 @@ export default function AplicacionesAgroquimicosPage() {
           tipo,
           fecha,
           superficie_ha,
+          proveedor,
           costo_servicio_usd_ha,
           sa_ciclos!inner(
             campanas!inner(nombre),
@@ -131,6 +136,7 @@ export default function AplicacionesAgroquimicosPage() {
           superficie_ha: superficie,
           campana,
           lote,
+          aplicador: String(apl?.proveedor ?? '').trim() || 'Sin aplicador',
           cultivo,
           total_litros_kg: dosis * superficie,
           costo_insumos_usd: costoInsumos,
@@ -145,7 +151,12 @@ export default function AplicacionesAgroquimicosPage() {
     setLoading(false)
   }
 
+  const aplicadores = Array.from(new Set(aplicaciones.map(a => a.aplicador))).sort((a, b) => a.localeCompare(b))
+
   const filtradas = aplicaciones.filter(ap => {
+    if (aplicadorSel && ap.aplicador !== aplicadorSel) return false
+    if (desde && ap.fecha < desde) return false
+    if (hasta && ap.fecha > hasta) return false
     if (!busqueda) return true
     const q = busqueda.toLowerCase()
     return (
@@ -169,6 +180,33 @@ export default function AplicacionesAgroquimicosPage() {
   }, 0)
   const totalGeneral = totalInsumos + totalServicio
 
+  // KPIs de superficie, fechas y aplicador: una fila por aplicación (no por producto)
+  const aplicacionesUnicas = new Map<number, { fecha: string; ha: number; aplicador: string; lote: string }>()
+  filtradas.forEach(a => {
+    if (!aplicacionesUnicas.has(a.aplicacion_id)) {
+      aplicacionesUnicas.set(a.aplicacion_id, { fecha: a.fecha, ha: a.superficie_ha, aplicador: a.aplicador, lote: a.lote })
+    }
+  })
+  const listaUnicas = Array.from(aplicacionesUnicas.values())
+  const hectareasAplicadas = listaUnicas.reduce((acc, a) => acc + a.ha, 0)
+  const lotesDistintos = new Set(listaUnicas.map(a => a.lote)).size
+  const fechasOrdenadas = listaUnicas.map(a => a.fecha).filter(Boolean).sort()
+  const fechaPrimera = fechasOrdenadas[0] ?? ''
+  const fechaUltima = fechasOrdenadas[fechasOrdenadas.length - 1] ?? ''
+  const aplicadoresFiltrados = Array.from(new Set(listaUnicas.map(a => a.aplicador)))
+
+  // Resumen por aplicador
+  const resumenAplicador = listaUnicas.reduce((acc: Record<string, { aplicaciones: number; hectareas: number; lotes: Set<string>; primera: string; ultima: string }>, a) => {
+    if (!acc[a.aplicador]) acc[a.aplicador] = { aplicaciones: 0, hectareas: 0, lotes: new Set(), primera: a.fecha, ultima: a.fecha }
+    const r = acc[a.aplicador]
+    r.aplicaciones += 1
+    r.hectareas += a.ha
+    r.lotes.add(a.lote)
+    if (a.fecha && (!r.primera || a.fecha < r.primera)) r.primera = a.fecha
+    if (a.fecha && a.fecha > r.ultima) r.ultima = a.fecha
+    return acc
+  }, {})
+
   // Resumen por producto
   const resumenProducto = filtradas.reduce((acc: Record<string, { total: number; insumos: number; servicio: number; hectareas: number; unidad: string }>, a) => {
     if (!acc[a.producto]) acc[a.producto] = { total: 0, insumos: 0, servicio: 0, hectareas: 0, unidad: a.unidad ?? 'L' }
@@ -188,6 +226,31 @@ export default function AplicacionesAgroquimicosPage() {
       <div>
         <h1 className="text-2xl font-bold text-campo-900">Aplicaciones en Campo</h1>
         <p className="text-campo-500 text-sm mt-0.5">Agroquímicos aplicados desde Seguimiento Agronómico</p>
+      </div>
+
+      {/* KPIs: hectáreas, rango de fechas y aplicador */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="card p-5">
+          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Hectáreas aplicadas</div>
+          <div className="text-2xl font-bold text-campo-900">{fmt(hectareasAplicadas)} <span className="text-sm font-medium text-campo-400">ha</span></div>
+          <div className="text-xs text-campo-400 mt-0.5">{lotesDistintos} {lotesDistintos === 1 ? 'lote' : 'lotes'} · suma de todas las pasadas</div>
+        </div>
+        <div className="card p-5">
+          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Rango de fechas</div>
+          <div className="text-2xl font-bold text-campo-900">
+            {fechaPrimera ? (fechaPrimera === fechaUltima ? fmtFecha(fechaPrimera) : `${fmtFecha(fechaPrimera)} – ${fmtFecha(fechaUltima)}`) : '—'}
+          </div>
+          <div className="text-xs text-campo-400 mt-0.5">primera y última aplicación</div>
+        </div>
+        <div className="card p-5">
+          <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Aplicador</div>
+          <div className="text-2xl font-bold text-campo-900 truncate">
+            {aplicadoresFiltrados.length === 0 ? '—' : aplicadoresFiltrados.length === 1 ? aplicadoresFiltrados[0] : `${aplicadoresFiltrados.length} aplicadores`}
+          </div>
+          <div className="text-xs text-campo-400 mt-0.5 truncate">
+            {aplicadoresFiltrados.length > 1 ? aplicadoresFiltrados.join(', ') : 'filtrá por aplicador abajo'}
+          </div>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -225,12 +288,64 @@ export default function AplicacionesAgroquimicosPage() {
           className="rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
           {campanas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
         </select>
+        <select value={aplicadorSel} onChange={e => setAplicadorSel(e.target.value)}
+          className="rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+          <option value="">Todos los aplicadores</option>
+          {aplicadores.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <label className="flex items-center gap-1.5 text-sm text-campo-500">
+          Desde
+          <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
+            className="rounded-lg border border-campo-200 px-2 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+        </label>
+        <label className="flex items-center gap-1.5 text-sm text-campo-500">
+          Hasta
+          <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
+            className="rounded-lg border border-campo-200 px-2 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+        </label>
         <div className="flex-1">
           <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)}
             placeholder="Buscar por producto, lote, cultivo, tipo..."
             className="w-full rounded-lg border border-campo-200 px-4 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
         </div>
       </div>
+
+      {/* Resumen por aplicador */}
+      {Object.keys(resumenAplicador).length > 0 && (
+        <div className="card overflow-hidden p-0">
+          <div className="px-5 py-3 border-b border-campo-100 bg-campo-50">
+            <h2 className="font-semibold text-campo-700 text-sm">Resumen por aplicador — {campanaSeleccionada}</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-campo-100">
+                  <th className="text-left px-5 py-2 font-semibold text-campo-700">Aplicador</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Aplicaciones</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Lotes</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Hectáreas</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Desde</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Hasta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(resumenAplicador)
+                  .sort((a, b) => b[1].hectareas - a[1].hectareas)
+                  .map(([nombre, r]) => (
+                    <tr key={nombre} className="border-b border-campo-50 hover:bg-campo-50/50">
+                      <td className="px-5 py-2 font-medium text-campo-900">{nombre}</td>
+                      <td className="px-5 py-2 text-right text-campo-700">{r.aplicaciones}</td>
+                      <td className="px-5 py-2 text-right text-campo-700">{r.lotes.size}</td>
+                      <td className="px-5 py-2 text-right text-campo-700">{fmt(r.hectareas)} <span className="text-xs text-campo-400">ha</span></td>
+                      <td className="px-5 py-2 text-right text-campo-700">{fmtFecha(r.primera)}</td>
+                      <td className="px-5 py-2 text-right text-campo-700">{fmtFecha(r.ultima)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Resumen por producto */}
       {Object.keys(resumenProducto).length > 0 && (
@@ -281,6 +396,7 @@ export default function AplicacionesAgroquimicosPage() {
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Tipo</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Lote</th>
                 <th className="text-left px-4 py-3 font-semibold text-campo-700">Cultivo</th>
+                <th className="text-left px-4 py-3 font-semibold text-campo-700">Aplicador</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Sup. (ha)</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Dosis/ha</th>
                 <th className="text-right px-4 py-3 font-semibold text-campo-700">Total</th>
@@ -290,8 +406,8 @@ export default function AplicacionesAgroquimicosPage() {
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={11} className="px-5 py-10 text-center text-campo-400">Cargando...</td></tr>}
-              {!loading && filtradas.length === 0 && <tr><td colSpan={11} className="px-5 py-10 text-center text-campo-400">No hay aplicaciones registradas para {campanaSeleccionada}</td></tr>}
+              {loading && <tr><td colSpan={12} className="px-5 py-10 text-center text-campo-400">Cargando...</td></tr>}
+              {!loading && filtradas.length === 0 && <tr><td colSpan={12} className="px-5 py-10 text-center text-campo-400">No hay aplicaciones registradas para {campanaSeleccionada}</td></tr>}
               {!loading && filtradas.map((a, i) => (
                 <tr key={i} className="border-b border-campo-50 hover:bg-campo-50/50 transition-colors">
                   <td className="px-4 py-3 text-campo-600">{fmtFecha(a.fecha)}</td>
@@ -299,6 +415,7 @@ export default function AplicacionesAgroquimicosPage() {
                   <td className="px-4 py-3 text-campo-600 text-xs">{TIPO_LABELS[a.tipo] ?? a.tipo}</td>
                   <td className="px-4 py-3 text-campo-600">{a.lote}</td>
                   <td className="px-4 py-3 text-campo-600">{a.cultivo}</td>
+                  <td className="px-4 py-3 text-campo-600">{a.aplicador}</td>
                   <td className="px-4 py-3 text-right text-campo-700">{fmt(a.superficie_ha)}</td>
                   <td className="px-4 py-3 text-right text-campo-700">{fmt(a.dosis_ha)} <span className="text-xs text-campo-400">{a.unidad ?? 'L'}</span></td>
                   <td className="px-4 py-3 text-right text-campo-700">{fmt(a.total_litros_kg)} <span className="text-xs text-campo-400">{a.unidad ?? 'L'}</span></td>
