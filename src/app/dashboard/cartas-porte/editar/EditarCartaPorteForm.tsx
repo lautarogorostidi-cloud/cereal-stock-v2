@@ -234,14 +234,19 @@ export default function EditarCartaPorteForm() {
   const pesoNetoDestino = form.peso_bruto_destino && form.peso_tara_destino
     ? (parseFloat(form.peso_bruto_destino) - parseFloat(form.peso_tara_destino)) / 1000 : null
 
+  // Las variedades de soja se reparten sobre los kilos de la DESCARGA (peso neto en destino).
+  // Mientras no se cargue el peso de destino se usa la carga de origen como estimado.
+  const toneladas_variedades = pesoNetoDestino != null && pesoNetoDestino > 0 ? pesoNetoDestino : toneladas_carga
+  const base_variedades = pesoNetoDestino != null && pesoNetoDestino > 0 ? 'descarga' : 'carga'
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError(null)
 
     const toneladas = pesoNeto ?? (form.toneladas_origen ? parseFloat(form.toneladas_origen) : 0)
-    if (variedades.length > 0 && !mezclaValida(mezcla, toneladas)) {
-      setError('Las toneladas por tipo de soja no suman las toneladas de la carga. Revisá la sección "Tipo de soja".')
+    if (variedades.length > 0 && !mezclaValida(mezcla, toneladas_variedades)) {
+      setError(`Las toneladas por tipo de soja no suman las toneladas de la ${base_variedades}. Revisá la sección "Tipo de soja".`)
       setSaving(false)
       return
     }
@@ -408,7 +413,7 @@ export default function EditarCartaPorteForm() {
             <div className="col-span-2"><label className="block text-sm font-medium text-campo-700 mb-1">Contrato vinculado</label><select value={form.contrato_id} onChange={e => set('contrato_id', e.target.value)} className="input-field"><option value="">Sin contrato</option>{contratos.map(c => <option key={c.id} value={c.id}>{c.numero} — {(c.cultivos as any)?.nombre} — {(c.clientes as any)?.razon_social}</option>)}</select></div>
             {variedades.length > 0 && (
               <div className="col-span-2">
-                <MezclaVariedades variedades={variedades} value={mezcla} onChange={setMezcla} esperado={toneladas_carga} />
+                <MezclaVariedades variedades={variedades} value={mezcla} onChange={setMezcla} esperado={toneladas_variedades} esperadoLabel={base_variedades} />
               </div>
             )}
             <div><label className="block text-sm font-medium text-campo-700 mb-1">Estado</label><select value={form.estado} onChange={e => set('estado', e.target.value)} className="input-field"><option value="emitida">Emitida</option><option value="en_transito">En tránsito</option><option value="descargada">Descargada</option><option value="anulada">Anulada</option></select></div>

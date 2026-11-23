@@ -10,6 +10,8 @@ type Props = {
   onChange: (m: Mezcla) => void
   /** Toneladas que debe sumar la mezcla (ej: toneladas de origen de la carta de porte). */
   esperado?: number
+  /** Cómo se llama lo esperado en los mensajes: 'carga' (origen) o 'descarga' (peso neto en destino). */
+  esperadoLabel?: string
   titulo?: string
 }
 
@@ -42,7 +44,7 @@ const nuevoId = () => `f${Date.now()}_${contador++}`
  * Se puede cargar una sola variedad o varias: cada fila es una variedad con sus
  * toneladas, y el sistema valida que la suma coincida con las toneladas de la carga.
  */
-export default function MezclaVariedades({ variedades, value, onChange, esperado, titulo = 'Variedades de soja de esta carga' }: Props) {
+export default function MezclaVariedades({ variedades, value, onChange, esperado, esperadoLabel = 'carga', titulo = 'Variedades de soja de esta carga' }: Props) {
   const [filas, setFilas] = useState<Fila[]>([])
 
   const comun = variedades.find(v => v.es_comun) ?? variedades[0]
@@ -162,11 +164,11 @@ export default function MezclaVariedades({ variedades, value, onChange, esperado
           <span className="text-campo-500">Si no cargás nada, se toma toda la carga como {comun?.nombre ?? 'Soja'}.</span>
         ) : ok ? (
           <span className="text-campo-600">
-            Total: <b>{fmt(total)} tn</b>{hayEsperado ? ' — coincide con la carga' : ''}
+            Total: <b>{fmt(total)} tn</b>{hayEsperado ? ` — coincide con la ${esperadoLabel}` : ''}
           </span>
         ) : (
           <span className="text-red-600 font-medium">
-            Suman {fmt(total)} tn y la carga es de {fmt(esperado as number)} tn ({diff > 0 ? 'sobran' : 'faltan'} {fmt(Math.abs(diff))} tn)
+            Suman {fmt(total)} tn y la {esperadoLabel} es de {fmt(esperado as number)} tn ({diff > 0 ? 'sobran' : 'faltan'} {fmt(Math.abs(diff))} tn)
           </span>
         )}
       </div>
