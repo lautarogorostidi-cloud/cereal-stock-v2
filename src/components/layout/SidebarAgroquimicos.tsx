@@ -11,6 +11,7 @@ const nav = [
   { href: '/agroquimicos/stock',         label: 'Stock',        icon: '🧪' },
   { href: '/agroquimicos/movimientos',   label: 'Movimientos',  icon: '📋' },
   { href: '/agroquimicos/aplicaciones',  label: 'Aplicaciones', icon: '🌱' },
+  { href: '/agroquimicos/liquidaciones', label: 'Liquidaciones', icon: '💵' },
   { href: '/agroquimicos/productos',     label: 'Productos',    icon: '🗂️' },
   { href: '/agroquimicos/reportes',      label: 'Reportes',     icon: '📈' },
 ]
