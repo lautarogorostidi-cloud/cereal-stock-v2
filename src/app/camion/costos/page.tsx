@@ -130,7 +130,7 @@ export default function CostosCamionPage() {
                 <label className={lbl}>Litros</label>
                 <input type="number" step="0.01" min="0" value={form.litros} onChange={e => setForm(f => ({ ...f, litros: e.target.value }))} className={inp} />
                 {n(form.litros) > 0 && n(form.monto_usd) > 0 && (
-                  <p className="text-xs text-campo-500 mt-1">Precio: USD {(n(form.monto_usd) / n(form.litros)).toFixed(3)}/L</p>
+                  <p className="text-xs text-campo-500 mt-1">Precio: USD {fmtNum(n(form.monto_usd) / n(form.litros), 2)}/L</p>
                 )}
               </div>
             )}
@@ -182,7 +182,7 @@ export default function CostosCamionPage() {
         <div className="card p-4">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">⛽ Combustible</div>
           <div className="text-lg font-bold text-campo-900">{fmtUsd(usdCombustible)}</div>
-          <div className="text-xs text-campo-400">{fmtNum(litros, 0)} L{litros > 0 ? ` · USD ${(usdCombustible / litros).toFixed(3)}/L` : ''}</div>
+          <div className="text-xs text-campo-400">{fmtNum(litros, 0)} L{litros > 0 ? ` · USD ${fmtNum(usdCombustible / litros, 2)}/L` : ''}</div>
         </div>
         {CATEGORIAS_COSTO.filter(c => c.value !== 'combustible' && porCategoria[c.value]).slice(0, 2).map(c => (
           <div key={c.value} className="card p-4">
