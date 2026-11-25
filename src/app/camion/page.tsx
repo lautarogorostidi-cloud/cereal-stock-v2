@@ -82,6 +82,7 @@ export default function RentabilidadCamionPage() {
     return {
       km, kmProp: sum(propios, 'km'), kmTerc: sum(terceros, 'km'), viajesConKm, nComb, nOtros,
       viajes: v.length, nProp: propios.length, nTerc: terceros.length, tn,
+      tnProp: sum(propios, 'tn'), tnTerc: sum(terceros, 'tn'),
       ingProp, ingTerc, ingresos, chofer, comb, litros, otros, resultado,
       margen: ingresos > 0 ? (resultado / ingresos) * 100 : 0,
       combPorTn: tn > 0 ? comb / tn : 0,
@@ -179,9 +180,9 @@ export default function RentabilidadCamionPage() {
         <Kpi label="Resultado" value={fmtUsd(r.resultado)} sub={`Margen ${fmtNum(r.margen, 1)}% · USD ${fmtNum(r.resPorTn, 2)}/tn`} tono={r.resultado < 0 ? 'mal' : r.ingresos > 0 ? 'ok' : undefined} />
         <Kpi label="Ingresos por flete" value={fmtUsd(r.ingresos)} sub={`Propios ${fmtUsd(r.ingProp)} · Terceros ${fmtUsd(r.ingTerc)}`} />
         <Kpi label="Viajes" value={String(r.viajes)} sub={`${r.nProp} propios · ${r.nTerc} terceros · ${fmtNum(r.tn, 1)} tn`} />
-        <Kpi label="Combustible" value={fmtUsd(r.comb)} sub={r.nComb === 0 ? 'Sin cargas en el período' : `${fmtNum(r.litros, 0)} L${r.litros > 0 ? ` · USD ${(r.comb / r.litros).toFixed(3)}/L` : ''}`} />
+        <Kpi label="Combustible" value={fmtUsd(r.comb)} sub={r.nComb === 0 ? 'Sin cargas en el período' : `${fmtNum(r.litros, 0)} L${r.litros > 0 ? ` · USD ${fmtNum(r.comb / r.litros, 2)}/L` : ''}`} />
         <Kpi label="Gastos generales" value={fmtUsd(r.otros)} sub={r.nOtros === 0 ? 'Sin gastos cargados' : `${r.nOtros} ${r.nOtros === 1 ? 'gasto cargado' : 'gastos cargados'}`} />
-        <Kpi label="Kilómetros" value={`${fmtNum(r.km, 0)} km`} sub={r.km > 0 ? `${fmtNum(r.km / Math.max(1, r.viajesConKm), 0)} km por viaje · USD ${fmtNum(r.ingresos / r.km, 2)}/km` : 'Sin kilómetros en el período'} />
+        <Kpi label="Toneladas transportadas" value={`${fmtNum(r.tn, 1)} tn`} sub={r.tn > 0 ? `Propios ${fmtNum(r.tnProp, 1)} · Terceros ${fmtNum(r.tnTerc, 1)} · ${fmtNum(r.tn / Math.max(1, r.viajes), 1)} tn por viaje` : 'Sin toneladas en el período'} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -209,7 +210,7 @@ export default function RentabilidadCamionPage() {
           <div className="p-5 grid grid-cols-2 gap-4">
             <div><div className="text-xs text-campo-500 uppercase tracking-wider">Gastado</div><div className="text-lg font-bold">{fmtUsd(r.comb)}</div></div>
             <div><div className="text-xs text-campo-500 uppercase tracking-wider">Litros cargados</div><div className="text-lg font-bold">{fmtNum(r.litros, 0)} L</div></div>
-            <div><div className="text-xs text-campo-500 uppercase tracking-wider">Precio medio</div><div className="text-lg font-bold">{r.litros > 0 ? `USD ${(r.comb / r.litros).toFixed(3)}/L` : '—'}</div></div>
+            <div><div className="text-xs text-campo-500 uppercase tracking-wider">Precio medio</div><div className="text-lg font-bold">{r.litros > 0 ? `USD ${fmtNum(r.comb / r.litros, 2)}/L` : '—'}</div></div>
             <div><div className="text-xs text-campo-500 uppercase tracking-wider">Por tonelada transportada</div><div className="text-lg font-bold">{r.tn > 0 ? `USD ${fmtNum(r.combPorTn, 2)}/tn` : '—'}</div></div>
             <div className="col-span-2 text-xs text-campo-400">
               El combustible se carga acumulado y no se asigna a cada viaje; por eso acá se mide contra las toneladas del período.
