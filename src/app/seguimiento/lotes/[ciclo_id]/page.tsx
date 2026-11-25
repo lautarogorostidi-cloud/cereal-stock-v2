@@ -114,6 +114,19 @@ type Acondicionamiento = {
   observaciones: string | null
 }
 
+type Forraje = {
+  id: number
+  tipo: 'desmalezada' | 'hilerada' | 'rollos'
+  fecha: string | null
+  superficie_ha: number | null
+  cantidad_rollos: number | null
+  costo_usd_ha: number | null
+  proveedor: string | null
+  observaciones: string | null
+}
+
+const ETIQUETA_FORRAJE: Record<string, string> = { desmalezada: 'Desmalezada', hilerada: 'Hilerada', rollos: 'Confección de rollos' }
+
 const fmt = (n: number | null | undefined, dec = 1) =>
   n != null ? Number(n).toLocaleString('es-AR', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '—'
 
@@ -200,6 +213,7 @@ export default function FichaCicloPage() {
   const [costosFijos, setCostosFijos] = useState<CostoFijo[]>([])
   const [distribucion, setDistribucion] = useState<DistribucionCosto[]>([])
   const [acondicionamiento, setAcondicionamiento] = useState<Acondicionamiento[]>([])
+  const [forraje, setForraje] = useState<Forraje[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [deletingCiclo, setDeletingCiclo] = useState(false)
@@ -228,6 +242,7 @@ export default function FichaCicloPage() {
       { data: fijosData },
       { data: aconData },
       { data: distData },
+      { data: forrajeData },
     ] = await Promise.all([
       supabase.from('vw_sa_resumen_ciclo').select('*').eq('ciclo_id', id).single(),
       supabase.from('sa_aplicaciones').select('*').eq('ciclo_id', id).order('fecha').order('tipo'),
@@ -237,6 +252,7 @@ export default function FichaCicloPage() {
       supabase.from('sa_costos_fijos').select('*').eq('ciclo_id', id).order('tipo'),
       supabase.from('sa_acondicionamiento').select('*').eq('ciclo_id', id).order('fecha'),
       supabase.from('vw_distribucion_costos_fijos').select('tipo, costo_ha, costo_ciclo').eq('ciclo_id', id),
+      supabase.from('sa_forraje').select('*').eq('ciclo_id', id).order('fecha').order('id'),
     ])
 
     const aplIds = (apls ?? []).map((a: any) => a.id as number)
@@ -255,12 +271,19 @@ export default function FichaCicloPage() {
     setCostosFijos(fijosData ?? [])
     setDistribucion(distData ?? [])
     setAcondicionamiento(aconData ?? [])
+    setForraje((forrajeData ?? []) as Forraje[])
     setLoading(false)
   }
 
   async function handleBorrarAcondicionamiento(id: number) {
     if (!confirm('¿Borrar este registro de acondicionamiento?')) return
     await supabase.from('sa_acondicionamiento').delete().eq('id', id)
+    cargar()
+  }
+
+  async function handleBorrarForraje(id: number) {
+    if (!confirm('¿Borrar este registro?')) return
+    await supabase.from('sa_forraje').delete().eq('id', id)
     cargar()
   }
 
@@ -304,6 +327,7 @@ export default function FichaCicloPage() {
     await supabase.from('sa_cosechas').delete().eq('ciclo_id', id)
     await supabase.from('sa_costos_fijos').delete().eq('ciclo_id', id)
     await supabase.from('sa_acondicionamiento').delete().eq('ciclo_id', id)
+    await supabase.from('sa_forraje').delete().eq('ciclo_id', id)
     await supabase.from('sa_ciclos').delete().eq('id', id)
     router.push('/seguimiento/lotes')
   }
@@ -316,6 +340,8 @@ export default function FichaCicloPage() {
   // totalFijos incluye sistema viejo (sa_costos_fijos) + sistema nuevo (costos_fijos_campo) via vw_sa_resumen_ciclo
   const totalFijos = Number(ciclo.costo_fijos_usd ?? 0)
   const costoTotal = costoInsumos + costoServicios + totalFijos
+  const totalCostoForraje = forraje.reduce((acc, f) => acc + Number(f.superficie_ha ?? 0) * Number(f.costo_usd_ha ?? 0), 0)
+  const totalRollosForraje = forraje.reduce((acc, f) => acc + (f.tipo === 'rollos' ? Number(f.cantidad_rollos ?? 0) : 0), 0)
 
   const arrendamientoKpi = distribucion.find(d => d.tipo === 'arrendamiento')
   const asesorKpi = distribucion.find(d => d.tipo === 'asesoramiento')
@@ -433,6 +459,60 @@ export default function FichaCicloPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </Section>
+
+      <Section title="Confección de rollos" action={
+        <Link href={`/seguimiento/lotes/${ciclo_id}/forraje`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">+ Agregar</Link>
+      }>
+        {forraje.length === 0 ? <Empty msg="Sin registros de desmalezada, hilerada ni confección de rollos" /> : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-campo-100 bg-campo-50">
+                    <th className="text-left px-4 py-2 font-semibold text-campo-700">Fecha</th>
+                    <th className="text-left px-4 py-2 font-semibold text-campo-700">Labor</th>
+                    <th className="text-right px-4 py-2 font-semibold text-campo-700">Ha</th>
+                    <th className="text-right px-4 py-2 font-semibold text-campo-700">Rollos</th>
+                    <th className="text-right px-4 py-2 font-semibold text-campo-700">Costo USD/ha</th>
+                    <th className="text-right px-4 py-2 font-semibold text-campo-700">Total</th>
+                    <th className="text-left px-4 py-2 font-semibold text-campo-700">Proveedor</th>
+                    <th className="text-left px-4 py-2 font-semibold text-campo-700">Observaciones</th>
+                    <th className="text-center px-4 py-2 font-semibold text-campo-700">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {forraje.map(f => (
+                    <tr key={f.id} className="border-b border-campo-50 hover:bg-campo-50/50">
+                      <td className="px-4 py-2 text-campo-700">{fmtFecha(f.fecha)}</td>
+                      <td className="px-4 py-2 text-campo-700">{ETIQUETA_FORRAJE[f.tipo] ?? f.tipo}</td>
+                      <td className="px-4 py-2 text-right text-campo-700">{fmt(f.superficie_ha)}</td>
+                      <td className="px-4 py-2 text-right text-campo-700">{f.tipo === 'rollos' && f.cantidad_rollos != null ? fmt(f.cantidad_rollos, 0) : '—'}</td>
+                      <td className="px-4 py-2 text-right text-campo-700">{fmtUsd(f.costo_usd_ha)}</td>
+                      <td className="px-4 py-2 text-right font-medium text-campo-900">{fmtUsd(Number(f.superficie_ha ?? 0) * Number(f.costo_usd_ha ?? 0))}</td>
+                      <td className="px-4 py-2 text-campo-700">{f.proveedor ?? '—'}</td>
+                      <td className="px-4 py-2 text-campo-600 text-xs max-w-xs">{f.observaciones ?? '—'}</td>
+                      <td className="px-4 py-2 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Link href={`/seguimiento/lotes/${ciclo_id}/forraje`} target="_blank" rel="noopener noreferrer" className="text-xs text-lime-700 hover:text-lime-600 font-medium">
+                            Editar
+                          </Link>
+                          <button onClick={() => handleBorrarForraje(f.id)} className="text-xs text-red-400 hover:text-red-600 font-medium">
+                            Borrar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 pt-3 border-t border-campo-100 text-xs text-campo-500">
+              {totalRollosForraje > 0 && <>Total rollos: <span className="font-semibold text-campo-900">{fmt(totalRollosForraje, 0)}</span> · </>}
+              Costo total: <span className="font-semibold text-campo-900">{fmtUsd(totalCostoForraje)}</span>
+            </div>
+          </>
         )}
       </Section>
 

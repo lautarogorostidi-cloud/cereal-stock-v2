@@ -28,6 +28,8 @@ type Resumen = {
 
 type Acondicionamiento = { ciclo_id: number; fecha: string | null; superficie_ha: number | null; costo_usd_ha: number | null }
 
+type Forraje = { ciclo_id: number; tipo: string; fecha: string | null; superficie_ha: number | null; costo_usd_ha: number | null }
+
 type Siembra = {
   ciclo_id: number
   fecha: string | null
@@ -73,9 +75,11 @@ type ProductoDetalle = { producto: string; cantidad: number; unidad: string; cos
 
 const ORDEN_INSUMOS = ['Semillas', 'Fertilizante', 'Fitosanitario']
 
-const ORDEN_SERVICIOS = ['Acondicionado', 'Siembra', 'Pulverización', 'Fertilización', 'Cosecha']
+const ORDEN_SERVICIOS = ['Acondicionado', 'Siembra', 'Pulverización', 'Fertilización', 'Cosecha', 'Desmalezada', 'Hilerada', 'Confección de rollos']
 
-const ORDEN_HECTAREAS = ['Acondicionado', 'Siembra', 'Pulverización', 'Fertilización', 'Cosecha', 'Resiembra']
+const LABOR_FORRAJE: Record<string, string> = { desmalezada: 'Desmalezada', hilerada: 'Hilerada', rollos: 'Confección de rollos' }
+
+const ORDEN_HECTAREAS = ['Acondicionado', 'Siembra', 'Pulverización', 'Fertilización', 'Cosecha', 'Resiembra', 'Desmalezada', 'Hilerada', 'Confección de rollos']
 
 function fechaCorta(f: string | null) {
   if (!f) return '—'
@@ -103,6 +107,7 @@ export default function SeguimientoDashboard() {
   const [fertilizaciones, setFertilizaciones] = useState<Fertilizacion[]>([])
   const [cosechas, setCosechas] = useState<Cosecha[]>([])
   const [resiembras, setResiembras] = useState<Resiembra[]>([])
+  const [forraje, setForraje] = useState<Forraje[]>([])
   const [costosFijosDirectos, setCostosFijosDirectos] = useState<CostoFijoDirecto[]>([])
   const [distribucionCostosFijos, setDistribucionCostosFijos] = useState<CostoFijoDistribuido[]>([])
   const [loading, setLoading] = useState(true)
@@ -137,7 +142,7 @@ export default function SeguimientoDashboard() {
         cs, caps,
         acon, siem, apls, aplProds,
         fert, cos, resi,
-        cfDirectos, cfDistribuidos,
+        cfDirectos, cfDistribuidos, forr,
       ] = await Promise.all([
         fetchAll<Resumen>('vw_sa_resumen_ciclo', '*'),
         fetchAll<{ nombre: string }>('campanas', 'nombre'),
@@ -150,6 +155,7 @@ export default function SeguimientoDashboard() {
         fetchAll<Resiembra>('sa_resiembras', 'ciclo_id, fecha, superficie_ha'),
         fetchAll<CostoFijoDirecto>('sa_costos_fijos', 'ciclo_id, tipo, costo_total_usd'),
         fetchAll<CostoFijoDistribuido>('vw_distribucion_costos_fijos', 'ciclo_id, tipo, costo_ciclo, establecimiento, campana'),
+        fetchAll<Forraje>('sa_forraje', 'ciclo_id, tipo, fecha, superficie_ha, costo_usd_ha'),
       ])
       const nombres = Array.from(new Set((caps ?? []).map((c: any) => c.nombre))).sort().reverse()
       setCiclos(cs ?? [])
@@ -162,6 +168,7 @@ export default function SeguimientoDashboard() {
       setFertilizaciones(fert ?? [])
       setCosechas(cos ?? [])
       setResiembras(resi ?? [])
+      setForraje(forr ?? [])
       setCostosFijosDirectos(cfDirectos ?? [])
       setDistribucionCostosFijos(cfDistribuidos ?? [])
       setLoading(false)
@@ -246,7 +253,9 @@ export default function SeguimientoDashboard() {
   const haPulverizadas = aplicaciones.filter(a => cicloIds.has(a.ciclo_id)).reduce((acc, a) => acc + Number(a.superficie_ha ?? 0), 0)
   const haFertilizadas = fertilizaciones.filter(f => cicloIds.has(f.ciclo_id)).reduce((acc, f) => acc + Number(f.superficie_ha ?? 0), 0)
   const haResembradas = resiembras.filter(r => cicloIds.has(r.ciclo_id)).reduce((acc, r) => acc + Number(r.superficie_ha ?? 0), 0)
-  const haTrabajadas = haAcondicionadas + totalHaSembrada + haPulverizadas + haFertilizadas + totalHaCosechada + haResembradas
+  const forrajeCampana = forraje.filter(f => cicloIds.has(f.ciclo_id))
+  const haForrajePorLabor = (tipo: string) => forrajeCampana.filter(f => f.tipo === tipo).reduce((acc, f) => acc + Number(f.superficie_ha ?? 0), 0)
+  const haTrabajadas = haAcondicionadas + totalHaSembrada + haPulverizadas + haFertilizadas + totalHaCosechada + haResembradas + haForrajePorLabor('desmalezada') + haForrajePorLabor('hilerada') + haForrajePorLabor('rollos')
 
   const haTrabajadasDesglose: Record<string, number> = {
     Acondicionado: haAcondicionadas,
@@ -255,6 +264,9 @@ export default function SeguimientoDashboard() {
     Fertilización: haFertilizadas,
     Cosecha: totalHaCosechada,
     Resiembra: haResembradas,
+    Desmalezada: haForrajePorLabor('desmalezada'),
+    Hilerada: haForrajePorLabor('hilerada'),
+    'Confección de rollos': haForrajePorLabor('rollos'),
   }
 
   const detalleHectareas: Record<string, DetalleItem[]> = {
@@ -264,6 +276,9 @@ export default function SeguimientoDashboard() {
     Fertilización: agruparPorCiclo(fertilizaciones.filter(f => cicloIds.has(f.ciclo_id)).map(f => ({ ciclo_id: f.ciclo_id, valor: Number(f.superficie_ha ?? 0), fecha: f.fecha }))),
     Cosecha: agruparPorCiclo(ciclosCampana.filter(r => r.sup_cosechada).map(r => ({ ciclo_id: r.ciclo_id, valor: Number(r.sup_cosechada ?? 0), fecha: r.fecha_cosecha }))),
     Resiembra: agruparPorCiclo(resiembras.filter(r => cicloIds.has(r.ciclo_id)).map(r => ({ ciclo_id: r.ciclo_id, valor: Number(r.superficie_ha ?? 0), fecha: r.fecha }))),
+    Desmalezada: agruparPorCiclo(forrajeCampana.filter(f => f.tipo === 'desmalezada').map(f => ({ ciclo_id: f.ciclo_id, valor: Number(f.superficie_ha ?? 0), fecha: f.fecha }))),
+    Hilerada: agruparPorCiclo(forrajeCampana.filter(f => f.tipo === 'hilerada').map(f => ({ ciclo_id: f.ciclo_id, valor: Number(f.superficie_ha ?? 0), fecha: f.fecha }))),
+    'Confección de rollos': agruparPorCiclo(forrajeCampana.filter(f => f.tipo === 'rollos').map(f => ({ ciclo_id: f.ciclo_id, valor: Number(f.superficie_ha ?? 0), fecha: f.fecha }))),
   }
 
   // ── Costo de insumos ──
@@ -387,6 +402,15 @@ export default function SeguimientoDashboard() {
     rawServicioCosecha.push({ ciclo_id: c.ciclo_id, valor: costo, fecha: c.fecha })
   })
 
+  const rawServicioForraje: Record<string, { ciclo_id: number; valor: number; fecha: string | null }[]> = { 'Desmalezada': [], 'Hilerada': [], 'Confección de rollos': [] }
+  forrajeCampana.forEach(f => {
+    const label = LABOR_FORRAJE[f.tipo]
+    if (!label) return
+    const costo = Number(f.superficie_ha ?? 0) * Number(f.costo_usd_ha ?? 0)
+    costoServicios[label] += costo
+    rawServicioForraje[label].push({ ciclo_id: f.ciclo_id, valor: costo, fecha: f.fecha })
+  })
+
   const totalInsumosDesglose = Object.values(costoInsumos).reduce((a, b) => a + b, 0)
   const totalServiciosDesglose = Object.values(costoServicios).reduce((a, b) => a + b, 0)
 
@@ -408,6 +432,9 @@ export default function SeguimientoDashboard() {
     Pulverización: agruparPorCiclo(rawServicioPulverizacion),
     Fertilización: agruparPorCiclo(rawServicioFertilizacion),
     Cosecha: agruparPorCiclo(rawServicioCosecha),
+    Desmalezada: agruparPorCiclo(rawServicioForraje['Desmalezada']),
+    Hilerada: agruparPorCiclo(rawServicioForraje['Hilerada']),
+    'Confección de rollos': agruparPorCiclo(rawServicioForraje['Confección de rollos']),
   }
 
   // ── Costos fijos (seguro, asesoramiento, arrendamiento, etc.) ──
@@ -638,7 +665,7 @@ export default function SeguimientoDashboard() {
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Hectáreas Trabajadas</div>
           <div className="text-2xl font-bold text-campo-900">{fmt(haTrabajadas)}</div>
-          <div className="text-xs text-campo-400 mt-0.5">acondic. + siembra + pulv. + fert. + cosecha + resiembra</div>
+          <div className="text-xs text-campo-400 mt-0.5">acondic. + siembra + pulv. + fert. + cosecha + resiembra + rollos</div>
         </div>
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Costo Insumos</div>
@@ -648,7 +675,7 @@ export default function SeguimientoDashboard() {
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Costo Servicios</div>
           <div className="text-2xl font-bold text-campo-900">{fmtUsd(totalServiciosDesglose)}</div>
-          <div className="text-xs text-campo-400 mt-0.5">acondic. + siembra + pulv. + fert. + cosecha</div>
+          <div className="text-xs text-campo-400 mt-0.5">acondic. + siembra + pulv. + fert. + cosecha + rollos</div>
         </div>
         <div className="card p-5">
           <div className="text-xs font-semibold text-campo-500 uppercase tracking-wider mb-1">Costos Fijos</div>
