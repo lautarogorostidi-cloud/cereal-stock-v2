@@ -17,6 +17,7 @@ type Aplicacion = {
   superficie_ha: number
   campana: string
   lote: string
+  campo: string
   aplicador: string
   cultivo: string
   total_litros_kg: number
@@ -46,6 +47,7 @@ export default function AplicacionesAgroquimicosPage() {
   const [campanaSeleccionada, setCampanaSeleccionada] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [aplicadorSel, setAplicadorSel] = useState('')
+  const [campoSel, setCampoSel] = useState('')
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
   const [loading, setLoading] = useState(true)
@@ -83,7 +85,7 @@ export default function AplicacionesAgroquimicosPage() {
           costo_servicio_usd_ha,
           sa_ciclos!inner(
             campanas!inner(nombre),
-            lotes!inner(nombre),
+            lotes!inner(nombre, establecimiento),
             cultivos!inner(nombre)
           )
         )
@@ -115,6 +117,7 @@ export default function AplicacionesAgroquimicosPage() {
         const ciclo = apl?.sa_ciclos
         const campana = ciclo?.campanas?.nombre ?? ''
         const lote = ciclo?.lotes?.nombre ?? ''
+        const campo = String(ciclo?.lotes?.establecimiento ?? '').trim() || 'Sin campo'
         const cultivo = ciclo?.cultivos?.nombre ?? ''
         const superficie = Number(apl?.superficie_ha ?? 0)
         const dosis = Number(ap.dosis_ha ?? 0)
@@ -136,6 +139,7 @@ export default function AplicacionesAgroquimicosPage() {
           superficie_ha: superficie,
           campana,
           lote,
+          campo,
           aplicador: String(apl?.proveedor ?? '').trim() || 'Sin aplicador',
           cultivo,
           total_litros_kg: dosis * superficie,
@@ -151,10 +155,12 @@ export default function AplicacionesAgroquimicosPage() {
     setLoading(false)
   }
 
+  const campos = Array.from(new Set(aplicaciones.map(a => a.campo))).sort((a, b) => a.localeCompare(b))
   const aplicadores = Array.from(new Set(aplicaciones.map(a => a.aplicador))).sort((a, b) => a.localeCompare(b))
 
   const filtradas = aplicaciones.filter(ap => {
     if (aplicadorSel && ap.aplicador !== aplicadorSel) return false
+    if (campoSel && ap.campo !== campoSel) return false
     if (desde && ap.fecha < desde) return false
     if (hasta && ap.fecha > hasta) return false
     if (!busqueda) return true
@@ -206,6 +212,25 @@ export default function AplicacionesAgroquimicosPage() {
     if (a.fecha && a.fecha > r.ultima) r.ultima = a.fecha
     return acc
   }, {})
+
+  // Resumen por lote: cada aplicación cuenta una sola vez (no una por producto)
+  const resumenLote = (() => {
+    const m = new Map<string, { campo: string; lote: string; cultivo: string; aplicaciones: Set<number>; ha: number; insumos: number; servicio: number; productos: Set<string>; ultima: string }>()
+    const hectareasVistas = new Set<number>()
+    filtradas.forEach(a => {
+      const k = `${a.campo}|${a.lote}|${a.cultivo}`
+      let r = m.get(k)
+      if (!r) { r = { campo: a.campo, lote: a.lote, cultivo: a.cultivo, aplicaciones: new Set(), ha: 0, insumos: 0, servicio: 0, productos: new Set(), ultima: '' }; m.set(k, r) }
+      if (!hectareasVistas.has(a.aplicacion_id)) { hectareasVistas.add(a.aplicacion_id); r.ha += a.superficie_ha }
+      r.aplicaciones.add(a.aplicacion_id)
+      r.insumos += a.costo_insumos_usd
+      r.servicio += a.costo_servicio_usd
+      r.productos.add(a.producto)
+      if (a.fecha && a.fecha > r.ultima) r.ultima = a.fecha
+    })
+    return Array.from(m.values()).sort((x, y) => x.campo.localeCompare(y.campo) || x.lote.localeCompare(y.lote, 'es', { numeric: true }))
+  })()
+  const totalesLote = resumenLote.reduce((t, r) => ({ aplicaciones: t.aplicaciones + r.aplicaciones.size, ha: t.ha + r.ha, insumos: t.insumos + r.insumos, servicio: t.servicio + r.servicio }), { aplicaciones: 0, ha: 0, insumos: 0, servicio: 0 })
 
   // Resumen por producto
   const resumenProducto = filtradas.reduce((acc: Record<string, { total: number; insumos: number; servicio: number; hectareas: number; unidad: string }>, a) => {
@@ -284,9 +309,14 @@ export default function AplicacionesAgroquimicosPage() {
 
       {/* Filtros */}
       <div className="flex gap-3 items-center flex-wrap">
-        <select value={campanaSeleccionada} onChange={e => setCampanaSeleccionada(e.target.value)}
+        <select value={campanaSeleccionada} onChange={e => { setCampanaSeleccionada(e.target.value); setCampoSel(''); setAplicadorSel('') }}
           className="rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
           {campanas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+        </select>
+        <select value={campoSel} onChange={e => setCampoSel(e.target.value)}
+          className="rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+          <option value="">Todos los campos</option>
+          {campos.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
         <select value={aplicadorSel} onChange={e => setAplicadorSel(e.target.value)}
           className="rounded-lg border border-campo-200 px-3 py-2 text-sm text-campo-900 focus:outline-none focus:ring-2 focus:ring-emerald-400">
@@ -342,6 +372,61 @@ export default function AplicacionesAgroquimicosPage() {
                     </tr>
                   ))}
               </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Resumen por lote */}
+      {resumenLote.length > 0 && (
+        <div className="card overflow-hidden p-0">
+          <div className="px-5 py-3 border-b border-campo-100 bg-campo-50">
+            <h2 className="font-semibold text-campo-700 text-sm">Resumen por lote — {campanaSeleccionada}{campoSel ? ` · ${campoSel}` : ''}</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-campo-100">
+                  <th className="text-left px-5 py-2 font-semibold text-campo-700">Campo</th>
+                  <th className="text-left px-5 py-2 font-semibold text-campo-700">Lote</th>
+                  <th className="text-left px-5 py-2 font-semibold text-campo-700">Cultivo</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Aplicaciones</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Ha aplicadas</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Productos</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Costo insumos</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Costo servicio</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Costo total</th>
+                  <th className="text-right px-5 py-2 font-semibold text-campo-700">Última</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumenLote.map(r => (
+                  <tr key={`${r.campo}|${r.lote}|${r.cultivo}`} className="border-b border-campo-50 hover:bg-campo-50/50">
+                    <td className="px-5 py-2 text-campo-600">{r.campo}</td>
+                    <td className="px-5 py-2 font-medium text-campo-900">{r.lote}</td>
+                    <td className="px-5 py-2 text-campo-600">{r.cultivo}</td>
+                    <td className="px-5 py-2 text-right text-campo-700">{r.aplicaciones.size}</td>
+                    <td className="px-5 py-2 text-right text-campo-700">{fmt(r.ha)} <span className="text-xs text-campo-400">ha</span></td>
+                    <td className="px-5 py-2 text-right text-campo-700">{r.productos.size}</td>
+                    <td className="px-5 py-2 text-right text-campo-700">{fmtUsd(r.insumos)}</td>
+                    <td className="px-5 py-2 text-right text-campo-700">{fmtUsd(r.servicio)}</td>
+                    <td className="px-5 py-2 text-right font-medium text-campo-900">{fmtUsd(r.insumos + r.servicio)}</td>
+                    <td className="px-5 py-2 text-right text-campo-600">{fmtFecha(r.ultima)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-campo-50 font-semibold">
+                  <td className="px-5 py-2 text-campo-900" colSpan={3}>Total ({resumenLote.length} {resumenLote.length === 1 ? 'lote' : 'lotes'})</td>
+                  <td className="px-5 py-2 text-right text-campo-900">{totalesLote.aplicaciones}</td>
+                  <td className="px-5 py-2 text-right text-campo-900">{fmt(totalesLote.ha)} <span className="text-xs text-campo-400">ha</span></td>
+                  <td className="px-5 py-2"></td>
+                  <td className="px-5 py-2 text-right text-campo-900">{fmtUsd(totalesLote.insumos)}</td>
+                  <td className="px-5 py-2 text-right text-campo-900">{fmtUsd(totalesLote.servicio)}</td>
+                  <td className="px-5 py-2 text-right text-campo-900">{fmtUsd(totalesLote.insumos + totalesLote.servicio)}</td>
+                  <td className="px-5 py-2"></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
