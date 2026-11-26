@@ -158,13 +158,14 @@ export default function FacturacionPage() {
             {[1, 2, 3, 4].map(t => <option key={t} value={t}>T{t}</option>)}
           </select>
         )}
-        {periodo === 'custom' && (
-          <>
-            <input type="date" value={desdeC} onChange={e => setDesdeC(e.target.value)} className={selCls} />
-            <span className="text-campo-400 text-sm">a</span>
-            <input type="date" value={hastaC} onChange={e => setHastaC(e.target.value)} className={selCls} />
-          </>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-campo-500">Desde</span>
+          <input type="date" value={desde.startsWith('0000') ? '' : desde}
+            onChange={e => { setDesdeC(e.target.value); setHastaC(hasta.startsWith('9999') ? '' : hasta); setPeriodo('custom') }} className={selCls} />
+          <span className="text-xs font-medium text-campo-500">Hasta</span>
+          <input type="date" value={hasta.startsWith('9999') ? '' : hasta}
+            onChange={e => { setHastaC(e.target.value); setDesdeC(desde.startsWith('0000') ? '' : desde); setPeriodo('custom') }} className={selCls} />
+        </div>
         <div className="ml-auto text-sm font-semibold text-campo-700">{tituloPeriodo}</div>
       </div>
 
