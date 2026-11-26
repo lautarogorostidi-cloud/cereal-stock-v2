@@ -10,7 +10,7 @@ const nav = [
   { href: '/camion',               label: 'Rentabilidad',  icon: '📊' },
   { href: '/camion/viajes',        label: 'Viajes',        icon: '🚛' },
   { href: '/camion/costos',        label: 'Costos',        icon: '🧾' },
-  { href: '/camion/cobranzas',     label: 'Cobranzas',     icon: '💵' },
+  { href: '/camion/cobranzas',     label: 'Facturación',    icon: '💵' },
 ]
 
 interface SidebarProps { perfil: Perfil | null }
