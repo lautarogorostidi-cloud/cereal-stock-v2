@@ -11,8 +11,8 @@ type StockItem = {
   unidad: string
   stock_actual: number
   activo: boolean
-  costo_promedio: number   // USD/unidad, promedio ponderado de compras
-  valor_stock: number      // stock_actual * costo_promedio
+  costo_promedio: number   // USD/unidad, costo FIFO de los lotes que quedan sin consumir
+  valor_stock: number      // valor FIFO del stock remanente
 }
 
 type DescuentoDesparejo = { aplicacion_id: number; ciclo_id: number; fecha: string; producto: string; esperado: number; descontado: number; diferencia: number }
@@ -36,10 +36,7 @@ export default function StockAgroquimicosPage() {
       { data: desp, error: errDesp },
     ] = await Promise.all([
       supabase.from('vw_stock_agroquimicos').select('*').order('tipo').order('producto'),
-      supabase.from('agroquimicos_movimientos')
-        .select('producto_id, cantidad, precio_unitario')
-        .eq('tipo', 'compra')
-        .not('precio_unitario', 'is', null),
+      supabase.from('vw_agro_fifo_stock').select('producto_id, stock_fifo, valor_fifo'),
       supabase.from('vw_control_descuento_agroquimicos').select('*').order('fecha', { ascending: false }),
     ])
     setDesparejos((desp ?? []) as DescuentoDesparejo[])
@@ -49,23 +46,19 @@ export default function StockAgroquimicosPage() {
     const fallo = errStock ?? errCompras ?? errDesp
     setErrorCarga(fallo ? fallo.message : null)
 
-    // Costo promedio ponderado de compra por producto (USD/unidad)
-    const acumPorProducto: Record<number, { totalUsd: number; totalCantidad: number }> = {}
+    // Valor FIFO: lo que queda sin consumir de cada compra, a su precio de compra
+    const fifoPorProducto: Record<number, { stock: number; valor: number }> = {}
     ;(comprasData ?? []).forEach((c: any) => {
-      const cantidad = Number(c.cantidad ?? 0)
-      const precio = Number(c.precio_unitario ?? 0)
-      if (cantidad <= 0 || precio <= 0) return
-      if (!acumPorProducto[c.producto_id]) acumPorProducto[c.producto_id] = { totalUsd: 0, totalCantidad: 0 }
-      acumPorProducto[c.producto_id].totalUsd += cantidad * precio
-      acumPorProducto[c.producto_id].totalCantidad += cantidad
+      fifoPorProducto[c.producto_id] = { stock: Number(c.stock_fifo ?? 0), valor: Number(c.valor_fifo ?? 0) }
     })
 
     const lista: StockItem[] = (stockData ?? [])
       .filter((r: any) => r.activo)
       .map((r: any) => {
         const stockActual = Number(r.stock_actual ?? 0)
-        const acum = acumPorProducto[r.producto_id]
-        const costoPromedio = acum && acum.totalCantidad > 0 ? acum.totalUsd / acum.totalCantidad : 0
+        const fifo = fifoPorProducto[r.producto_id]
+        const valorFifo = fifo && fifo.stock > 0 ? fifo.valor : 0
+        const costoPromedio = fifo && fifo.stock > 0 ? fifo.valor / fifo.stock : 0
         return {
           producto_id: r.producto_id,
           producto: r.producto,
@@ -75,7 +68,7 @@ export default function StockAgroquimicosPage() {
           stock_actual: stockActual,
           activo: r.activo,
           costo_promedio: costoPromedio,
-          valor_stock: stockActual * costoPromedio,
+          valor_stock: valorFifo,
         }
       })
 
