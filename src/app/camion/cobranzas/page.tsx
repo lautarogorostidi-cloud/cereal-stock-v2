@@ -9,6 +9,7 @@ type Cliente = { id: number; nombre: string }
 type ViajeT = {
   id: number; cliente_id: number; fecha: string; carga: string | null; origen: string | null; destino: string | null
   toneladas: number; tarifa_usd_tn: number; monto_usd: number
+  pagado: boolean; fecha_pago: string | null
 }
 
 type Periodo = 'mes' | 'trimestre' | 'anio' | 'todo' | 'custom'
@@ -39,13 +40,24 @@ export default function FacturacionPage() {
     const [{ data: c }, { data: v }] = await Promise.all([
       supabase.from('camion_clientes').select('id, nombre').eq('activo', true).order('nombre'),
       fetchAllRows<ViajeT>(() => supabase.from('camion_viajes_terceros')
-        .select('id, cliente_id, fecha, carga, origen, destino, toneladas, tarifa_usd_tn, monto_usd').order('fecha', { ascending: false }).order('id')),
+        .select('id, cliente_id, fecha, carga, origen, destino, toneladas, tarifa_usd_tn, monto_usd, pagado, fecha_pago').order('fecha', { ascending: false }).order('id')),
     ])
     setClientes((c ?? []) as Cliente[])
     setViajes(v ?? [])
     setLoading(false)
   }
   useEffect(() => { cargar() }, [])
+
+  const hoy = () => new Date().toISOString().slice(0, 10)
+
+  async function marcarPago(ids: number[], pagado: boolean, fecha?: string | null) {
+    if (ids.length === 0) return
+    const fechaPago = pagado ? (fecha || hoy()) : null
+    const previos = viajes
+    setViajes(vs => vs.map(v => ids.includes(v.id) ? { ...v, pagado, fecha_pago: fechaPago } : v))
+    const { error } = await supabase.from('camion_viajes_terceros').update({ pagado, fecha_pago: fechaPago }).in('id', ids)
+    if (error) { setViajes(previos); alert(error.message) }
+  }
 
   async function crearCliente() {
     if (!nuevoCli.nombre.trim()) return
@@ -77,18 +89,25 @@ export default function FacturacionPage() {
   const viajesPeriodo = useMemo(() => viajes.filter(v => v.fecha >= desde && v.fecha <= hasta), [viajes, desde, hasta])
 
   const cuentas = useMemo(() => {
-    const m = new Map<number, { viajes: number; facturado: number }>()
+    const m = new Map<number, { viajes: number; facturado: number; cobrado: number; pendientes: number }>()
     viajesPeriodo.forEach(v => {
-      const r = m.get(v.cliente_id) ?? { viajes: 0, facturado: 0 }
+      const r = m.get(v.cliente_id) ?? { viajes: 0, facturado: 0, cobrado: 0, pendientes: 0 }
       r.viajes += 1
       r.facturado += n(v.monto_usd)
+      if (v.pagado) r.cobrado += n(v.monto_usd)
+      else r.pendientes += 1
       m.set(v.cliente_id, r)
     })
     return clientes
-      .map(c => ({ id: c.id, nombre: c.nombre, viajes: m.get(c.id)?.viajes ?? 0, facturado: m.get(c.id)?.facturado ?? 0 }))
+      .map(c => {
+        const r = m.get(c.id)
+        const facturado = r?.facturado ?? 0, cobrado = r?.cobrado ?? 0
+        return { id: c.id, nombre: c.nombre, viajes: r?.viajes ?? 0, facturado, cobrado, pendiente: facturado - cobrado, pendientes: r?.pendientes ?? 0 }
+      })
       // con "Todo" se muestran todos los clientes; con un período, solo los que tuvieron viajes
       .filter(c => periodo === 'todo' || c.viajes > 0)
-      .sort((a, b) => b.facturado - a.facturado || a.nombre.localeCompare(b.nombre))
+      // primero los que más deben
+      .sort((a, b) => b.pendiente - a.pendiente || b.facturado - a.facturado || a.nombre.localeCompare(b.nombre))
   }, [clientes, viajesPeriodo, periodo])
 
   const q = busqueda.trim().toLowerCase()
@@ -96,6 +115,8 @@ export default function FacturacionPage() {
 
   const totFact = visibles.reduce((a, c) => a + c.facturado, 0)
   const totViajes = visibles.reduce((a, c) => a + c.viajes, 0)
+  const totCobrado = visibles.reduce((a, c) => a + c.cobrado, 0)
+  const totPendiente = visibles.reduce((a, c) => a + c.pendiente, 0)
 
   const sel = cuentas.find(c => c.id === selId) ?? null
   const viajesSel = sel ? viajesPeriodo.filter(v => v.cliente_id === sel.id) : []
@@ -115,7 +136,7 @@ export default function FacturacionPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-campo-900">Facturación</h1>
-          <p className="text-campo-500 text-sm mt-0.5">Viajes y monto facturado por cliente de los viajes que el camión hace para terceros (USD)</p>
+          <p className="text-campo-500 text-sm mt-0.5">Quién pagó los viajes que el camión hace para terceros y quién todavía debe (USD)</p>
         </div>
         <button onClick={() => setShowCli(!showCli)} className="bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg">+ Nuevo cliente</button>
       </div>
@@ -188,19 +209,36 @@ export default function FacturacionPage() {
                 <th className="px-3 py-2 text-left">Cliente</th>
                 <th className="px-3 py-2 text-right">Viajes</th>
                 <th className="px-3 py-2 text-right">Facturado</th>
+                <th className="px-3 py-2 text-right">Cobrado</th>
+                <th className="px-3 py-2 text-right">Pendiente</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-campo-50">
-              {loading && <tr><td colSpan={3} className="px-3 py-8 text-center text-campo-400">Cargando…</td></tr>}
-              {!loading && cuentas.length === 0 && <tr><td colSpan={3} className="px-3 py-8 text-center text-campo-400">{periodo === 'todo' ? 'Todavía no hay clientes de terceros. Se crean al cargar un viaje de tercero o con “Nuevo cliente”.' : 'No hay viajes facturados en este período.'}</td></tr>}
-              {!loading && cuentas.length > 0 && visibles.length === 0 && <tr><td colSpan={3} className="px-3 py-8 text-center text-campo-400">Ningún cliente coincide con la búsqueda.</td></tr>}
+              {loading && <tr><td colSpan={5} className="px-3 py-8 text-center text-campo-400">Cargando…</td></tr>}
+              {!loading && cuentas.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-campo-400">{periodo === 'todo' ? 'Todavía no hay clientes de terceros. Se crean al cargar un viaje de tercero o con “Nuevo cliente”.' : 'No hay viajes facturados en este período.'}</td></tr>}
+              {!loading && cuentas.length > 0 && visibles.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-campo-400">Ningún cliente coincide con la búsqueda.</td></tr>}
               {visibles.map(c => (
                 <tr key={c.id} onClick={() => setSelId(c.id)} className={`cursor-pointer hover:bg-campo-50/60 ${selId === c.id ? 'bg-amber-50' : ''}`}>
                   <td className="px-3 py-2 font-medium">{c.nombre}</td>
                   <td className="px-3 py-2 text-right">{c.viajes}</td>
-                  <td className="px-3 py-2 text-right font-semibold">{fmtUsd(c.facturado)}</td>
+                  <td className="px-3 py-2 text-right">{fmtUsd(c.facturado)}</td>
+                  <td className="px-3 py-2 text-right text-emerald-700">{fmtUsd(c.cobrado)}</td>
+                  <td className="px-3 py-2 text-right">
+                    {c.pendiente > 0.005
+                      ? <><span className="font-semibold text-red-600">{fmtUsd(c.pendiente)}</span><div className="text-[11px] text-campo-400">{c.pendientes} {c.pendientes === 1 ? 'viaje' : 'viajes'}</div></>
+                      : c.viajes > 0 ? <span className="text-xs font-medium text-emerald-700">Al día</span> : <span className="text-campo-300">—</span>}
+                  </td>
                 </tr>
               ))}
+              {visibles.length > 0 && (
+                <tr className="bg-campo-50 font-semibold">
+                  <td className="px-3 py-2">Total</td>
+                  <td className="px-3 py-2 text-right">{totViajes}</td>
+                  <td className="px-3 py-2 text-right">{fmtUsd(totFact)}</td>
+                  <td className="px-3 py-2 text-right text-emerald-700">{fmtUsd(totCobrado)}</td>
+                  <td className="px-3 py-2 text-right text-red-600">{fmtUsd(totPendiente)}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -208,19 +246,47 @@ export default function FacturacionPage() {
         {sel ? (
           <div className="card p-0 overflow-hidden">
             <div className="px-4 py-3 border-b border-campo-100 flex items-center justify-between">
-              <h2 className="font-semibold text-sm text-campo-900">{sel.nombre} — viajes facturados</h2>
-              <span className="text-sm font-semibold text-campo-900">{fmtUsd(sel.facturado)}</span>
+              <div>
+                <h2 className="font-semibold text-sm text-campo-900">{sel.nombre} — viajes</h2>
+                <div className="text-xs text-campo-500 mt-0.5">
+                  Facturado {fmtUsd(sel.facturado)} · Cobrado <span className="text-emerald-700">{fmtUsd(sel.cobrado)}</span> · Pendiente <span className={sel.pendiente > 0.005 ? 'text-red-600 font-semibold' : ''}>{fmtUsd(sel.pendiente)}</span>
+                </div>
+              </div>
+              {sel.pendientes > 0 && (
+                <button
+                  onClick={() => { if (confirm(`¿Marcar como cobrados los ${sel.pendientes} viajes pendientes de ${sel.nombre} (${fmtUsd(sel.pendiente)})?`)) marcarPago(viajesSel.filter(v => !v.pagado).map(v => v.id), true) }}
+                  className="text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg">
+                  Marcar todos cobrados
+                </button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm whitespace-nowrap">
+                <thead className="bg-campo-50 text-campo-600 text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="px-4 py-2 text-left">Fecha</th>
+                    <th className="px-4 py-2 text-left">Viaje</th>
+                    <th className="px-4 py-2 text-right">Detalle</th>
+                    <th className="px-4 py-2 text-right">Monto</th>
+                    <th className="px-4 py-2 text-left">Pago</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-campo-50">
-                  {viajesSel.length === 0 && <tr><td className="px-4 py-4 text-center text-campo-400">Sin viajes en este período</td></tr>}
+                  {viajesSel.length === 0 && <tr><td colSpan={5} className="px-4 py-4 text-center text-campo-400">Sin viajes en este período</td></tr>}
                   {viajesSel.map(v => (
-                    <tr key={v.id}>
+                    <tr key={v.id} className={v.pagado ? '' : 'bg-red-50/40'}>
                       <td className="px-4 py-2">{fmtFecha(v.fecha)}</td>
                       <td className="px-4 py-2">{[v.carga, v.destino].filter(Boolean).join(' → ') || '—'}</td>
                       <td className="px-4 py-2 text-right">{fmtNum(v.toneladas, 2)} tn × {fmtNum(v.tarifa_usd_tn, 2)}</td>
                       <td className="px-4 py-2 text-right font-semibold">{fmtUsd(v.monto_usd)}</td>
+                      <td className="px-4 py-2">
+                        <label className="inline-flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={v.pagado} onChange={e => marcarPago([v.id], e.target.checked)} className="h-4 w-4 accent-emerald-600" />
+                          {v.pagado
+                            ? <input type="date" value={v.fecha_pago ?? ''} onChange={e => marcarPago([v.id], true, e.target.value || hoy())} className="rounded border border-campo-200 px-1.5 py-0.5 text-xs bg-white" />
+                            : <span className="text-xs font-medium text-red-600">Pendiente</span>}
+                        </label>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -228,7 +294,7 @@ export default function FacturacionPage() {
             </div>
           </div>
         ) : (
-          <div className="card p-8 text-center text-campo-400 text-sm">Seleccioná un cliente para ver sus viajes facturados.</div>
+          <div className="card p-8 text-center text-campo-400 text-sm">Seleccioná un cliente para ver sus viajes y marcar cuáles ya pagó.</div>
         )}
       </div>
     </div>
