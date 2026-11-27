@@ -228,7 +228,7 @@ export default function AplicacionesAgroquimicosPage() {
       r.productos.add(a.producto)
       if (a.fecha && a.fecha > r.ultima) r.ultima = a.fecha
     })
-    return Array.from(m.values()).sort((x, y) => x.campo.localeCompare(y.campo) || x.lote.localeCompare(y.lote, 'es', { numeric: true }))
+    return Array.from(m.values()).sort((x, y) => x.ultima.localeCompare(y.ultima) || x.campo.localeCompare(y.campo) || x.lote.localeCompare(y.lote, 'es', { numeric: true }))
   })()
   const totalesLote = resumenLote.reduce((t, r) => ({ aplicaciones: t.aplicaciones + r.aplicaciones.size, ha: t.ha + r.ha, insumos: t.insumos + r.insumos, servicio: t.servicio + r.servicio }), { aplicaciones: 0, ha: 0, insumos: 0, servicio: 0 })
 
