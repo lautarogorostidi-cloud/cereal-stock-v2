@@ -149,7 +149,7 @@ export default function AplicacionesAgroquimicosPage() {
         }
       })
       .filter((ap: Aplicacion) => ap.campana === campanaSeleccionada)
-      .sort((a: Aplicacion, b: Aplicacion) => b.fecha.localeCompare(a.fecha))
+      .sort((a: Aplicacion, b: Aplicacion) => a.fecha.localeCompare(b.fecha) || Number(a.aplicacion_id) - Number(b.aplicacion_id))
 
     setAplicaciones(transformados)
     setLoading(false)
@@ -171,7 +171,7 @@ export default function AplicacionesAgroquimicosPage() {
       ap.cultivo.toLowerCase().includes(q) ||
       ap.tipo.toLowerCase().includes(q)
     )
-  })
+  }).sort((a, b) => a.fecha.localeCompare(b.fecha) || Number(a.aplicacion_id) - Number(b.aplicacion_id))
 
   // KPIs
   const cantidadAplicaciones = new Set(filtradas.map(a => a.aplicacion_id)).size
